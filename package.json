@@ -11,9 +11,13 @@
     "dev": "turbo run dev --parallel",
     "build": "turbo run build",
     "lint": "turbo run lint",
-    "typecheck": "turbo run typecheck"
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "lighthouse:mobile": "lighthouse http://127.0.0.1:4321 --form-factor=mobile --screenEmulation.mobile=true --only-categories=performance,accessibility,best-practices,seo --output=html --output-path=apps/web-public/lighthouse-mobile.html --chrome-flags=\"--headless --no-sandbox\" --no-enable-error-reporting",
+    "lighthouse:desktop": "lighthouse http://127.0.0.1:4321 --preset=desktop --only-categories=performance,accessibility,best-practices,seo --output=html --output-path=apps/web-public/lighthouse-desktop.html --chrome-flags=\"--headless --no-sandbox\" --no-enable-error-reporting"
   },
   "devDependencies": {
-    "turbo": "latest"
+    "lighthouse": "12.8.2",
+    "turbo": "2.8.10"
   }
 }
