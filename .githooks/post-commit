@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+set -u
+
+# Auto-push resiliente para manter o repo remoto atualizado.
+# Desativar em um commit específico:
+# PROFORMA_SKIP_AUTO_PUSH=1 git commit -m "..."
+
+if [[ "${PROFORMA_SKIP_AUTO_PUSH:-0}" == "1" ]]; then
+  exit 0
+fi
+
+branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+if [[ "$branch" == "HEAD" || -z "$branch" ]]; then
+  exit 0
+fi
+
+git_dir="$(git rev-parse --git-dir 2>/dev/null || echo .git)"
+pending_file="$git_dir/autopush.pending"
+log_file="$git_dir/autopush.log"
+lock_dir="$git_dir/autopush.lock"
+
+head_sha="$(git rev-parse HEAD 2>/dev/null || true)"
+if [[ -n "$head_sha" ]]; then
+  touch "$pending_file"
+  if ! grep -q "$head_sha" "$pending_file" 2>/dev/null; then
+    echo "$head_sha" >> "$pending_file"
+  fi
+fi
+
+# Evita concorrencia entre commits muito proximos.
+if ! mkdir "$lock_dir" 2>/dev/null; then
+  exit 0
+fi
+trap 'rmdir "$lock_dir" >/dev/null 2>&1 || true' EXIT
+
+log() {
+  printf '%s %s\n' "$(date -Iseconds)" "$1" >> "$log_file"
+}
+
+push_once() {
+  if git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
+    git push >> "$log_file" 2>&1
+  else
+    git push -u origin "$branch" >> "$log_file" 2>&1
+  fi
+}
+
+attempts=4
+sleep_s=5
+for i in $(seq 1 "$attempts"); do
+  if push_once; then
+    : > "$pending_file"
+    log "autopush success branch=$branch attempt=$i"
+    exit 0
+  fi
+  log "autopush failed branch=$branch attempt=$i"
+  sleep "$sleep_s"
+done
+
+log "autopush deferred branch=$branch pending=1"
+exit 0
