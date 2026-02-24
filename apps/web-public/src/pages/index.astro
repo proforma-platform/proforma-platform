@@ -1,48 +1,93 @@
 ---
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
-import { Button, Card, Container, Typography } from "@proforma/design-system";
+import CTASectionPattern from "../components/patterns/CTASectionPattern.astro";
+import FeatureGridPattern from "../components/patterns/FeatureGridPattern.astro";
+import FooterPattern from "../components/patterns/FooterPattern.astro";
+import HeroPattern from "../components/patterns/HeroPattern.astro";
+import ProductSwitcherPattern from "../components/patterns/ProductSwitcherPattern.astro";
 import PublicLayout from "../layouts/PublicLayout.astro";
 
-const hero = renderToStaticMarkup(
-  createElement(
-    Container,
-    { maxWidth: "lg", as: "section", className: "home-shell" },
-    createElement(
-      Card,
-      { className: "home-hero" },
-      createElement(Typography, { variant: "h1" }, "Ecossistema Proforma Platform"),
-      createElement(
-        Typography,
-        { variant: "body", as: "p", className: "home-lead" },
-        "Plataforma institucional para apresentação das soluções do grupo, com separação clara entre experiência pública e portal do cliente."
-      ),
-      createElement(
-        "div",
-        { className: "home-cta-row" },
-        createElement(
-          Button,
-          { variant: "primary", size: "md", type: "button", "aria-label": "Explorar o portfólio Proforma" },
-          "Explorar Portfólio"
-        )
-      ),
-      createElement(
-        "ul",
-        { className: "home-links" },
-        createElement("li", null, createElement("a", { href: "/produtos" }, "Portfólio completo de produtos")),
-        createElement("li", null, createElement("a", { href: "/seguranca" }, "Princípios e práticas de segurança")),
-        createElement("li", null, createElement("a", { href: "/arquitetura" }, "Arquitetura técnica do monorepo")),
-        createElement("li", null, createElement("a", { href: "/evolucao" }, "Evolução planejada da plataforma")),
-        createElement("li", null, createElement("a", { href: "/contato" }, "Canais comerciais e institucionais"))
-      )
-    )
-  )
-);
+const productItems = [
+  {
+    name: "ProformaFarm",
+    description: "ERP farmacêutico para padronizar operação, rastreabilidade e governança fiscal.",
+    href: "/proformafarm",
+    accent: "farm" as const,
+  },
+  {
+    name: "MedCore",
+    description: "Plataforma clínica com dados estruturados, processos auditáveis e evolução modular.",
+    href: "/medcore",
+    accent: "medcore" as const,
+  },
+];
+
+const featureItems = [
+  {
+    title: "Segurança",
+    description: "Princípios de hardening aplicados para proteger canais críticos e dados operacionais.",
+  },
+  {
+    title: "Conformidade",
+    description: "Governança documental e rastreabilidade para evolução contínua com auditoria clara.",
+  },
+  {
+    title: "Integrações",
+    description: "Arquitetura preparada para conectar serviços e fluxos corporativos sem acoplamento excessivo.",
+  },
+  {
+    title: "Escala",
+    description: "Fundação multi-produto desenhada para crescimento progressivo sem regressão estrutural.",
+  },
+  {
+    title: "Observabilidade",
+    description: "Direcionamento para operação com monitoramento e padrões de resposta a incidentes.",
+  },
+  {
+    title: "Dados",
+    description: "Base orientada a qualidade e governança para suportar decisões e automação.",
+  },
+];
 ---
 
 <PublicLayout
   title="Plataforma institucional"
-  description="Proforma Platform: produtos, segurança, arquitetura e evolução da plataforma."
+  description="Proforma Platform: segurança, conformidade e escala para produtos SaaS multi-setor."
 >
-  <Fragment set:html={hero} />
+  <HeroPattern
+    title="Uma plataforma que conecta operação, dados e governança."
+    description="Proforma Platform integra produtos SaaS sob uma arquitetura moderna, com foco em performance, segurança e maturidade operacional."
+    primaryCtaLabel="Falar com Especialista"
+    primaryCtaHref="/contato"
+    secondaryCtaLabel="Ver Soluções"
+    secondaryCtaHref="#solucoes"
+  />
+
+  <ProductSwitcherPattern
+    id="solucoes"
+    title="Soluções para operação farmacêutica e clínica"
+    description="Cada produto foi desenhado para resolver dores específicas, mantendo linguagem de plataforma única."
+    items={productItems}
+  />
+
+  <FeatureGridPattern
+    title="Capacidades compartilhadas da plataforma"
+    items={featureItems}
+  />
+
+  <CTASectionPattern
+    title="Pronto para evoluir sua operação com base sólida?"
+    description="Converse com o time Proforma para mapear prioridades e estruturar o próximo ciclo de crescimento."
+    ctaLabel="Entrar em Contato"
+    ctaHref="/contato"
+  />
+
+  <FooterPattern
+    title="Acesse áreas institucionais"
+    links={[
+      { label: "Arquitetura", href: "/arquitetura" },
+      { label: "Segurança", href: "/seguranca" },
+      { label: "Contato", href: "/contato" },
+      { label: "Produtos", href: "/produtos" },
+    ]}
+  />
 </PublicLayout>

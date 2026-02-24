@@ -1,0 +1,60 @@
+---
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { Button, Card, Container, Typography } from "@proforma/design-system";
+
+interface Props {
+  title: string;
+  description: string;
+  primaryCtaLabel: string;
+  primaryCtaHref: string;
+  secondaryCtaLabel: string;
+  secondaryCtaHref: string;
+}
+
+const {
+  title,
+  description,
+  primaryCtaLabel,
+  primaryCtaHref,
+  secondaryCtaLabel,
+  secondaryCtaHref,
+} = Astro.props as Props;
+
+const heroHtml = renderToStaticMarkup(
+  createElement(
+    Container,
+    { as: "section", maxWidth: "lg", className: "home-section" },
+    createElement(
+      Card,
+      { className: "home-hero" },
+      createElement(Typography, { variant: "h1" }, title),
+      createElement(Typography, { variant: "body", as: "p", className: "home-lead" }, description),
+      createElement(
+        "div",
+        { className: "home-cta-row" },
+        createElement(
+          "form",
+          { action: primaryCtaHref, method: "get" },
+          createElement(
+            Button,
+            { type: "submit", variant: "primary", size: "md", "aria-label": primaryCtaLabel },
+            primaryCtaLabel
+          )
+        ),
+        createElement(
+          "form",
+          { action: secondaryCtaHref, method: "get" },
+          createElement(
+            Button,
+            { type: "submit", variant: "secondary", size: "md", "aria-label": secondaryCtaLabel },
+            secondaryCtaLabel
+          )
+        )
+      )
+    )
+  )
+);
+---
+
+<Fragment set:html={heroHtml} />

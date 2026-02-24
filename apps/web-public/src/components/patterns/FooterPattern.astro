@@ -1,0 +1,46 @@
+---
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { Card, Container, Typography } from "@proforma/design-system";
+
+interface LinkItem {
+  label: string;
+  href: string;
+}
+
+interface Props {
+  title: string;
+  links: LinkItem[];
+}
+
+const { title, links } = Astro.props as Props;
+
+const footerPatternHtml = renderToStaticMarkup(
+  createElement(
+    Container,
+    { as: "section", maxWidth: "lg", className: "home-section" },
+    createElement(
+      Card,
+      { className: "home-trust-nav" },
+      createElement(Typography, { variant: "h3", as: "h2" }, title),
+      createElement(
+        "nav",
+        { "aria-label": "Navegação institucional" },
+        createElement(
+          "ul",
+          { className: "home-trust-links" },
+          ...links.map((link) =>
+            createElement(
+              "li",
+              null,
+              createElement("a", { href: link.href, className: "home-inline-link" }, link.label)
+            )
+          )
+        )
+      )
+    )
+  )
+);
+---
+
+<Fragment set:html={footerPatternHtml} />
