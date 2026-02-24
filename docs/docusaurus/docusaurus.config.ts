@@ -5,7 +5,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 const config: Config = {
   title: 'Proforma Platform Docs',
   tagline: 'Documentacao tecnica e de governanca da Proforma Platform',
-  favicon: 'img/brand/mark.svg',
+  favicon: 'brand/mark.svg',
   future: {
     v4: true,
   },
@@ -42,7 +42,7 @@ const config: Config = {
     ],
   ],
   themeConfig: {
-    image: 'img/brand/logo.svg',
+    image: 'brand/logo.svg',
     colorMode: {
       respectPrefersColorScheme: true,
     },
@@ -50,7 +50,7 @@ const config: Config = {
       title: 'Proforma Docs',
       logo: {
         alt: 'Proforma Logo',
-        src: 'img/brand/logo.svg',
+        src: 'brand/logo.svg',
       },
       items: [
         {
