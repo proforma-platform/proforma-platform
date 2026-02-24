@@ -1,5 +1,7 @@
 # PROFORMA PLATFORM ROADMAP
 
+> **Este é o roadmap oficial da plataforma.**
+
 ## 🎯 Fase Atual
 Objetivo macro da fase: consolidar prontidão operacional com simulações integradas de continuidade.
 
@@ -150,28 +152,3 @@ Itens finalizados com referência ao commit.
 - [GOV-0023] Simulação anual integrada de continuidade e recuperação (DR drill) – Commit: `working-tree` (aguardando commit)
 - [GOV-0024] Modelo de treinamento de porta-voz técnico para crises – Commit: `working-tree` (aguardando commit)
 - [GOV-0028] Formalização do Brand System Proforma (ADR + guidelines + tokens + assets) – Commit: `working-tree` (aguardando commit)
-
----
-
-## 📌 Padrão de Tarefa Individual
-
-### [ID-001] Nome da Tarefa
-
-**Objetivo**
-Explicação clara do problema.
-
-**Escopo**
-Arquivos afetados:
-- apps/...
-- docs/...
-- infra/...
-
-**Critério de Aceite**
-- `npm run build` passa
-- Documentação atualizada
-- Nenhuma dependência nova desnecessária
-
-**Riscos**
-- Impacto na arquitetura?
-- Segurança?
-- SEO?

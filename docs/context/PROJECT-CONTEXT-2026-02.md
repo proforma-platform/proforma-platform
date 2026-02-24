@@ -1,213 +1,70 @@
-# Proforma Platform — Project Context Snapshot
-**Data:** 2026-02-24  
-**Status:** Active Development  
-**Governança:** Staff-supervised / AI-assisted execution  
+# PROJECT CONTEXT - 2026-02
 
----
+## Monorepo Structure
 
-# 1. Estratégia Institucional
+- `apps/`
+  - `web-public` (Astro)
+  - `web-portal` (Next.js App Router)
+- `packages/`
+  - `brand` (design tokens + brand assets)
+  - `ui` (shared UI utilities/components)
+- `infra/`
+  - `docker` (compose and production infra definitions)
+- `docs/`
+  - `docusaurus` (technical docs)
+  - `architecture`, `roadmap`, `runbooks`, `brand`, `context`
 
-## 1.1 Arquitetura de Marca
+## Runtime and Tooling Versions
 
-Modelo: **Branded House (marca-mãe dominante)**
+- Node.js: `v20.20.0`
+- npm: `10.8.2`
+- Astro: `^5.17.1` (`apps/web-public/package.json`)
+- Next.js: `16.1.6` (`apps/web-portal/package.json`)
+- Turbo: `2.8.10` pinado no root (`package.json`)
 
-- Marca institucional: **Proforma**
-- Assinatura formal: **Proforma Platform**
-- Submarcas:
-  - ProformaFarm
-  - MedCore
-  - Futuras soluções SaaS
+## Governance Baseline
 
-## 1.2 Regras de Uso
+- `ROADMAP.md` (raiz) e a fonte unica oficial de planejamento macro.
+- `README.md` (raiz) e o documento institucional executivo.
+- Snapshot de contexto e versionado por ciclo em `docs/context/`.
+- Entregas exigem branch dedicada + commit SHA rastreavel.
+- Features de UI nao podem alterar `infra/`, serviços conectados, PostgreSQL ou n8n.
 
-- Interfaces e navegação: **Proforma**
-- Documentos institucionais: **Proforma Platform**
-- Submarcas usam mesma estrutura visual com variação de accent
+## Single Source of Truth for Brand Tokens
 
-## 1.3 Sistema de Cor (Oficial)
+- Canonical source: `packages/brand/tokens.css` and `packages/brand/colors.ts`
+- Mandatory rule: apps/docs consume tokens from `@proforma/brand`
+- Duplicated local token files in apps are prohibited
 
-Marca-mãe:
-- Accent: `#2563EB`
-- Navy base: `#0F172A`
+## Import Rules (Anti-Drift)
 
-Submarcas:
-- ProformaFarm: `#1D4ED8`
-- MedCore: `#0EA5A4`
+- Use workspace imports for shared packages
+  - Example: `@proforma/brand/tokens.css`
+- Relative imports to shared packages are prohibited
+  - Example (prohibited): `../../packages/brand/...`
 
-Tokens centralizados em:
-`packages/brand/`
+## Release and Versioning Policy
 
----
+- Releases seguem SemVer (`MAJOR.MINOR.PATCH`).
+- Features relevantes incrementam `MINOR`.
+- Correções incrementam `PATCH`.
+- Breaking changes incrementam `MAJOR`.
 
-# 2. Arquitetura Técnica
+## Pipeline Baseline
 
-## 2.1 Modelo Geral
+- `build`: `turbo build`
+- `dev`: `turbo dev`
+- `lint`: `turbo lint`
+- `typecheck`: `turbo typecheck`
+- `test`: `turbo test`
 
-Monorepo:
-- npm workspaces
-- Turbo
-- Commit incremental disciplinado
+## Deployment Notes
 
-Estrutura:
+- `web-public`: static build served by nginx (`apps/web-public/Dockerfile.prod`)
+- `web-portal`: Next.js App Router runtime (`apps/web-portal/Dockerfile.prod`)
+- `docs`: static build served by nginx (`docs/docusaurus/Dockerfile.prod`)
 
-apps/
-  web-public      (Astro)
-  web-portal      (Next.js 16)
-docs/
-  docusaurus
-packages/
-  brand
-infra/
-  docker
-  traefik
+## Next Planned Increment
 
-Backend ERP (separado):
-- .NET 8
-- Modular Monolith
-- Clean Architecture
-- EF Core (write)
-- Dapper (read)
-- OrgContext obrigatório
-- Auditoria estruturada
-- Outbox Pattern em consolidação
-
----
-
-# 3. Infraestrutura
-
-Ambiente principal:
-
-- Ubuntu Server
-- Docker
-- Postgres
-- n8n (público)
-- Cloudflare DNS
-- Traefik/Nginx
-
-Regras:
-- Não alterar infra sem justificativa arquitetural
-- Sem adicionar dependências desnecessárias
-- Build sempre deve passar
-
----
-
-# 4. Brand System
-
-Fonte oficial:
-`packages/brand`
-
-Contém:
-- SVG oficiais
-- tokens.css
-- colors.ts
-- README
-- ADR-0003
-
-Regras:
-- Não alterar marca sem nova ADR
-- Não usar cores fora dos tokens
-- Sem gradientes ou efeitos decorativos no símbolo
-- Lockup empilhado para uso formal
-
----
-
-# 5. Governança Operacional com IA
-
-Regras globais:
-
-- Não solicitar confirmação para alterações internas ao repo
-- Solicitar confirmação apenas para:
-  - Firewall
-  - DNS
-  - Segredos
-  - Deploy real
-  - Force push
-  - Alterações fora do repositório
-
-- Commit único por incremento
-- Sem reformatar estrutura base
-- Sem alterar Docker/CI sem aprovação explícita
-
----
-
-# 6. Estado Atual (Marcos Concluídos)
-
-- Brand system formalizado
-- ADR-0003 aprovado
-- Tokens alinhados
-- Identidade aplicada no Docusaurus
-- Monorepo estável
-- Build Turbo passando
-- Apps Astro e Next estruturados
-- Estrutura de páginas institucionais criada
-
----
-
-# 7. Roadmap Imediato (Próximos Incrementos)
-
-## Fase 1 — Consolidação Institucional
-
-1. Aplicar marca completa no web-public e web-portal
-2. Criar Hero institucional principal
-3. Criar página institucional “Sobre a Plataforma”
-4. Refinar páginas Produto:
-   - ProformaFarm
-   - MedCore
-5. Criar banners OpenGraph 1200x630
-6. Implementar HelpLauncher global
-
----
-
-## Fase 2 — Estrutura Comercial
-
-1. Página Central de Vendas
-2. Área de Cliente (placeholder auth)
-3. Página Segurança detalhada
-4. Página Compliance e Governança
-
----
-
-## Fase 3 — Integração Plataforma
-
-1. Integração visual com Portal
-2. SSO planejado
-3. Integração futura com ERP
-4. Integração n8n documentada
-
----
-
-# 8. Padrão para Novos Chats
-
-Sempre iniciar com:
-
-Estamos continuando o projeto Proforma Platform.
-Use como contexto oficial:
-docs/context/PROJECT-CONTEXT-2026-02.md
-
-Considere decisões consolidadas.
-Foco no próximo incremento.
-Não reanalisar histórico.
-
----
-
-# 9. Política de Contexto
-
-Este documento substitui histórico de conversa.
-
-Qualquer decisão estrutural nova:
-- Deve gerar nova ADR
-- Deve atualizar este snapshot
-
----
-
-# 10. Próxima Ação Recomendada
-
-Próximo incremento técnico sugerido:
-
-feat(web-public): implement institutional hero and brand header
-
-Objetivo:
-- Hero institucional forte
-- Watermark do símbolo
-- CTA para produtos
-- Estrutura pronta para escalar
+- `feat(web-public): institutional hero + brand header`
+- This context baseline intentionally does not implement hero/header yet.

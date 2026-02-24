@@ -1,5 +1,10 @@
 # Processo de Desenvolvimento (Founder Mode)
 
+## Fonte Oficial
+
+- O roadmap oficial macro da plataforma está em `ROADMAP.md` (raiz).
+- Os arquivos em `docs/roadmap/` são detalhamento operacional e não substituem o roadmap raiz.
+
 ## Papéis
 
 - Founder: define fase ativa e prioridade macro.
@@ -23,28 +28,3 @@ Nenhuma tarefa é executada fora da fase atual.
    - `CHANGELOG.md`
    - ADR em `docs/architecture/` quando houver decisão arquitetural
 6. Marcar status e registrar referência de commit quando concluída.
-
-## Padrão de tarefa
-
-```md
-### [ID-001] Nome da Tarefa
-
-**Objetivo**
-Explicação clara do problema.
-
-**Escopo**
-Arquivos afetados:
-- apps/...
-- docs/...
-- infra/...
-
-**Critério de Aceite**
-- npm run build passa
-- Documentação atualizada
-- Nenhuma dependência nova desnecessária
-
-**Riscos**
-- Impacto na arquitetura?
-- Segurança?
-- SEO?
-```

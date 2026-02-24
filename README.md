@@ -1,87 +1,76 @@
 # Proforma Platform
 
-Monorepo institucional com `npm workspaces` + `turbo` para produtos e documentação do grupo.
+## 1. O que é a Proforma Platform
+A Proforma Platform e a base institucional e de produtos SaaS do grupo, concentrando site publico, portal e documentacao tecnica em um monorepo governado.
 
-## Estrutura
+## 2. Missao
+Conectar operacao, dados e automacao com padrao unico de arquitetura, marca e governanca documental para suportar crescimento multi-produto.
 
-- `apps/web-public` (Astro): site público institucional
+## 3. Estrutura da plataforma
+- `apps/web-public` (Astro): site institucional
 - `apps/web-portal` (Next.js App Router): portal do cliente
-- `docs/docusaurus` (Docusaurus): documentação técnica e governança
-- `packages/ui`: componentes compartilhados (inclui `HelpLauncher`)
-- `packages/brand`: tokens e assets de marca institucional
-- `docs/architecture`: decisões arquiteturais (ADR)
-- `docs/roadmap`: detalhamento de fila e processo de execução
-- `docs/brand`: guidelines visuais e regras de marca
-- `docs/runbooks`: procedimentos operacionais
+- `docs/docusaurus` (Docusaurus): documentacao tecnica
+- `packages/brand`: tokens e assets oficiais de marca
+- `packages/ui`: componentes/utilitarios compartilhados
+- `docs/architecture`: ADRs
+- `docs/roadmap`: detalhamento do roadmap
+- `docs/context`: snapshots oficiais por ciclo
 
-## Rodando localmente
+## 4. Stack tecnologica
+- Node.js 20
+- npm workspaces
+- Turbo
+- Astro
+- Next.js 16
+- Docusaurus
+- Docker (deploy)
+- Traefik + Cloudflare (edge/reverse proxy)
 
-Pré-requisitos:
+## 5. Arquitetura resumida
+- Monorepo com workspaces para apps, docs e packages.
+- `ROADMAP.md` na raiz como fila macro oficial.
+- `packages/brand` como fonte unica de tokens/identidade.
+- Entregas por branch, com commit SHA rastreavel.
 
+## 6. Estado atual
+- Fase ativa: ver secao "Fase Atual" em `ROADMAP.md`.
+- O planejamento macro e o status oficial vivem no roadmap raiz.
+
+## 7. Proximo incremento previsto
+- `feat(web-public): institutional hero + brand header`
+
+## 8. Politica de Releases
+- Versionamento SemVer (`MAJOR.MINOR.PATCH`).
+- Release inicial oficial: `v0.1.0`.
+- Regras:
+  - feature relevante: incrementa `MINOR`
+  - correcao: incrementa `PATCH`
+  - breaking change: incrementa `MAJOR`
+
+## 9. Como rodar localmente
+Pre-requisitos:
 - Node.js 20+
 - npm 10+
 
-Instalar dependências:
-
+Instalacao:
 ```bash
 npm ci
 ```
 
 Desenvolvimento:
-
 ```bash
 npm run dev
 ```
 
-Build completo:
-
+Build:
 ```bash
 npm run build
 ```
 
-## Governança e Operação do Codex
-
-### Regra central
-
-Nenhuma tarefa pode ser executada fora da fase atual definida no `ROADMAP.md`.
-
-### Como o Codex deve operar
-
-1. Identificar a fase atual no roadmap.
-2. Verificar se a tarefa está na fila da fase.
-3. Se não estiver, adicionar no roadmap antes de executar.
-4. Executar incrementalmente apenas itens da fase ativa.
-5. Atualizar documentação obrigatória ao concluir:
-   - `ROADMAP.md`
-   - `CHANGELOG.md`
-   - ADR em `docs/architecture/` quando houver decisão arquitetural
-
-### Referências de processo
-
-- Fila oficial: `ROADMAP.md`
-- Processo Founder Mode: `docs/roadmap/processo-desenvolvimento.md`
-- Changelog semântico: `CHANGELOG.md`
+## 10. Links para documentacao detalhada
+- Roadmap oficial macro: `ROADMAP.md`
+- Snapshot oficial do ciclo: `docs/context/PROJECT-CONTEXT-2026-02.md`
 - ADRs: `docs/architecture/`
-
-## Arquitetura de Marca
-
-- Arquitetura adotada: **Branded House**
-- Marca principal: **Proforma**
-- Assinatura formal: **Proforma Platform**
-- Submarcas: **ProformaFarm** e **MedCore**
-
-Referências:
-
-- ADR de marca: `docs/architecture/ADR-0003-brand-architecture.md`
-- Guidelines visuais: `docs/brand/visual-guidelines.md`
-- Tokens e assets: `packages/brand/`
-
-Evolução da marca:
-
-- Alterações estruturais de identidade exigem nova ADR.
-- Tokens devem ser alterados primeiro em `packages/brand`, depois aplicados nas apps.
-
-## Deploy no Ubuntu (visão geral)
-
-- Produção via Docker + Traefik + Cloudflare usando `infra/docker/docker-compose.prod.yml`.
-- Detalhes operacionais em `docs/runbooks/deploy-ubuntu-cloudflare.md`.
+- Changelog: `CHANGELOG.md`
+- Processo de execucao: `docs/roadmap/processo-desenvolvimento.md`
+- Runbook de release/versionamento: `docs/runbooks/versioning-release.md`
