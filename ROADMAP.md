@@ -1,13 +1,16 @@
 # PROFORMA PLATFORM ROADMAP
 
+Este é o roadmap oficial da plataforma.
+
 ## 🎯 Fase Atual
-Objetivo macro da fase: consolidar prontidão operacional com simulações integradas de continuidade.
+Objetivo macro da fase: tangibilizar produtos no `apps/web-public` com governança, performance e baseline de qualidade.
 
 ### 🔵 Em Execução
-- [GOV-0025] Programa de revisão cruzada de incidentes com áreas de negócio (Owner: Codex) – Status: In Progress
+- [GOV-0031] Refinar páginas de produto com narrativa comercial orientada a conversão (Owner: Codex) – Status: In Progress
 
 ### 🟡 Próximas (fila imediata)
-- [GOV-0026] Política de maturidade de resiliência por domínio de produto (Owner: Codex) – Status: Planned
+- [GOV-0032] Publicar release `v0.3.0` com Product Pages + evidências de Lighthouse (Owner: Codex) – Status: Planned
+- [GOV-0033] Consolidar baseline de SEO institucional (`title`, `description`, `og:*`) em todas as páginas públicas (Owner: Codex) – Status: Planned
 
 ---
 
@@ -113,7 +116,7 @@ Elevar maturidade operacional e segurança para produção contínua.
 ## 🧭 Backlog Prioritário
 Itens importantes, mas não imediatos.
 
-- [GOV-0026] Política de maturidade de resiliência por domínio de produto – Status: Planned
+- [GOV-0034] Política de maturidade de resiliência por domínio de produto – Status: Planned
 
 ---
 
@@ -149,7 +152,9 @@ Itens finalizados com referência ao commit.
 - [GOV-0022] Plano de comunicação externa de crise para canais web – Commit: `working-tree` (aguardando commit)
 - [GOV-0023] Simulação anual integrada de continuidade e recuperação (DR drill) – Commit: `working-tree` (aguardando commit)
 - [GOV-0024] Modelo de treinamento de porta-voz técnico para crises – Commit: `working-tree` (aguardando commit)
-- [GOV-0028] Formalização do Brand System Proforma (ADR + guidelines + tokens + assets) – Commit: `working-tree` (aguardando commit)
+- [GOV-0028] Formalização do Brand System Proforma (ADR + guidelines + tokens + assets) – Commit: `d511587`
+- [GOV-0029] Product Pages v0.3.0 no `web-public` (`/produtos/proformafarm` e `/produtos/medcore`) + layout reutilizável – Commit: `6ed390d`
+- [GOV-0030] Hotfix de governança com restauração do gate `npm run test` no root + task `turbo test` + validação Lighthouse – Commit: `6821133`
 
 ---
 
