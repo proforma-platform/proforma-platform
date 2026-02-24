@@ -1,0 +1,40 @@
+---
+const navLinks = [
+  { href: "/", label: "Plataforma" },
+  { href: "/produtos", label: "Produtos" },
+  { href: "/sobre", label: "Sobre" },
+  { href: "/seguranca", label: "Segurança" },
+  { href: "/compliance", label: "Compliance" },
+  { href: "/contato", label: "Contato" },
+];
+---
+
+<header class="brand-header">
+  <div class="container brand-header-inner">
+    <a class="brand-home" href="/" aria-label="Proforma - Plataforma">
+      <img src="/brand/logo.svg" alt="Proforma" width="160" height="40" />
+    </a>
+
+    <nav class="brand-nav-desktop" aria-label="Navegação principal">
+      {
+        navLinks.map((link) => (
+          <a href={link.href}>{link.label}</a>
+        ))
+      }
+    </nav>
+
+    <a class="brand-portal-cta brand-portal-cta-desktop" href="/portal">Acessar Portal</a>
+
+    <details class="brand-nav-mobile">
+      <summary aria-label="Abrir menu principal">Menu</summary>
+      <nav aria-label="Navegação principal mobile">
+        {
+          navLinks.map((link) => (
+            <a href={link.href}>{link.label}</a>
+          ))
+        }
+        <a class="brand-portal-cta" href="/portal">Acessar Portal</a>
+      </nav>
+    </details>
+  </div>
+</header>

@@ -1,7 +1,17 @@
 @import "@proforma/brand/tokens.css";
 
 :root {
-  --pf-border: #d7dfea;
+  --pf-border: color-mix(in srgb, var(--pf-color-text) 14%, var(--pf-color-surface));
+  --pf-surface-soft: color-mix(
+    in srgb,
+    var(--pf-color-bg) 75%,
+    var(--pf-color-surface)
+  );
+  --pf-header-surface: color-mix(
+    in srgb,
+    var(--pf-color-surface) 95%,
+    transparent
+  );
 }
 
 * {
@@ -12,27 +22,31 @@ body {
   margin: 0;
   font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   color: var(--pf-color-text);
-  background: linear-gradient(180deg, #f9fbff 0%, var(--pf-color-bg) 100%);
+  background: linear-gradient(
+    180deg,
+    var(--pf-surface-soft) 0%,
+    var(--pf-color-bg) 100%
+  );
 }
 
 .container {
-  width: min(1080px, 92vw);
+  width: min(1120px, 92vw);
   margin: 0 auto;
 }
 
-.site-header {
+.brand-header {
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 20;
   border-bottom: 1px solid var(--pf-border);
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--pf-header-surface);
   backdrop-filter: blur(4px);
 }
 
-.site-header-inner {
-  display: flex;
+.brand-header-inner {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  justify-content: space-between;
   gap: 1rem;
   padding: 0.9rem 0;
 }
@@ -42,32 +56,140 @@ body {
   align-items: center;
 }
 
-.site-nav {
+.brand-nav-desktop {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.85rem;
+  justify-content: center;
+  gap: 0.9rem;
 }
 
-.site-nav a {
+.brand-nav-desktop a,
+.brand-nav-mobile a {
   text-decoration: none;
   color: var(--pf-color-text);
   font-weight: 600;
   font-size: 0.9rem;
 }
 
-.site-nav a:hover {
+.brand-nav-desktop a:hover,
+.brand-nav-mobile a:hover {
   color: var(--pf-color-brand-500);
 }
 
-.site-nav a:focus-visible,
-.brand-home:focus-visible {
+.brand-portal-cta {
+  border: 1px solid var(--pf-color-brand-500);
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+  text-decoration: none;
+  color: var(--pf-color-brand-500);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.brand-portal-cta:hover {
+  background: color-mix(in srgb, var(--pf-color-brand-500) 10%, transparent);
+}
+
+.brand-nav-mobile {
+  display: none;
+}
+
+.brand-nav-mobile summary {
+  cursor: pointer;
+  list-style: none;
+  color: var(--pf-color-text);
+  font-weight: 700;
+}
+
+.brand-nav-mobile summary::-webkit-details-marker {
+  display: none;
+}
+
+.brand-nav-mobile[open] nav {
+  margin-top: 0.75rem;
+  border: 1px solid var(--pf-border);
+  border-radius: 0.8rem;
+  background: var(--pf-color-surface);
+  padding: 0.65rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.brand-nav-desktop a:focus-visible,
+.brand-nav-mobile a:focus-visible,
+.brand-nav-mobile summary:focus-visible,
+.brand-home:focus-visible,
+.brand-portal-cta:focus-visible {
   outline: 2px solid var(--pf-color-proforma-accent);
   outline-offset: 2px;
   border-radius: 6px;
 }
 
 main {
-  padding: 2.25rem 0 3rem;
+  padding: 2rem 0 3rem;
+}
+
+.hero-institutional {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--pf-border);
+  border-radius: 1rem;
+  background: var(--pf-color-surface);
+  padding: clamp(1.3rem, 4vw, 2.4rem);
+  margin-bottom: 1rem;
+}
+
+.hero-mark {
+  position: absolute;
+  inset: auto -40px -70px auto;
+  opacity: 0.08;
+  pointer-events: none;
+}
+
+.hero-content {
+  position: relative;
+  max-width: 760px;
+}
+
+.hero-content h1 {
+  margin: 0;
+  line-height: 1.15;
+  font-size: clamp(1.7rem, 3.8vw, 2.6rem);
+}
+
+.hero-content p {
+  margin-top: 0.85rem;
+  color: var(--pf-color-muted);
+  line-height: 1.6;
+  font-size: 1rem;
+}
+
+.hero-actions {
+  margin-top: 1.2rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+
+.hero-cta-primary,
+.hero-cta-secondary {
+  text-decoration: none;
+  border-radius: 999px;
+  padding: 0.55rem 1rem;
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.hero-cta-primary {
+  background: var(--pf-color-brand-500);
+  color: var(--pf-color-surface);
+  border: 1px solid var(--pf-color-brand-500);
+}
+
+.hero-cta-secondary {
+  background: var(--pf-color-surface);
+  color: var(--pf-color-text);
+  border: 1px solid var(--pf-border);
 }
 
 .content-card {
@@ -106,13 +228,18 @@ ul {
   font-size: 0.9rem;
 }
 
-@media (max-width: 760px) {
-  .site-header-inner {
-    align-items: flex-start;
-    flex-direction: column;
+@media (max-width: 900px) {
+  .brand-header-inner {
+    grid-template-columns: auto 1fr;
   }
 
-  .site-nav {
-    gap: 0.7rem;
+  .brand-nav-desktop,
+  .brand-portal-cta-desktop {
+    display: none;
+  }
+
+  .brand-nav-mobile {
+    display: block;
+    justify-self: end;
   }
 }
