@@ -1,213 +1,67 @@
-# Proforma Platform — Project Context Snapshot
-**Data:** 2026-02-24  
-**Status:** Active Development  
-**Governança:** Staff-supervised / AI-assisted execution  
+# PROFORMA PLATFORM — NOVO CHAT STARTER (2026-02-24 14:14:00)
 
----
+## Contexto Oficial (fonte única)
+- Repo: proforma-platform (agora sob conta institucional `proforma-platform`)
+- Branch principal: `main`
+- ROADMAP.md (root) é fonte única oficial
+- Snapshot base: docs/context/PROJECT-CONTEXT-2026-02.md
+- Releases: SemVer
 
-# 1. Estratégia Institucional
+## Regra de Ouro (Governança)
+Ninguém deve conseguir alterar `main` sem:
+- PR obrigatório
+- 1 approval
+- conversa resolvida
+- histórico linear
+- sem force-push e sem delete da branch
 
-## 1.1 Arquitetura de Marca
+Objetivo: eliminar 90% dos riscos (ex.: commit direto no roadmap / regressões silenciosas).
 
-Modelo: **Branded House (marca-mãe dominante)**
+## Estado Atual (o que já foi feito)
+### Governança / Gates
+- Root scripts padronizados: build, lint, typecheck, test (+ dev quando aplicável)
+- Turbo task graph inclui `test`
+- Turbo version pinned (removido "latest") para reprodutibilidade
+- Lighthouse instalado localmente e scripts `lighthouse:mobile` e `lighthouse:desktop` adicionados
+- Workspaces têm `test` stub com exit 0 (“no tests yet”) para não quebrar pipeline enquanto suíte real não existe
 
-- Marca institucional: **Proforma**
-- Assinatura formal: **Proforma Platform**
-- Submarcas:
-  - ProformaFarm
-  - MedCore
-  - Futuras soluções SaaS
+### v0.3.0 — Product Pages Tangíveis
+- GOV-0031: product pages refinadas (ProformaFarm e MedCore)
+  - headline/subheadline
+  - capabilities (~5)
+  - “como funciona” (3 passos)
+  - módulos
+  - CTAs: /contato e docs
+- GOV-0033: baseline SEO em BaseLayout
+  - title/description
+  - og:title/og:description/og:image/og:url
+  - canonical implementado
 
-## 1.2 Regras de Uso
+### Infra (imutável sem ADR)
+- Ubuntu + Nginx reverse proxy
+- Cloudflare SSL Full (strict) com Origin Certificate
+- 80 → 443 redirect
+- n8n com Basic Auth
+- DNS proxied (laranja)
+- Sem mudanças permitidas sem ADR
 
-- Interfaces e navegação: **Proforma**
-- Documentos institucionais: **Proforma Platform**
-- Submarcas usam mesma estrutura visual com variação de accent
+## Pendências (prioridade)
+1) Lighthouse evidências para release:
+   - Rodar `npm run lighthouse:mobile` e `npm run lighthouse:desktop` no host com DNS ok
+   - Gerar/armazenar HTMLs conforme política do repo
+   - Colar bloco padrão de métricas no PR do release
+2) Validar SEO baseline:
+   - canonical não pode gerar href vazio
+   - og:image deve ser URL absoluta para bots
+   - og:url consistente (base + pathname)
+3) Definir se v0.3.0 vai ser tag imediata ou após um “v0.3.1 hardening” (separando melhorias estruturais)
+4) (Recomendado) CODEOWNERS para proteger arquivos críticos (ROADMAP.md, docs/context, infra, brand, package.json, turbo.json)
 
-## 1.3 Sistema de Cor (Oficial)
+## Próximo Passo Recomendado (alto impacto)
+Fechar GOV-0032: release `v0.3.0` com evidências Lighthouse anexadas + checks verdes.
 
-Marca-mãe:
-- Accent: `#2563EB`
-- Navy base: `#0F172A`
-
-Submarcas:
-- ProformaFarm: `#1D4ED8`
-- MedCore: `#0EA5A4`
-
-Tokens centralizados em:
-`packages/brand/`
-
----
-
-# 2. Arquitetura Técnica
-
-## 2.1 Modelo Geral
-
-Monorepo:
-- npm workspaces
-- Turbo
-- Commit incremental disciplinado
-
-Estrutura:
-
-apps/
-  web-public      (Astro)
-  web-portal      (Next.js 16)
-docs/
-  docusaurus
-packages/
-  brand
-infra/
-  docker
-  traefik
-
-Backend ERP (separado):
-- .NET 8
-- Modular Monolith
-- Clean Architecture
-- EF Core (write)
-- Dapper (read)
-- OrgContext obrigatório
-- Auditoria estruturada
-- Outbox Pattern em consolidação
-
----
-
-# 3. Infraestrutura
-
-Ambiente principal:
-
-- Ubuntu Server
-- Docker
-- Postgres
-- n8n (público)
-- Cloudflare DNS
-- Traefik/Nginx
-
-Regras:
-- Não alterar infra sem justificativa arquitetural
-- Sem adicionar dependências desnecessárias
-- Build sempre deve passar
-
----
-
-# 4. Brand System
-
-Fonte oficial:
-`packages/brand`
-
-Contém:
-- SVG oficiais
-- tokens.css
-- colors.ts
-- README
-- ADR-0003
-
-Regras:
-- Não alterar marca sem nova ADR
-- Não usar cores fora dos tokens
-- Sem gradientes ou efeitos decorativos no símbolo
-- Lockup empilhado para uso formal
-
----
-
-# 5. Governança Operacional com IA
-
-Regras globais:
-
-- Não solicitar confirmação para alterações internas ao repo
-- Solicitar confirmação apenas para:
-  - Firewall
-  - DNS
-  - Segredos
-  - Deploy real
-  - Force push
-  - Alterações fora do repositório
-
-- Commit único por incremento
-- Sem reformatar estrutura base
-- Sem alterar Docker/CI sem aprovação explícita
-
----
-
-# 6. Estado Atual (Marcos Concluídos)
-
-- Brand system formalizado
-- ADR-0003 aprovado
-- Tokens alinhados
-- Identidade aplicada no Docusaurus
-- Monorepo estável
-- Build Turbo passando
-- Apps Astro e Next estruturados
-- Estrutura de páginas institucionais criada
-
----
-
-# 7. Roadmap Imediato (Próximos Incrementos)
-
-## Fase 1 — Consolidação Institucional
-
-1. Aplicar marca completa no web-public e web-portal
-2. Criar Hero institucional principal
-3. Criar página institucional “Sobre a Plataforma”
-4. Refinar páginas Produto:
-   - ProformaFarm
-   - MedCore
-5. Criar banners OpenGraph 1200x630
-6. Implementar HelpLauncher global
-
----
-
-## Fase 2 — Estrutura Comercial
-
-1. Página Central de Vendas
-2. Área de Cliente (placeholder auth)
-3. Página Segurança detalhada
-4. Página Compliance e Governança
-
----
-
-## Fase 3 — Integração Plataforma
-
-1. Integração visual com Portal
-2. SSO planejado
-3. Integração futura com ERP
-4. Integração n8n documentada
-
----
-
-# 8. Padrão para Novos Chats
-
-Sempre iniciar com:
-
-Estamos continuando o projeto Proforma Platform.
-Use como contexto oficial:
-docs/context/PROJECT-CONTEXT-2026-02.md
-
-Considere decisões consolidadas.
-Foco no próximo incremento.
-Não reanalisar histórico.
-
----
-
-# 9. Política de Contexto
-
-Este documento substitui histórico de conversa.
-
-Qualquer decisão estrutural nova:
-- Deve gerar nova ADR
-- Deve atualizar este snapshot
-
----
-
-# 10. Próxima Ação Recomendada
-
-Próximo incremento técnico sugerido:
-
-feat(web-public): implement institutional hero and brand header
-
-Objetivo:
-- Hero institucional forte
-- Watermark do símbolo
-- CTA para produtos
-- Estrutura pronta para escalar
+## Regras de interação neste chat
+- Não reanalisar histórico.
+- Foco no próximo incremento.
+- Qualquer mudança em infra exige ADR.
+- Sempre manter governança e rastreabilidade (branch + PR + commit SHA).
