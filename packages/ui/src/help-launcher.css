@@ -2,7 +2,7 @@
   position: fixed;
   right: 1rem;
   bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
-  z-index: var(--pf-z-overlay, 1000);
+  z-index: var(--pf-z-overlay);
   display: grid;
   gap: 0.75rem;
   justify-items: end;
@@ -12,41 +12,41 @@
   border: 0;
   border-radius: 999px;
   padding: 0.75rem 1rem;
-  background: var(--pf-color-brand-500, #0b5fff);
-  color: var(--pf-color-surface, #fff);
+  background: var(--pf-color-brand-500);
+  color: var(--pf-color-surface);
   font: inherit;
   font-weight: 600;
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
   cursor: pointer;
-  box-shadow: var(--pf-shadow-md, 0 10px 24px rgba(11, 95, 255, 0.35));
+  box-shadow: var(--pf-shadow-md);
 }
 
 .pf-help-toggle:focus-visible,
 .pf-help-link:focus-visible {
-  outline: 3px solid var(--pf-color-focus-ring, #111827);
+  outline: 3px solid var(--pf-color-focus-ring);
   outline-offset: 2px;
 }
 
 .pf-help-panel {
   width: min(22rem, calc(100vw - 2rem));
   border-radius: 0.9rem;
-  background: var(--pf-color-surface, #ffffff);
-  border: 1px solid var(--pf-color-border, #dbe3ff);
-  box-shadow: 0 20px 40px rgba(17, 24, 39, 0.2);
+  background: var(--pf-color-surface);
+  border: 1px solid var(--pf-color-border);
+  box-shadow: var(--pf-shadow-md);
   padding: 1rem;
 }
 
 .pf-help-header h2 {
   font-size: 1rem;
   margin: 0;
-  color: var(--pf-color-text, #111827);
+  color: var(--pf-color-text);
 }
 
 .pf-help-header p {
   margin: 0.25rem 0 0.75rem;
-  color: var(--pf-color-muted, #4b5563);
+  color: var(--pf-color-muted);
   font-size: 0.9rem;
 }
 
@@ -63,11 +63,11 @@
   padding: 0.6rem 0.75rem;
   border-radius: 0.6rem;
   text-decoration: none;
-  color: var(--pf-color-brand-500, #0b5fff);
-  background: var(--pf-color-surface-muted, #eff4ff);
+  color: var(--pf-color-brand-500);
+  background: var(--pf-color-surface-muted);
   font-weight: 500;
 }
 
 .pf-help-link:hover {
-  background: var(--pf-color-bg, #dde8ff);
+  background: var(--pf-color-bg);
 }

@@ -10,10 +10,11 @@ Objetivo macro da fase: consolidar arquitetura multi-produto com governança, SE
 
 ### Em Execução
 
-- [GOV-0043] Implementar Design System Core modular para `web-public`, `web-portal` e `docs` (Owner: Codex) – Status: In Progress
+- [GOV-0043A] Implementar componentes base do Design System (`Typography`, `Button`, `Card`, `Container`) (Owner: Codex) – Status: In Progress
 
 ### Próximas (fila imediata)
 
+- [GOV-0043] Consolidar docs e adoção progressiva dos componentes base do Design System Core (Owner: Codex) – Status: Planned
 - [GOV-0044] Sprint `v0.4.1`: hardening de performance e SEO (`sitemap.xml`, `robots.txt`, baseline Lighthouse) (Owner: Codex) – Status: Planned
 - [GOV-0045] Evoluir contratos do Design System Core para componentes compartilhados de navegação e formulários (Owner: Codex) – Status: Planned
 

@@ -12,6 +12,11 @@
   --pf-font-size-600: 1.5rem;
   --pf-font-size-700: 2rem;
 
+  --pf-font-weight-regular: 400;
+  --pf-font-weight-medium: 500;
+  --pf-font-weight-semibold: 600;
+  --pf-font-weight-bold: 700;
+
   --pf-space-0: 0;
   --pf-space-1: 0.25rem;
   --pf-space-2: 0.5rem;
@@ -36,4 +41,8 @@
 
   --pf-z-sticky: 10;
   --pf-z-overlay: 1000;
+
+  --pf-container-md: 720px;
+  --pf-container-lg: 1080px;
+  --pf-container-xl: 1280px;
 }

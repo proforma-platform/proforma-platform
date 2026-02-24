@@ -5,6 +5,7 @@
 ### Added
 
 - Workspace `@proforma/design-system` com tokens semânticos, contratos tipados de componentes e tema TypeScript.
+- Componentes base do Design System Foundations em `@proforma/design-system`: `Typography`, `Button`, `Card` e `Container`.
 - Documento de referência do núcleo do design system em `docs/design-system/core.md`.
 - ADR de design system core para governança de evolução de UI compartilhada.
 
@@ -40,6 +41,7 @@
 ### Changed
 
 - `apps/web-public`, `apps/web-portal` e `docs/docusaurus` passaram a consumir tokens via `@proforma/design-system/tokens.css`.
+- `apps/web-public/src/pages/index.astro` integrado de forma incremental com os componentes base do design system.
 - `packages/ui/src/help-launcher.css` atualizado para consumir tokens semânticos (cores, foco, superfície e z-index).
 - `README.md` e `ROADMAP.md` atualizados para refletir a trilha de Design System Core.
 - `README.md` atualizado com regra operacional: nenhuma tarefa fora da fase atual.

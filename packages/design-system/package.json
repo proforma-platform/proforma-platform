@@ -4,8 +4,13 @@
   "private": true,
   "type": "module",
   "exports": {
+    ".": "./src/index.ts",
     "./tokens.css": "./tokens.css",
     "./semantic.css": "./semantic.css",
+    "./components/Typography": "./src/components/Typography.tsx",
+    "./components/Button": "./src/components/Button.tsx",
+    "./components/Card": "./src/components/Card.tsx",
+    "./components/Container": "./src/components/Container.tsx",
     "./theme": "./src/theme.ts",
     "./types": "./src/types.ts",
     "./contracts": "./src/contracts.ts"

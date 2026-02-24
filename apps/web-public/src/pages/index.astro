@@ -1,23 +1,48 @@
 ---
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { Button, Card, Container, Typography } from "@proforma/design-system";
 import PublicLayout from "../layouts/PublicLayout.astro";
+
+const hero = renderToStaticMarkup(
+  createElement(
+    Container,
+    { maxWidth: "lg", as: "section", className: "home-shell" },
+    createElement(
+      Card,
+      { className: "home-hero" },
+      createElement(Typography, { variant: "h1" }, "Ecossistema Proforma Platform"),
+      createElement(
+        Typography,
+        { variant: "body", as: "p", className: "home-lead" },
+        "Plataforma institucional para apresentação das soluções do grupo, com separação clara entre experiência pública e portal do cliente."
+      ),
+      createElement(
+        "div",
+        { className: "home-cta-row" },
+        createElement(
+          Button,
+          { variant: "primary", size: "md", type: "button", "aria-label": "Explorar o portfólio Proforma" },
+          "Explorar Portfólio"
+        )
+      ),
+      createElement(
+        "ul",
+        { className: "home-links" },
+        createElement("li", null, createElement("a", { href: "/produtos" }, "Portfólio completo de produtos")),
+        createElement("li", null, createElement("a", { href: "/seguranca" }, "Princípios e práticas de segurança")),
+        createElement("li", null, createElement("a", { href: "/arquitetura" }, "Arquitetura técnica do monorepo")),
+        createElement("li", null, createElement("a", { href: "/evolucao" }, "Evolução planejada da plataforma")),
+        createElement("li", null, createElement("a", { href: "/contato" }, "Canais comerciais e institucionais"))
+      )
+    )
+  )
+);
 ---
 
 <PublicLayout
   title="Plataforma institucional"
   description="Proforma Platform: produtos, segurança, arquitetura e evolução da plataforma."
 >
-  <section class="content-card">
-    <h1>Ecossistema Proforma Platform</h1>
-    <p>
-      Plataforma institucional para apresentação das soluções do grupo, com separação
-      clara entre experiência pública e portal do cliente.
-    </p>
-    <ul>
-      <li><a href="/produtos">Portfólio completo de produtos</a></li>
-      <li><a href="/seguranca">Princípios e práticas de segurança</a></li>
-      <li><a href="/arquitetura">Arquitetura técnica do monorepo</a></li>
-      <li><a href="/evolucao">Evolução planejada da plataforma</a></li>
-      <li><a href="/contato">Canais comerciais e institucionais</a></li>
-    </ul>
-  </section>
+  <Fragment set:html={hero} />
 </PublicLayout>

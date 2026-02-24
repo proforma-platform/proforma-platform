@@ -6,6 +6,7 @@ O `@proforma/design-system` centraliza a fundação de interface da plataforma.
 
 - Tokens semânticos reutilizáveis
 - Contratos tipados de componentes críticos
+- Componentes base de fundação (`Typography`, `Button`, `Card`, `Container`)
 - Base para consistência visual e acessibilidade entre apps
 
 ## Relação com Brand
