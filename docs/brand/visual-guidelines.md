@@ -13,22 +13,22 @@ Tokens em `packages/brand/tokens.css`.
 
 Base:
 
-- `--pf-color-brand-900`: #0F1F3A
-- `--pf-color-brand-700`: #1E3A6D
-- `--pf-color-brand-500`: #2F5DA8
-- `--pf-color-accent`: #0EA5A4
+- `--pf-color-navy`: #0F172A
+- `--pf-color-brand-500`: #2563EB
+- `--pf-color-proforma-accent`: #2563EB
 - `--pf-color-bg`: #F7FAFC
 - `--pf-color-surface`: #FFFFFF
 - `--pf-color-text`: #0B1220
+- `--pf-color-muted`: #64748B
 
 Submarcas:
 
-- ProformaFarm accent: `--pf-color-proformafarm`: #16A34A
-- MedCore accent: `--pf-color-medcore`: #2563EB
+- ProformaFarm accent: `--pf-color-farm-accent`: #1D4ED8
+- MedCore accent: `--pf-color-medcore-accent`: #0EA5A4
 
 ## Tipografia recomendada
 
-- Primária: `"Segoe UI", Roboto, Helvetica, Arial, sans-serif`
+- Primária: `"Inter", "Manrope", "Segoe UI", Roboto, Helvetica, Arial, sans-serif`
 - Monoespaçada (suporte técnico): `"SFMono-Regular", Menlo, Monaco, Consolas, monospace`
 
 ## Lockups

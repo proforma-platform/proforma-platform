@@ -14,7 +14,7 @@ Pacote de tokens e ativos de marca para uso em apps e documentação.
 @import "@proforma/brand/tokens.css";
 
 .hero {
-  background: var(--pf-color-brand-900);
+  background: var(--pf-color-navy);
   color: var(--pf-color-surface);
 }
 ```

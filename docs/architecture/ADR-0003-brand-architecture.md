@@ -25,10 +25,11 @@ Regras de uso:
   materiais corporativos).
 - Submarcas usam a mesma família visual, com variação de cor de accent.
 
-Accent por submarca:
+Accent por marca:
 
-- ProformaFarm: verde técnico
-- MedCore: azul clínico
+- Proforma (marca-mãe): azul `#2563EB`
+- ProformaFarm: azul forte `#1D4ED8`
+- MedCore: teal `#0EA5A4`
 
 ## Consequências
 
