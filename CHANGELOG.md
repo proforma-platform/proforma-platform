@@ -42,6 +42,7 @@
 
 ### Changed
 
+- Deploy manual do `web-public` documentado no runbook operacional com evidências de validação HTTP (`200` em `/` e `301` esperados para slash final em `/proformafarm` e `/medcore`).
 - `apps/web-public`, `apps/web-portal` e `docs/docusaurus` passaram a consumir tokens via `@proforma/design-system/tokens.css`.
 - `apps/web-public/src/pages/index.astro` integrado de forma incremental com os componentes base do design system.
 - `packages/ui/src/help-launcher.css` atualizado para consumir tokens semânticos (cores, foco, superfície e z-index).

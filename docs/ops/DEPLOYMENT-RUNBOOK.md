@@ -122,6 +122,37 @@ git pull --ff-only origin main
 - `nginx -t` OK
 - `curl -I` das rotas críticas
 
+## Registro de Deploy Executado
+
+Data (UTC): `2026-02-24`
+
+Contexto:
+- Publicação manual do `web-public` após merge/tag `v0.5.1`.
+- Ambiente: `proforma.net.br` via Cloudflare + Nginx.
+
+Comandos executados:
+
+```bash
+cd /opt/proforma/proforma-platform
+git pull
+npm ci
+npm -w apps/web-public run build
+sudo rsync -av --delete apps/web-public/dist/ /var/www/proforma-web-public/
+sudo nginx -s reload
+```
+
+Validação HTTP capturada:
+
+```bash
+curl -I https://proforma.net.br/                # 200
+curl -I https://proforma.net.br/proformafarm    # 301 -> /proformafarm/
+curl -I https://proforma.net.br/medcore         # 301 -> /medcore/
+```
+
+Observação:
+- `301` nas rotas sem slash final é esperado pela normalização de rota estática.
+- Headers de segurança observados na resposta: `x-content-type-options`, `x-frame-options`, `referrer-policy`.
+
 ## Troubleshooting
 
 ### DNS/Cloudflare não refletiu
