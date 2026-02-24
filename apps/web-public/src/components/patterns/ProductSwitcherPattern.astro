@@ -1,0 +1,45 @@
+---
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { Card, Container, Typography } from "@proforma/design-system";
+
+interface Item {
+  name: string;
+  description: string;
+  href: string;
+  accent: "farm" | "medcore";
+}
+
+interface Props {
+  id?: string;
+  title: string;
+  description: string;
+  items: Item[];
+}
+
+const { id = "solucoes", title, description, items } = Astro.props as Props;
+
+const gridHtml = renderToStaticMarkup(
+  createElement(
+    Container,
+    { as: "section", maxWidth: "lg", className: "home-section", id },
+    createElement(Typography, { variant: "h2", as: "h2" }, title),
+    createElement(Typography, { variant: "body", as: "p", className: "home-section-text" }, description),
+    createElement(
+      "div",
+      { className: "home-product-grid" },
+      ...items.map((item) =>
+        createElement(
+          Card,
+          { className: `home-product-card home-product-card--${item.accent}` },
+          createElement(Typography, { variant: "h3", as: "h3" }, item.name),
+          createElement(Typography, { variant: "body", as: "p" }, item.description),
+          createElement("a", { href: item.href, className: "home-inline-link" }, "Acessar produto")
+        )
+      )
+    )
+  )
+);
+---
+
+<Fragment set:html={gridHtml} />

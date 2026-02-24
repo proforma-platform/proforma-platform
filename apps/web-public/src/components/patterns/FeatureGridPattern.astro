@@ -1,0 +1,39 @@
+---
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { Card, Container, Typography } from "@proforma/design-system";
+
+interface Feature {
+  title: string;
+  description: string;
+}
+
+interface Props {
+  title: string;
+  items: Feature[];
+}
+
+const { title, items } = Astro.props as Props;
+
+const featuresHtml = renderToStaticMarkup(
+  createElement(
+    Container,
+    { as: "section", maxWidth: "lg", className: "home-section" },
+    createElement(Typography, { variant: "h2", as: "h2" }, title),
+    createElement(
+      "div",
+      { className: "home-feature-grid" },
+      ...items.map((item) =>
+        createElement(
+          Card,
+          { className: "home-feature-card" },
+          createElement(Typography, { variant: "h3", as: "h3" }, item.title),
+          createElement(Typography, { variant: "body", as: "p" }, item.description)
+        )
+      )
+    )
+  )
+);
+---
+
+<Fragment set:html={featuresHtml} />
