@@ -1,213 +1,92 @@
 # Proforma Platform — Project Context Snapshot
-**Data:** 2026-02-24  
+**Date:** 2026-02-24  
 **Status:** Active Development  
-**Governança:** Staff-supervised / AI-assisted execution  
+**Scope:** Institutional platform baseline after governance and infra consolidation
 
 ---
 
-# 1. Estratégia Institucional
+## Current Operational State
 
-## 1.1 Arquitetura de Marca
+- Nginx configured as reverse proxy for public entry points.
+- Cloudflare SSL/TLS mode set to Full (strict).
+- Cloudflare Origin Certificate installed on origin.
+- HTTP port 80 redirecting to HTTPS 443.
+- n8n protected with Basic Auth.
+- DNS records proxied in Cloudflare (orange cloud).
+- Public infrastructure currently stable.
 
-Modelo: **Branded House (marca-mãe dominante)**
+## Version Status
 
-- Marca institucional: **Proforma**
-- Assinatura formal: **Proforma Platform**
-- Submarcas:
-  - ProformaFarm
-  - MedCore
-  - Futuras soluções SaaS
+- `v0.1.0` — Structural governance consolidated.
+- `v0.2.0` — Institutional hero implemented (**in progress** if tag not yet published).
+- Next planned increment: `v0.3.0` — Tangible Product Pages (`/produtos/proformafarm` and `/produtos/medcore`).
 
-## 1.2 Regras de Uso
+## Infrastructure Model
 
-- Interfaces e navegação: **Proforma**
-- Documentos institucionais: **Proforma Platform**
-- Submarcas usam mesma estrutura visual com variação de accent
+- Ubuntu server as runtime host.
+- Nginx as reverse proxy.
+- Docker containers for platform services.
+- n8n running in container, exposed internally on port `5678`.
+- Cloudflare operating as edge proxy.
+- SSL Full (strict) with Origin Certificate.
+- UI feature branches must not alter shared infrastructure.
 
-## 1.3 Sistema de Cor (Oficial)
+## Security Posture
 
-Marca-mãe:
-- Accent: `#2563EB`
-- Navy base: `#0F172A`
+- SSL Full (strict) active.
+- Origin Certificate installed and in use.
+- Basic Auth enabled for n8n access.
+- Public services segmented by subdomain.
+- No sensitive service should be exposed without reverse proxy protection.
 
-Submarcas:
-- ProformaFarm: `#1D4ED8`
-- MedCore: `#0EA5A4`
+## Platform Topology
 
-Tokens centralizados em:
-`packages/brand/`
+Monorepo structure:
 
----
+- `apps/web-public` (Astro)
+- `apps/web-portal` (Next.js App Router)
+- `docs/docusaurus` (Docusaurus)
+- `packages/brand` (brand tokens/assets)
+- `packages/ui` (shared UI components)
+- `infra/` (deployment and routing assets)
 
-# 2. Arquitetura Técnica
+Core stack:
 
-## 2.1 Modelo Geral
-
-Monorepo:
+- Node 20
 - npm workspaces
 - Turbo
-- Commit incremental disciplinado
+- Docker (deployment environment)
 
-Estrutura:
+## Brand and UI Rules
 
-apps/
-  web-public      (Astro)
-  web-portal      (Next.js 16)
-docs/
-  docusaurus
-packages/
-  brand
-infra/
-  docker
-  traefik
+- Single source of truth for brand tokens: `packages/brand`.
+- No local duplicated token files in apps.
+- Workspace imports only for shared packages (no `../../packages/...` pattern).
+- UI work must not modify infra, database, n8n, or edge networking.
 
-Backend ERP (separado):
-- .NET 8
-- Modular Monolith
-- Clean Architecture
-- EF Core (write)
-- Dapper (read)
-- OrgContext obrigatório
-- Auditoria estruturada
-- Outbox Pattern em consolidação
+## Roadmap Status
 
----
+- Current phase: Institutional platform consolidation.
+- Next phase: Product tangibilization (ProformaFarm and MedCore).
 
-# 3. Infraestrutura
+## Governance Continuity
 
-Ambiente principal:
+- `ROADMAP.md` is the official single source roadmap.
+- Root `README.md` is the institutional executive entrypoint.
+- Deliveries require branch name and commit SHA.
+- Infrastructure changes are allowed only through ADR-backed decisions.
 
-- Ubuntu Server
-- Docker
-- Postgres
-- n8n (público)
-- Cloudflare DNS
-- Traefik/Nginx
+## Delivery Rules (Persistent)
 
-Regras:
-- Não alterar infra sem justificativa arquitetural
-- Sem adicionar dependências desnecessárias
-- Build sempre deve passar
+- Feature execution must align with current roadmap phase.
+- Every relevant delivery updates documentation and changelog.
+- Architectural decisions require ADR registration.
+- Snapshot updates are required when operational baseline changes.
 
----
+## Next Planned Increment
 
-# 4. Brand System
+`feat(web-public): product pages v0.3.0`
 
-Fonte oficial:
-`packages/brand`
-
-Contém:
-- SVG oficiais
-- tokens.css
-- colors.ts
-- README
-- ADR-0003
-
-Regras:
-- Não alterar marca sem nova ADR
-- Não usar cores fora dos tokens
-- Sem gradientes ou efeitos decorativos no símbolo
-- Lockup empilhado para uso formal
-
----
-
-# 5. Governança Operacional com IA
-
-Regras globais:
-
-- Não solicitar confirmação para alterações internas ao repo
-- Solicitar confirmação apenas para:
-  - Firewall
-  - DNS
-  - Segredos
-  - Deploy real
-  - Force push
-  - Alterações fora do repositório
-
-- Commit único por incremento
-- Sem reformatar estrutura base
-- Sem alterar Docker/CI sem aprovação explícita
-
----
-
-# 6. Estado Atual (Marcos Concluídos)
-
-- Brand system formalizado
-- ADR-0003 aprovado
-- Tokens alinhados
-- Identidade aplicada no Docusaurus
-- Monorepo estável
-- Build Turbo passando
-- Apps Astro e Next estruturados
-- Estrutura de páginas institucionais criada
-
----
-
-# 7. Roadmap Imediato (Próximos Incrementos)
-
-## Fase 1 — Consolidação Institucional
-
-1. Aplicar marca completa no web-public e web-portal
-2. Criar Hero institucional principal
-3. Criar página institucional “Sobre a Plataforma”
-4. Refinar páginas Produto:
-   - ProformaFarm
-   - MedCore
-5. Criar banners OpenGraph 1200x630
-6. Implementar HelpLauncher global
-
----
-
-## Fase 2 — Estrutura Comercial
-
-1. Página Central de Vendas
-2. Área de Cliente (placeholder auth)
-3. Página Segurança detalhada
-4. Página Compliance e Governança
-
----
-
-## Fase 3 — Integração Plataforma
-
-1. Integração visual com Portal
-2. SSO planejado
-3. Integração futura com ERP
-4. Integração n8n documentada
-
----
-
-# 8. Padrão para Novos Chats
-
-Sempre iniciar com:
-
-Estamos continuando o projeto Proforma Platform.
-Use como contexto oficial:
-docs/context/PROJECT-CONTEXT-2026-02.md
-
-Considere decisões consolidadas.
-Foco no próximo incremento.
-Não reanalisar histórico.
-
----
-
-# 9. Política de Contexto
-
-Este documento substitui histórico de conversa.
-
-Qualquer decisão estrutural nova:
-- Deve gerar nova ADR
-- Deve atualizar este snapshot
-
----
-
-# 10. Próxima Ação Recomendada
-
-Próximo incremento técnico sugerido:
-
-feat(web-public): implement institutional hero and brand header
-
-Objetivo:
-- Hero institucional forte
-- Watermark do símbolo
-- CTA para produtos
-- Estrutura pronta para escalar
+- Implement reusable product page layout.
+- Publish tangible institutional pages for ProformaFarm and MedCore.
+- Preserve static build, token governance, and infra isolation.
