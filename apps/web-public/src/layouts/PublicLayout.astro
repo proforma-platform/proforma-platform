@@ -5,11 +5,17 @@ interface Props {
   title: string;
   description: string;
   ogImage?: string;
+  enableHelpLauncher?: boolean;
 }
 
-const { title, description, ogImage } = Astro.props;
+const { title, description, ogImage, enableHelpLauncher = false } = Astro.props;
 ---
 
-<BaseLayout title={title} description={description} ogImage={ogImage}>
+<BaseLayout
+  title={title}
+  description={description}
+  ogImage={ogImage}
+  enableHelpLauncher={enableHelpLauncher}
+>
   <slot />
 </BaseLayout>

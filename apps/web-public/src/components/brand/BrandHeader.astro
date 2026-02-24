@@ -1,0 +1,40 @@
+---
+const links = [
+  { href: "/", label: "Plataforma" },
+  { href: "/produtos", label: "Produtos" },
+  { href: "/sobre", label: "Sobre" },
+  { href: "/seguranca", label: "Segurança" },
+  { href: "/compliance", label: "Compliance" },
+  { href: "/contato", label: "Contato" },
+];
+---
+
+<header class="brand-header">
+  <div class="container brand-header-inner">
+    <a class="brand-home" href="/" aria-label="Proforma Platform">
+      <img src="/brand/logo.svg" alt="Proforma" width="160" height="40" />
+    </a>
+
+    <nav class="brand-nav brand-nav-desktop" aria-label="Navegação principal">
+      {
+        links.map((link) => (
+          <a href={link.href}>{link.label}</a>
+        ))
+      }
+    </nav>
+
+    <a class="brand-cta brand-cta-desktop" href="/">Explorar a Plataforma</a>
+
+    <details class="brand-nav-mobile">
+      <summary aria-label="Abrir menu principal">Menu</summary>
+      <nav aria-label="Navegação principal mobile">
+        {
+          links.map((link) => (
+            <a href={link.href}>{link.label}</a>
+          ))
+        }
+        <a class="brand-cta" href="/">Explorar a Plataforma</a>
+      </nav>
+    </details>
+  </div>
+</header>

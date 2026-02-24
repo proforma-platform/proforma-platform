@@ -1,14 +1,21 @@
 ---
 import "../styles/site.css";
 import "@proforma/ui/help-launcher.css";
+import BrandHeader from "../components/brand/BrandHeader.astro";
 
 interface Props {
   title: string;
   description: string;
   ogImage?: string;
+  enableHelpLauncher?: boolean;
 }
 
-const { title, description, ogImage = "/brand/mark.svg" } = Astro.props;
+const {
+  title,
+  description,
+  ogImage = "/brand/mark.svg",
+  enableHelpLauncher = false,
+} = Astro.props;
 const canonical = new URL(Astro.url.pathname, "https://proforma.net.br").toString();
 const pageTitle = `${title} | Proforma Platform`;
 ---
@@ -30,28 +37,9 @@ const pageTitle = `${title} | Proforma Platform`;
     <meta property="og:description" content={description} />
     <meta property="og:image" content={ogImage} />
     <meta property="og:url" content={canonical} />
-
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content={pageTitle} />
-    <meta name="twitter:description" content={description} />
-    <meta name="twitter:image" content={ogImage} />
   </head>
   <body>
-    <header class="site-header">
-      <div class="container site-header-inner">
-        <a class="brand-home" href="/" aria-label="Proforma - início">
-          <img src="/brand/logo.svg" alt="Proforma" width="160" height="40" />
-        </a>
-        <nav class="site-nav" aria-label="Navegação principal">
-          <a href="/">Início</a>
-          <a href="/produtos">Produtos</a>
-          <a href="/seguranca">Segurança</a>
-          <a href="/arquitetura">Arquitetura</a>
-          <a href="/evolucao">Evolução</a>
-          <a href="/contato">Contato</a>
-        </nav>
-      </div>
-    </header>
+    <BrandHeader />
     <main>
       <div class="container">
         <slot />
@@ -62,13 +50,17 @@ const pageTitle = `${title} | Proforma Platform`;
         <p>© {new Date().getFullYear()} Proforma Platform</p>
       </div>
     </footer>
-    <script type="module">
-      import {
-        getPublicHelpConfig,
-        initHelpLauncher,
-      } from "@proforma/ui/help-launcher";
+    {
+      enableHelpLauncher && (
+        <script type="module">
+          import {
+            getPublicHelpConfig,
+            initHelpLauncher,
+          } from "@proforma/ui/help-launcher";
 
-      initHelpLauncher(getPublicHelpConfig());
-    </script>
+          initHelpLauncher(getPublicHelpConfig());
+        </script>
+      )
+    }
   </body>
 </html>
