@@ -1,0 +1,14 @@
+:root {
+  --pf-color-brand-900: #0f1f3a;
+  --pf-color-brand-700: #1e3a6d;
+  --pf-color-brand-500: #2f5da8;
+  --pf-color-accent: #0ea5a4;
+
+  --pf-color-proformafarm: #16a34a;
+  --pf-color-medcore: #2563eb;
+
+  --pf-color-bg: #f7fafc;
+  --pf-color-surface: #ffffff;
+  --pf-color-text: #0b1220;
+  --pf-color-muted: #64748b;
+}

@@ -3,5 +3,13 @@ node_modules
 dist
 .build
 coverage
+.turbo
+.astro
+.docusaurus
+build
 .env
+.env.*
+!.env.example
 .DS_Store
+acme.json
+infra/**/acme/**
