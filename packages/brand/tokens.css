@@ -7,7 +7,15 @@
   --pf-color-medcore-accent: #0ea5a4;
 
   --pf-color-bg: #f7fafc;
+  --pf-color-bg-top: #f9fbff;
   --pf-color-surface: #ffffff;
+  --pf-color-surface-soft: #f8fbff;
+  --pf-color-surface-translucent: rgba(255, 255, 255, 0.95);
+  --pf-color-border: #dbe2ef;
+  --pf-color-border-soft: #d7dfea;
   --pf-color-text: #0b1220;
+  --pf-color-text-strong: #1f2937;
+  --pf-color-text-secondary: #4b5563;
+  --pf-color-text-tertiary: #334155;
   --pf-color-muted: #64748b;
 }

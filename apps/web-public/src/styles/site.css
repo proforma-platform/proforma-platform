@@ -1,7 +1,7 @@
 @import "@proforma/brand/tokens.css";
 
 :root {
-  --pf-border: #d7dfea;
+  --pf-border: var(--pf-color-border-soft);
 }
 
 * {
@@ -12,7 +12,11 @@ body {
   margin: 0;
   font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   color: var(--pf-color-text);
-  background: linear-gradient(180deg, #f9fbff 0%, var(--pf-color-bg) 100%);
+  background: linear-gradient(
+    180deg,
+    var(--pf-color-bg-top) 0%,
+    var(--pf-color-bg) 100%
+  );
 }
 
 .container {
@@ -25,7 +29,7 @@ body {
   top: 0;
   z-index: 10;
   border-bottom: 1px solid var(--pf-border);
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--pf-color-surface-translucent);
   backdrop-filter: blur(4px);
 }
 

@@ -20,13 +20,15 @@
 - npm: `10.8.2`
 - Astro: `^5.17.1` (`apps/web-public/package.json`)
 - Next.js: `16.1.6` (`apps/web-portal/package.json`)
-- Turbo: `2.8.10` observado em execução (`npm run build` / `npx turbo build`), com declaração `latest` no root (`package.json`)
+- Turbo: `2.8.10` pinado no root (`package.json`) e validado por `npm run build` / `npx turbo build`
 
 ## Single Source of Truth for Brand Tokens
 
 - Canonical source: `packages/brand/tokens.css` and `packages/brand/colors.ts`
 - Mandatory rule: apps/docs consume tokens from `@proforma/brand`
 - Duplicated local token files in apps are prohibited
+- Borders/background/text in app CSS must come from brand tokens (no hardcoded hex in app stylesheets)
+- Temporary exception: shadows can remain `rgba(...)` until dedicated shadow tokens are introduced
 
 ## Import Rules (Anti-Drift)
 
