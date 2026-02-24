@@ -1,46 +1,21 @@
 ---
-import ProductPageLayout from "../../components/ProductPageLayout.astro";
 import PublicLayout from "../../layouts/PublicLayout.astro";
 ---
 
 <PublicLayout
   title="MedCore"
-  description="Plataforma clínica com governança de dados e estrutura preparada para escalar."
+  description="Plataforma médica multi-tenant para produtos e serviços de saúde."
 >
-  <ProductPageLayout
-    productName="MedCore"
-    headline="Plataforma clínica com governança de dados e estrutura preparada para escalar."
-    subheadline="Desenvolvido para clínicas médicas e odontológicas, o MedCore integra organização de dados, controle operacional e base tecnológica preparada para evolução contínua."
-    problemItems={[
-      "Fragmentação de dados",
-      "Processos manuais",
-      "Falta de integração",
-      "Baixa rastreabilidade",
-      "Limitação de crescimento",
-    ]}
-    howItWorksItems={[
-      "Centralização de dados clínicos",
-      "Processos auditáveis",
-      "Integração preparada",
-      "Base modular",
-    ]}
-    architectureItems={[
-      "Arquitetura modular",
-      "Governança de backend",
-      "Versionamento disciplinado",
-      "Preparação para escala",
-      "Segurança estruturada",
-    ]}
-    audienceItems={[
-      "Clínicas médicas",
-      "Clínicas odontológicas",
-      "Estruturas em expansão",
-    ]}
-    roadmapCurrent="Estruturação conceitual"
-    roadmapNext="Módulos clínicos centrais e integrações operacionais"
-    ctaPrimaryLabel="Conhecer a plataforma"
-    ctaPrimaryHref="/"
-    ctaSecondaryLabel="Solicitar demonstração"
-    ctaSecondaryHref="/contato"
-  />
+  <section class="content-card">
+    <h1>MedCore</h1>
+    <p>
+      Plataforma médica multi-tenant preparada para escalar produtos SaaS em saúde,
+      mantendo isolamento de contexto e governança operacional.
+    </p>
+    <ul>
+      <li>Arquitetura orientada a domínio</li>
+      <li>Preparação para integrações com fluxos clínicos</li>
+      <li>Base para evolução de novos produtos</li>
+    </ul>
+  </section>
 </PublicLayout>

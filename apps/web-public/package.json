@@ -6,8 +6,7 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro",
-    "test": "echo \"no tests yet\" && exit 0"
+    "astro": "astro"
   },
   "dependencies": {
     "@proforma/ui": "*",
