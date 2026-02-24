@@ -6,5 +6,8 @@
   "exports": {
     "./help-launcher": "./src/help-launcher.js",
     "./help-launcher.css": "./src/help-launcher.css"
+  },
+  "scripts": {
+    "test": "echo \"no tests yet\" && exit 0"
   }
 }
