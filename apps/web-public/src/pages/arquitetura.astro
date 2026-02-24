@@ -1,0 +1,22 @@
+---
+import PublicLayout from "../layouts/PublicLayout.astro";
+---
+
+<PublicLayout
+  title="Arquitetura"
+  description="Arquitetura do monorepo Proforma Platform com apps, docs e pacotes compartilhados."
+>
+  <section class="content-card">
+    <h1>Arquitetura do monorepo</h1>
+    <p>
+      O repositório utiliza npm workspaces e Turbo para coordenar build, mantendo
+      aplicações independentes com componentes compartilhados em `packages/`.
+    </p>
+    <ul>
+      <li>`apps/web-public` (Astro)</li>
+      <li>`apps/web-portal` (Next.js App Router)</li>
+      <li>`docs/docusaurus` (documentação técnica)</li>
+      <li>`packages/ui` (componentes e utilitários compartilhados)</li>
+    </ul>
+  </section>
+</PublicLayout>

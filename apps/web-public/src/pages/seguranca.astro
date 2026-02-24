@@ -1,0 +1,22 @@
+---
+import PublicLayout from "../layouts/PublicLayout.astro";
+---
+
+<PublicLayout
+  title="Segurança"
+  description="Diretrizes de segurança aplicadas ao site e ao portal da plataforma."
+>
+  <section class="content-card">
+    <h1>Segurança desde o início</h1>
+    <p>
+      O site público e o portal utilizam políticas de segurança por padrão para reduzir
+      exposição a vetores comuns em aplicações web.
+    </p>
+    <ul>
+      <li>Headers de segurança preparados para reverse proxy e aplicações</li>
+      <li>Separação de superfície pública e portal</li>
+      <li>Sem autenticação real nesta fase inicial</li>
+      <li>Sem exposição de variáveis sensíveis no frontend</li>
+    </ul>
+  </section>
+</PublicLayout>

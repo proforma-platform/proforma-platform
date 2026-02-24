@@ -1,0 +1,118 @@
+name: proforma-platform-prod
+
+services:
+  traefik:
+    image: traefik:v3.1
+    container_name: traefik
+    restart: unless-stopped
+    command:
+      - --api.dashboard=true
+      - --api.insecure=false
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.cloudflare.acme.email=${ACME_EMAIL:-admin@proforma.net.br}
+      - --certificatesresolvers.cloudflare.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.cloudflare.acme.dnschallenge=true
+      - --certificatesresolvers.cloudflare.acme.dnschallenge.provider=cloudflare
+      - --certificatesresolvers.cloudflare.acme.dnschallenge.delaybeforecheck=20
+    environment:
+      - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN:-change-me}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./acme/acme.json:/letsencrypt/acme.json
+    networks:
+      - edge
+
+  web-public:
+    build:
+      context: ../..
+      dockerfile: apps/web-public/Dockerfile.prod
+    restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.web-public.rule=Host(`proforma.net.br`) || Host(`www.proforma.net.br`)
+      - traefik.http.routers.web-public.entrypoints=websecure
+      - traefik.http.routers.web-public.tls=true
+      - traefik.http.routers.web-public.tls.certresolver=cloudflare
+      - traefik.http.services.web-public.loadbalancer.server.port=80
+    networks:
+      - edge
+
+  web-portal:
+    build:
+      context: ../..
+      dockerfile: apps/web-portal/Dockerfile.prod
+    restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.web-portal.rule=Host(`portal.proforma.net.br`)
+      - traefik.http.routers.web-portal.entrypoints=websecure
+      - traefik.http.routers.web-portal.tls=true
+      - traefik.http.routers.web-portal.tls.certresolver=cloudflare
+      - traefik.http.services.web-portal.loadbalancer.server.port=3000
+    networks:
+      - edge
+
+  docs:
+    build:
+      context: ../..
+      dockerfile: docs/docusaurus/Dockerfile.prod
+    restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.docs.rule=Host(`docs.proforma.net.br`)
+      - traefik.http.routers.docs.entrypoints=websecure
+      - traefik.http.routers.docs.tls=true
+      - traefik.http.routers.docs.tls.certresolver=cloudflare
+      - traefik.http.services.docs.loadbalancer.server.port=80
+    networks:
+      - edge
+
+  n8n:
+    image: n8nio/n8n:latest
+    restart: unless-stopped
+    environment:
+      - N8N_HOST=n8n.proforma.net.br
+      - N8N_PROTOCOL=https
+      - WEBHOOK_URL=https://n8n.proforma.net.br/
+      - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE:-true}
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER:-change-user}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD:-change-password}
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-America/Sao_Paulo}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.n8n.rule=Host(`n8n.proforma.net.br`)
+      - traefik.http.routers.n8n.entrypoints=websecure
+      - traefik.http.routers.n8n.tls=true
+      - traefik.http.routers.n8n.tls.certresolver=cloudflare
+      - traefik.http.services.n8n.loadbalancer.server.port=5678
+    networks:
+      - edge
+
+  status:
+    image: traefik/whoami:v1.10
+    restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.status.rule=Host(`status.proforma.net.br`)
+      - traefik.http.routers.status.entrypoints=websecure
+      - traefik.http.routers.status.tls=true
+      - traefik.http.routers.status.tls.certresolver=cloudflare
+      - traefik.http.services.status.loadbalancer.server.port=80
+    networks:
+      - edge
+
+networks:
+  edge:
+    name: proforma_edge
+
+volumes:
+  n8n_data:
+    name: proforma_n8n_data

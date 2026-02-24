@@ -1,0 +1,21 @@
+services:
+  web-public:
+    build:
+      context: .
+      dockerfile: apps/web-public/Dockerfile
+    ports:
+      - "4321:4321"
+
+  web-portal:
+    build:
+      context: .
+      dockerfile: apps/web-portal/Dockerfile
+    ports:
+      - "3000:3000"
+
+  docs:
+    build:
+      context: .
+      dockerfile: docs/docusaurus/Dockerfile
+    ports:
+      - "3002:3002"

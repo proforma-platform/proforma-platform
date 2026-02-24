@@ -1,0 +1,73 @@
+.pf-help-launcher {
+  position: fixed;
+  right: 1rem;
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  z-index: 1000;
+  display: grid;
+  gap: 0.75rem;
+  justify-items: end;
+}
+
+.pf-help-toggle {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.75rem 1rem;
+  background: #0b5fff;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(11, 95, 255, 0.35);
+}
+
+.pf-help-toggle:focus-visible,
+.pf-help-link:focus-visible {
+  outline: 3px solid #111827;
+  outline-offset: 2px;
+}
+
+.pf-help-panel {
+  width: min(22rem, calc(100vw - 2rem));
+  border-radius: 0.9rem;
+  background: #ffffff;
+  border: 1px solid #dbe3ff;
+  box-shadow: 0 20px 40px rgba(17, 24, 39, 0.2);
+  padding: 1rem;
+}
+
+.pf-help-header h2 {
+  font-size: 1rem;
+  margin: 0;
+  color: #111827;
+}
+
+.pf-help-header p {
+  margin: 0.25rem 0 0.75rem;
+  color: #4b5563;
+  font-size: 0.9rem;
+}
+
+.pf-help-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.pf-help-link {
+  display: block;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.6rem;
+  text-decoration: none;
+  color: #0b5fff;
+  background: #eff4ff;
+  font-weight: 500;
+}
+
+.pf-help-link:hover {
+  background: #dde8ff;
+}

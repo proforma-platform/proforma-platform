@@ -1,0 +1,10 @@
+{
+  "name": "@proforma/ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./help-launcher": "./src/help-launcher.js",
+    "./help-launcher.css": "./src/help-launcher.css"
+  }
+}

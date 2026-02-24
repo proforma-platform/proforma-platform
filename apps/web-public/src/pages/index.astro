@@ -1,17 +1,23 @@
 ---
-
+import PublicLayout from "../layouts/PublicLayout.astro";
 ---
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
-</html>
+<PublicLayout
+  title="Plataforma institucional"
+  description="Proforma Platform: produtos, segurança, arquitetura e evolução da plataforma."
+>
+  <section class="content-card">
+    <h1>Ecossistema Proforma Platform</h1>
+    <p>
+      Plataforma institucional para apresentação das soluções do grupo, com separação
+      clara entre experiência pública e portal do cliente.
+    </p>
+    <ul>
+      <li><a href="/produtos">Portfólio completo de produtos</a></li>
+      <li><a href="/seguranca">Princípios e práticas de segurança</a></li>
+      <li><a href="/arquitetura">Arquitetura técnica do monorepo</a></li>
+      <li><a href="/evolucao">Evolução planejada da plataforma</a></li>
+      <li><a href="/contato">Canais comerciais e institucionais</a></li>
+    </ul>
+  </section>
+</PublicLayout>
