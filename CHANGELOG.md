@@ -4,6 +4,8 @@
 
 ### Added
 
+- Runbooks operacionais de deploy/infra/SSL em `docs/ops/` para ambiente Nginx + Cloudflare.
+- ADR-0007 formalizando governança de documentação de operação e deploy.
 - Workspace `@proforma/design-system` com tokens semânticos, contratos tipados de componentes e tema TypeScript.
 - Componentes base do Design System Foundations em `@proforma/design-system`: `Typography`, `Button`, `Card` e `Container`.
 - Documento de referência do núcleo do design system em `docs/design-system/core.md`.

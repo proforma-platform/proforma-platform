@@ -17,6 +17,12 @@ Ninguém deve conseguir alterar `main` sem:
 
 Objetivo: eliminar 90% dos riscos (ex.: commit direto no roadmap / regressões silenciosas).
 
+## Operação e Deploy (documentação oficial)
+- `docs/ops/DEPLOYMENT-RUNBOOK.md`
+- `docs/ops/INFRA-TOPOLOGY.md`
+- `docs/ops/CLOUDFLARE-NGINX-SSL.md`
+- `docs/architecture/ADR-0007-deployment-ops-runbook.md`
+
 ## Estado Atual (o que já foi feito)
 ### v0.5.0 — Design System Core
 - Novo workspace `@proforma/design-system` como núcleo de tokens semânticos, contratos tipados e tema compartilhado.

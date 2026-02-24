@@ -88,3 +88,10 @@ Evolução da marca:
 
 - Produção via Docker + Traefik + Cloudflare usando `infra/docker/docker-compose.prod.yml`.
 - Detalhes operacionais em `docs/runbooks/deploy-ubuntu-cloudflare.md`.
+
+## Deploy & Ops Docs
+
+- Deploy manual do `web-public` (Nginx): `docs/ops/DEPLOYMENT-RUNBOOK.md`
+- Topologia de infraestrutura observada: `docs/ops/INFRA-TOPOLOGY.md`
+- SSL/Cloudflare/Nginx (validação e troubleshooting): `docs/ops/CLOUDFLARE-NGINX-SSL.md`
+- ADR operacional: `docs/architecture/ADR-0007-deployment-ops-runbook.md`
