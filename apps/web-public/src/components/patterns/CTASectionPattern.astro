@@ -1,8 +1,4 @@
 ---
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
-import { Button, Card, Container, Typography } from "@proforma/design-system";
-
 interface Props {
   title: string;
   description: string;
@@ -11,28 +7,14 @@ interface Props {
 }
 
 const { title, description, ctaLabel, ctaHref } = Astro.props as Props;
-
-const ctaHtml = renderToStaticMarkup(
-  createElement(
-    Container,
-    { as: "section", maxWidth: "lg", className: "home-section" },
-    createElement(
-      Card,
-      { className: "home-cta-block" },
-      createElement(Typography, { variant: "h2", as: "h2" }, title),
-      createElement(Typography, { variant: "body", as: "p", className: "home-section-text" }, description),
-      createElement(
-        "form",
-        { action: ctaHref, method: "get", className: "home-cta-form" },
-        createElement(
-          Button,
-          { type: "submit", variant: "primary", size: "lg", "aria-label": ctaLabel },
-          ctaLabel
-        )
-      )
-    )
-  )
-);
 ---
 
-<Fragment set:html={ctaHtml} />
+<section class="pf-container pf-container--lg home-section">
+  <section class="pf-card pf-surface-card home-cta-block">
+    <h2 class="pf-typography pf-typography--h2">{title}</h2>
+    <p class="pf-typography pf-typography--body home-section-text">{description}</p>
+    <a href={ctaHref} class="pf-button pf-button--primary pf-button--lg" aria-label={ctaLabel}>
+      {ctaLabel}
+    </a>
+  </section>
+</section>

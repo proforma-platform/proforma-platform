@@ -1,8 +1,4 @@
 ---
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
-import { Card, Container, Typography } from "@proforma/design-system";
-
 interface Feature {
   title: string;
   description: string;
@@ -14,26 +10,18 @@ interface Props {
 }
 
 const { title, items } = Astro.props as Props;
-
-const featuresHtml = renderToStaticMarkup(
-  createElement(
-    Container,
-    { as: "section", maxWidth: "lg", className: "home-section" },
-    createElement(Typography, { variant: "h2", as: "h2" }, title),
-    createElement(
-      "div",
-      { className: "home-feature-grid" },
-      ...items.map((item) =>
-        createElement(
-          Card,
-          { className: "home-feature-card" },
-          createElement(Typography, { variant: "h3", as: "h3" }, item.title),
-          createElement(Typography, { variant: "body", as: "p" }, item.description)
-        )
-      )
-    )
-  )
-);
 ---
 
-<Fragment set:html={featuresHtml} />
+<section class="pf-container pf-container--lg home-section">
+  <h2 class="pf-typography pf-typography--h2">{title}</h2>
+  <div class="home-feature-grid">
+    {
+      items.map((item) => (
+        <section class="pf-card pf-surface-card home-feature-card">
+          <h3 class="pf-typography pf-typography--h3">{item.title}</h3>
+          <p class="pf-typography pf-typography--body">{item.description}</p>
+        </section>
+      ))
+    }
+  </div>
+</section>

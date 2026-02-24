@@ -1,8 +1,4 @@
 ---
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
-import { Card, Container, Typography } from "@proforma/design-system";
-
 interface Item {
   name: string;
   description: string;
@@ -18,28 +14,21 @@ interface Props {
 }
 
 const { id = "solucoes", title, description, items } = Astro.props as Props;
-
-const gridHtml = renderToStaticMarkup(
-  createElement(
-    Container,
-    { as: "section", maxWidth: "lg", className: "home-section", id },
-    createElement(Typography, { variant: "h2", as: "h2" }, title),
-    createElement(Typography, { variant: "body", as: "p", className: "home-section-text" }, description),
-    createElement(
-      "div",
-      { className: "home-product-grid" },
-      ...items.map((item) =>
-        createElement(
-          Card,
-          { className: `home-product-card home-product-card--${item.accent}` },
-          createElement(Typography, { variant: "h3", as: "h3" }, item.name),
-          createElement(Typography, { variant: "body", as: "p" }, item.description),
-          createElement("a", { href: item.href, className: "home-inline-link" }, "Acessar produto")
-        )
-      )
-    )
-  )
-);
 ---
 
-<Fragment set:html={gridHtml} />
+<section class="pf-container pf-container--lg home-section" id={id}>
+  <h2 class="pf-typography pf-typography--h2">{title}</h2>
+  <p class="pf-typography pf-typography--body home-section-text">{description}</p>
+
+  <div class="home-product-grid">
+    {
+      items.map((item) => (
+        <section class={`pf-card pf-surface-card home-product-card home-product-card--${item.accent}`}>
+          <h3 class="pf-typography pf-typography--h3">{item.name}</h3>
+          <p class="pf-typography pf-typography--body">{item.description}</p>
+          <a href={item.href} class="home-inline-link">Acessar produto</a>
+        </section>
+      ))
+    }
+  </div>
+</section>
