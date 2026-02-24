@@ -10,7 +10,10 @@ export function buildCanonicalUrl({
   path: string;
 }): string {
   const base = site ? new URL(site.toString()) : new URL(FALLBACK_SITE);
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  // Canonical rule: keep root as "/" and normalize all page paths with trailing slash.
+  const prefixedPath = path.startsWith("/") ? path : `/${path}`;
+  const normalizedPath =
+    prefixedPath === "/" ? prefixedPath : prefixedPath.endsWith("/") ? prefixedPath : `${prefixedPath}/`;
 
   return new URL(normalizedPath, base).toString();
 }

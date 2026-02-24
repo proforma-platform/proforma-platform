@@ -2,13 +2,13 @@
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import { buildCanonicalUrl } from "../../lib/seo";
 
-const targetPath = "/proformafarm";
+const targetPath = "/proformafarm/";
 const canonical = buildCanonicalUrl({ site: Astro.site, path: targetPath });
 ---
 
 <BaseLayout
   title="ProformaFarm ERP"
-  description="Página antiga de ProformaFarm. Use a rota oficial em /proformafarm."
+  description="Página antiga de ProformaFarm. Use a rota oficial em /proformafarm/."
   canonical={canonical}
   robots="noindex,follow"
 >

@@ -2,13 +2,13 @@
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import { buildCanonicalUrl } from "../../lib/seo";
 
-const targetPath = "/medcore";
+const targetPath = "/medcore/";
 const canonical = buildCanonicalUrl({ site: Astro.site, path: targetPath });
 ---
 
 <BaseLayout
   title="MedCore"
-  description="Página antiga de MedCore. Use a rota oficial em /medcore."
+  description="Página antiga de MedCore. Use a rota oficial em /medcore/."
   canonical={canonical}
   robots="noindex,follow"
 >
