@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80" role="img" aria-label="Proforma white">
+  <rect width="320" height="80" fill="#0f1f3a"/>
+  <path d="M20 16h28c12 0 20 8 20 20s-8 20-20 20H20z" fill="#ffffff"/>
+  <path d="M36 30h10c4 0 7 3 7 6s-3 6-7 6H36z" fill="#0f1f3a"/>
+  <text x="82" y="50" font-family="Segoe UI, Arial, sans-serif" font-size="30" fill="#ffffff">Proforma</text>
+</svg>

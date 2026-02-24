@@ -1,4 +1,4 @@
-@import "../../../../packages/brand/tokens.css";
+@import "./brand-tokens.css";
 
 :root {
   --pf-border: #d7dfea;
@@ -57,6 +57,13 @@ body {
 
 .site-nav a:hover {
   color: var(--pf-color-brand-500);
+}
+
+.site-nav a:focus-visible,
+.brand-home:focus-visible {
+  outline: 2px solid var(--pf-color-proforma-accent);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 
 main {
