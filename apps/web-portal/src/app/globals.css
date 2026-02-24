@@ -1,21 +1,21 @@
 @import "tailwindcss";
-@import "../styles/brand-tokens.css";
+@import "@proforma/design-system/tokens.css";
+@import "@proforma/design-system/semantic.css";
 @import "@proforma/ui/help-launcher.css";
 
 :root {
   --background: var(--pf-color-surface);
   --foreground: var(--pf-color-text);
   --surface: var(--pf-color-bg);
-  --border: #dbe2ef;
+  --border: var(--pf-color-border);
   --primary: var(--pf-color-brand-500);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --font-mono: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono",
-    "Courier New", monospace;
+  --font-sans: var(--pf-font-family-sans);
+  --font-mono: var(--pf-font-family-mono);
 }
 
 * {
@@ -24,7 +24,7 @@
 
 body {
   margin: 0;
-  background: linear-gradient(180deg, #ffffff 0%, var(--surface) 100%);
+  background: linear-gradient(180deg, var(--pf-color-surface) 0%, var(--surface) 100%);
   color: var(--foreground);
   font-family: var(--font-sans);
 }
@@ -66,7 +66,7 @@ a {
 
 .portal-nav a {
   text-decoration: none;
-  color: #1f2937;
+  color: var(--pf-color-text);
   font-weight: 600;
 }
 
@@ -78,14 +78,14 @@ a {
   margin-top: 1rem;
   border: 1px solid var(--border);
   border-radius: 0.9rem;
-  background: #fff;
+  background: var(--pf-color-surface);
   box-shadow: 0 10px 26px rgba(15, 23, 42, 0.08);
   padding: 1.25rem;
 }
 
 .portal-card p,
 .portal-card li {
-  color: #4b5563;
+  color: var(--pf-color-muted);
   line-height: 1.6;
 }
 
@@ -101,8 +101,8 @@ a {
   border-radius: 999px;
   padding: 0.2rem 0.6rem;
   font-size: 0.82rem;
-  color: #334155;
-  background: #f8fbff;
+  color: var(--pf-color-text);
+  background: var(--pf-color-surface-muted);
 }
 
 .kb-grid {
@@ -115,13 +115,13 @@ a {
   border: 1px solid var(--border);
   border-radius: 0.75rem;
   padding: 0.9rem;
-  background: #fff;
+  background: var(--pf-color-surface);
 }
 
 .kb-meta {
   margin: 0;
   font-size: 0.82rem;
-  color: #64748b;
+  color: var(--pf-color-muted);
 }
 
 .kb-section {
@@ -133,7 +133,7 @@ a {
 .portal-footer {
   margin-top: 2rem;
   border-top: 1px solid var(--border);
-  background: #fff;
+  background: var(--pf-color-surface);
 }
 
 .portal-footer p {

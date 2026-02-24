@@ -1,0 +1,19 @@
+{
+  "name": "@proforma/design-system",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./tokens.css": "./tokens.css",
+    "./semantic.css": "./semantic.css",
+    "./theme": "./src/theme.ts",
+    "./types": "./src/types.ts",
+    "./contracts": "./src/contracts.ts"
+  },
+  "dependencies": {
+    "@proforma/brand": "*"
+  },
+  "scripts": {
+    "test": "echo \"no tests yet\" && exit 0"
+  }
+}

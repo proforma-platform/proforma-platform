@@ -64,3 +64,15 @@ Inspirado em **Stripe** e **Veeva**:
 * **Palavras-Chave:** *Infraestrutura, Precisão, Conformidade, Eficiência Operacional, Escalabilidade.*
 
 ---
+
+## 6. Status de Implementação do Core
+
+- Workspace oficial: `packages/design-system` (`@proforma/design-system`)
+- Fundamentos entregues:
+  - `tokens.css` (tipografia, espaçamento, superfícies, foco e sombras)
+  - `semantic.css` (classes base)
+  - `src/theme.ts` (tema tipado)
+  - `src/contracts.ts` e `src/types.ts` (contratos e tipos)
+- Governança:
+  - ADR: `docs/architecture/ADR-0006-design-system-core.md`
+  - Guia operacional: `docs/design-system/core.md`

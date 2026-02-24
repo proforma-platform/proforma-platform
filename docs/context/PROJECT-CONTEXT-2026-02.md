@@ -18,6 +18,14 @@ Ninguém deve conseguir alterar `main` sem:
 Objetivo: eliminar 90% dos riscos (ex.: commit direto no roadmap / regressões silenciosas).
 
 ## Estado Atual (o que já foi feito)
+### v0.5.0 — Design System Core
+- Novo workspace `@proforma/design-system` como núcleo de tokens semânticos, contratos tipados e tema compartilhado.
+- Consumo de tokens consolidado por pacote nos canais:
+  - `apps/web-public`
+  - `apps/web-portal`
+  - `docs/docusaurus`
+- `@proforma/brand` mantém identidade visual canônica; `@proforma/design-system` define semântica e escala de UI.
+
 ### Governança / Gates
 - Root scripts padronizados: build, lint, typecheck, test (+ dev quando aplicável)
 - Turbo task graph inclui `test`

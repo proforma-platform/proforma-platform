@@ -1,0 +1,37 @@
+:root {
+  --pf-button-bg: var(--pf-color-brand-500);
+  --pf-button-text: var(--pf-color-surface);
+  --pf-button-border: var(--pf-color-brand-500);
+}
+
+.pf-focus-ring:focus-visible {
+  outline: 2px solid var(--pf-color-focus-ring);
+  outline-offset: 2px;
+}
+
+.pf-surface-card {
+  background: var(--pf-color-surface);
+  border: 1px solid var(--pf-color-border);
+  border-radius: var(--pf-radius-lg);
+  box-shadow: var(--pf-shadow-md);
+}
+
+.pf-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--pf-radius-pill);
+  border: 1px solid var(--pf-button-border);
+  background: var(--pf-button-bg);
+  color: var(--pf-button-text);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: var(--pf-font-size-200);
+  padding: 0.6rem 0.95rem;
+}
+
+.pf-button--secondary {
+  --pf-button-bg: var(--pf-color-surface);
+  --pf-button-text: var(--pf-color-brand-500);
+  --pf-button-border: var(--pf-color-brand-500);
+}

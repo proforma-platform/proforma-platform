@@ -9,6 +9,7 @@
     "astro": "astro"
   },
   "dependencies": {
+    "@proforma/design-system": "*",
     "@proforma/ui": "*",
     "astro": "^5.17.1"
   }

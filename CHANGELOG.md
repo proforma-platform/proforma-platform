@@ -4,6 +4,10 @@
 
 ### Added
 
+- Workspace `@proforma/design-system` com tokens semânticos, contratos tipados de componentes e tema TypeScript.
+- Documento de referência do núcleo do design system em `docs/design-system/core.md`.
+- ADR de design system core para governança de evolução de UI compartilhada.
+
 - Novo modelo Founder Mode em `ROADMAP.md` com estrutura hierárquica por fase.
 - Documento de processo de fila em `docs/roadmap/processo-desenvolvimento.md`.
 - ADR de governança por fases em `docs/architecture/ADR-0002-estrategia-fases-governanca.md`.
@@ -35,6 +39,9 @@
 
 ### Changed
 
+- `apps/web-public`, `apps/web-portal` e `docs/docusaurus` passaram a consumir tokens via `@proforma/design-system/tokens.css`.
+- `packages/ui/src/help-launcher.css` atualizado para consumir tokens semânticos (cores, foco, superfície e z-index).
+- `README.md` e `ROADMAP.md` atualizados para refletir a trilha de Design System Core.
 - `README.md` atualizado com regra operacional: nenhuma tarefa fora da fase atual.
 - ADR de layout institucional renumerada para `ADR-0003` para preservar histórico após formalização da ADR-0002 de governança.
 - `apps/web-portal/next.config.ts` revisado com headers adicionais de segurança.

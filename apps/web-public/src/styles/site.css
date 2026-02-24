@@ -1,7 +1,8 @@
-@import "./brand-tokens.css";
+@import "@proforma/design-system/tokens.css";
+@import "@proforma/design-system/semantic.css";
 
 :root {
-  --pf-border: #d7dfea;
+  --pf-border: var(--pf-color-border);
 }
 
 * {
@@ -10,9 +11,9 @@
 
 body {
   margin: 0;
-  font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--pf-font-family-sans);
   color: var(--pf-color-text);
-  background: linear-gradient(180deg, #f9fbff 0%, var(--pf-color-bg) 100%);
+  background: linear-gradient(180deg, var(--pf-color-surface-muted) 0%, var(--pf-color-bg) 100%);
 }
 
 .container {

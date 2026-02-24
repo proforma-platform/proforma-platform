@@ -24,7 +24,7 @@ Pacote de tokens e ativos de marca para uso em apps e documentação.
 ```ts
 import { brandColors } from "@proforma/brand/colors";
 
-const primary = brandColors.brand700;
+const primary = brandColors.brand500;
 ```
 
 ## Placeholders de logo

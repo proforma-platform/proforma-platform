@@ -9,9 +9,11 @@ Monorepo institucional com `npm workspaces` + `turbo` para produtos e documenta�
 - `docs/docusaurus` (Docusaurus): documentação técnica e governança
 - `packages/ui`: componentes compartilhados (inclui `HelpLauncher`)
 - `packages/brand`: tokens e assets de marca institucional
+- `packages/design-system`: Design System Core (tokens semânticos, contratos e tipagem)
 - `docs/architecture`: decisões arquiteturais (ADR)
 - `docs/roadmap`: detalhamento de fila e processo de execução
 - `docs/brand`: guidelines visuais e regras de marca
+- `docs/design-system`: documentação do núcleo do design system
 - `docs/runbooks`: procedimentos operacionais
 
 ## Rodando localmente
@@ -75,6 +77,7 @@ Referências:
 - ADR de marca: `docs/architecture/ADR-0003-brand-architecture.md`
 - Guidelines visuais: `docs/brand/visual-guidelines.md`
 - Tokens e assets: `packages/brand/`
+- Design System Core: `packages/design-system/` e `docs/design-system/core.md`
 
 Evolução da marca:
 
