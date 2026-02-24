@@ -1,8 +1,13 @@
 @import "tailwindcss";
+@import "../../../../packages/brand/tokens.css";
+@import "@proforma/ui/help-launcher.css";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: var(--pf-color-surface);
+  --foreground: var(--pf-color-text);
+  --surface: var(--pf-color-bg);
+  --border: #dbe2ef;
+  --primary: var(--pf-color-brand-500);
 }
 
 @theme inline {
@@ -13,15 +18,126 @@
     "Courier New", monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
 }
 
 body {
-  background: var(--background);
+  margin: 0;
+  background: linear-gradient(180deg, #ffffff 0%, var(--surface) 100%);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+}
+
+a {
+  color: var(--primary);
+}
+
+.portal-header {
+  border-bottom: 1px solid var(--border);
+  background: var(--pf-color-surface);
+}
+
+.portal-header-inner {
+  display: flex;
+  align-items: center;
+  padding-top: 0.9rem;
+  padding-bottom: 0.9rem;
+}
+
+.portal-brand {
+  display: inline-flex;
+  align-items: center;
+}
+
+.portal-shell {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.portal-nav {
+  display: flex;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.portal-nav a {
+  text-decoration: none;
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.portal-nav a:hover {
+  color: var(--primary);
+}
+
+.portal-card {
+  margin-top: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.9rem;
+  background: #fff;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.08);
+  padding: 1.25rem;
+}
+
+.portal-card p,
+.portal-card li {
+  color: #4b5563;
+  line-height: 1.6;
+}
+
+.kb-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.kb-chip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.82rem;
+  color: #334155;
+  background: #f8fbff;
+}
+
+.kb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.kb-item {
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 0.9rem;
+  background: #fff;
+}
+
+.kb-meta {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
+.kb-section {
+  margin-top: 1rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+}
+
+.portal-footer {
+  margin-top: 2rem;
+  border-top: 1px solid var(--border);
+  background: #fff;
+}
+
+.portal-footer p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--pf-color-muted);
 }
