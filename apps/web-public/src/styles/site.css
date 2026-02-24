@@ -38,15 +38,48 @@ body {
   padding: 0.9rem 0;
 }
 
+.site-header-nav {
+  display: grid;
+  gap: var(--pf-space-2);
+  justify-items: end;
+}
+
 .brand-home {
   display: inline-flex;
   align-items: center;
+}
+
+.site-product-switcher {
+  display: inline-flex;
+  gap: var(--pf-space-2);
+}
+
+.product-link {
+  text-decoration: none;
+  color: var(--pf-color-text);
+  font-weight: var(--pf-font-weight-semibold);
+  font-size: var(--pf-font-size-100);
+  border-bottom: var(--pf-space-1) solid transparent;
+  padding-bottom: var(--pf-space-1);
+}
+
+.product-link.is-active {
+  border-bottom-color: var(--pf-color-proforma-accent);
+}
+
+.product-link--farm.is-active {
+  border-bottom-color: var(--pf-color-farm-accent);
+}
+
+.product-link--medcore.is-active {
+  border-bottom-color: var(--pf-color-medcore-accent);
 }
 
 .site-nav {
   display: flex;
   flex-wrap: wrap;
   gap: 0.85rem;
+  justify-content: flex-end;
 }
 
 .site-nav a {
@@ -165,6 +198,27 @@ ul {
   gap: var(--pf-space-4);
 }
 
+.product-hero {
+  display: grid;
+  gap: var(--pf-space-4);
+  border-top: var(--pf-space-1) solid var(--pf-color-proforma-accent);
+}
+
+.product-hero--farm {
+  border-top-color: var(--pf-color-farm-accent);
+}
+
+.product-hero--medcore {
+  border-top-color: var(--pf-color-medcore-accent);
+}
+
+.product-kicker {
+  margin: 0;
+  color: var(--pf-color-muted);
+  font-size: var(--pf-font-size-200);
+  font-weight: var(--pf-font-weight-semibold);
+}
+
 .home-lead {
   margin: 0;
 }
@@ -258,8 +312,14 @@ ul {
     flex-direction: column;
   }
 
+  .site-header-nav {
+    width: 100%;
+    justify-items: flex-start;
+  }
+
   .site-nav {
-    gap: 0.7rem;
+    gap: var(--pf-space-2);
+    justify-content: flex-start;
   }
 
   .home-product-grid {

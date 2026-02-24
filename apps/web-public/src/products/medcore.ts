@@ -3,9 +3,9 @@ import type { Product } from "./types";
 export const medcoreProduct: Product = {
   slug: "medcore",
   name: "MedCore",
-  tagline: "Plataforma clínica com governança de dados e estrutura preparada para escala.",
+  tagline: "Jornada do paciente com eficiência clínica e operação padronizada.",
   description:
-    "O MedCore centraliza operação clínica e dados críticos com base modular para evolução contínua em ambientes de saúde.",
+    "MedCore integra atendimento, dados clínicos e rotinas operacionais para elevar qualidade assistencial com governança e previsibilidade.",
   ogImage: "/brand/mark.svg",
   seo: {
     title: "MedCore",
@@ -14,34 +14,34 @@ export const medcoreProduct: Product = {
   },
   features: [
     {
-      title: "Dados clínicos centralizados",
-      description: "Contexto único para reduzir fragmentação de informação assistencial.",
+      title: "Jornada do paciente conectada",
+      description: "Atendimento, histórico e evolução clínica unificados para decisões com contexto completo.",
     },
     {
-      title: "Processos auditáveis",
-      description: "Rastreabilidade operacional para suportar controle e melhoria contínua.",
+      title: "Eficiência clínica com menor retrabalho",
+      description: "Fluxos estruturados de triagem, atendimento e registro para aumentar produtividade da equipe.",
     },
     {
-      title: "Arquitetura modular",
-      description: "Evolução por módulos sem ruptura de base.",
+      title: "Padronização e qualidade assistencial",
+      description: "Protocolos e processos auditáveis para reduzir variação operacional entre unidades.",
     },
     {
-      title: "Preparação para integrações",
-      description: "Fundação técnica para conectar fluxos clínicos e administrativos.",
+      title: "Operação hospitalar e odonto preparada",
+      description: "Base modular para expansão de serviços sem perder governança de dados.",
     },
   ],
   modules: [
     {
-      title: "Base clínica",
-      description: "Estrutura central para dados e jornadas de atendimento.",
+      title: "Gestão de atendimento e agenda",
+      description: "Organização de fluxo assistencial com visibilidade de capacidade e tempo.",
     },
     {
-      title: "Operação administrativa",
-      description: "Orquestração de processos de apoio com governança operacional.",
+      title: "Prontuário e dados estruturados",
+      description: "Registro clínico consistente para apoiar continuidade e segurança do cuidado.",
     },
     {
-      title: "Relatórios de governança",
-      description: "Métricas para acompanhamento de performance e conformidade.",
+      title: "Governança operacional e indicadores",
+      description: "Métricas de desempenho para evolução contínua de processos e resultados.",
     },
   ],
   ctas: [

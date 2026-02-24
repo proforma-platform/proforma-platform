@@ -1,0 +1,43 @@
+---
+interface Item {
+  title: string;
+  description: string;
+}
+
+interface Props {
+  featuresTitle: string;
+  modulesTitle: string;
+  features: Item[];
+  modules: Item[];
+}
+
+const { featuresTitle, modulesTitle, features, modules } = Astro.props as Props;
+---
+
+<section class="pf-container pf-container--lg home-section">
+  <h2 class="pf-typography pf-typography--h2">{featuresTitle}</h2>
+  <div class="home-feature-grid">
+    {
+      features.map((item) => (
+        <section class="pf-card pf-surface-card home-feature-card">
+          <h3 class="pf-typography pf-typography--h3">{item.title}</h3>
+          <p class="pf-typography pf-typography--body">{item.description}</p>
+        </section>
+      ))
+    }
+  </div>
+</section>
+
+<section class="pf-container pf-container--lg home-section">
+  <h2 class="pf-typography pf-typography--h2">{modulesTitle}</h2>
+  <div class="home-feature-grid">
+    {
+      modules.map((item) => (
+        <section class="pf-card pf-surface-card home-feature-card">
+          <h3 class="pf-typography pf-typography--h3">{item.title}</h3>
+          <p class="pf-typography pf-typography--body">{item.description}</p>
+        </section>
+      ))
+    }
+  </div>
+</section>

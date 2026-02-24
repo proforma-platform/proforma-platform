@@ -1,0 +1,36 @@
+---
+interface Props {
+  name: string;
+  title: string;
+  description: string;
+  accent: "farm" | "medcore";
+  primaryCta: { label: string; href: string };
+  secondaryCta?: { label: string; href: string };
+}
+
+const { name, title, description, accent, primaryCta, secondaryCta } = Astro.props as Props;
+---
+
+<section class="pf-container pf-container--lg home-section">
+  <section class={`pf-card pf-surface-card product-hero product-hero--${accent}`}>
+    <p class="product-kicker">{name}</p>
+    <h1 class="pf-typography pf-typography--h1">{title}</h1>
+    <p class="pf-typography pf-typography--body home-lead">{description}</p>
+    <div class="home-cta-row">
+      <a href={primaryCta.href} class="pf-button pf-button--primary pf-button--md" aria-label={primaryCta.label}>
+        {primaryCta.label}
+      </a>
+      {
+        secondaryCta && (
+          <a
+            href={secondaryCta.href}
+            class="pf-button pf-button--secondary pf-button--md"
+            aria-label={secondaryCta.label}
+          >
+            {secondaryCta.label}
+          </a>
+        )
+      }
+    </div>
+  </section>
+</section>

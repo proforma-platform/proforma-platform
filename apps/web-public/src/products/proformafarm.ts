@@ -3,9 +3,9 @@ import type { Product } from "./types";
 export const proformafarmProduct: Product = {
   slug: "proformafarm",
   name: "ProformaFarm",
-  tagline: "ERP farmacêutico com controle operacional real e base preparada para escalar.",
+  tagline: "Rastreabilidade farmacêutica e eficiência operacional com conformidade contínua.",
   description:
-    "O ProformaFarm combina operação, governança e rastreabilidade para farmácias, redes e distribuidores com foco em crescimento sustentável.",
+    "ProformaFarm organiza ponta a ponta da operação farmacêutica com controle de validade, redução de ruptura e governança auditável para crescimento consistente.",
   ogImage: "/brand/mark.svg",
   seo: {
     title: "ProformaFarm",
@@ -14,34 +14,34 @@ export const proformafarmProduct: Product = {
   },
   features: [
     {
-      title: "Rastreabilidade de ponta a ponta",
-      description: "Controle de lote, validade e movimentação com histórico auditável.",
+      title: "Rastreabilidade e validade em tempo real",
+      description: "Controle de lote e vencimento com trilha auditável para reduzir perdas e riscos regulatórios.",
     },
     {
-      title: "Governança fiscal",
-      description: "Fluxos tributários estruturados para reduzir inconsistência operacional.",
+      title: "Eficiência de estoque e operação",
+      description: "Reposição orientada por dados para equilibrar giro, disponibilidade e custo operacional.",
     },
     {
-      title: "Operação consolidada",
-      description: "Visão unificada de compras, estoque e comercial em uma base única.",
+      title: "Conformidade e auditoria contínuas",
+      description: "Processos fiscais e operacionais padronizados para inspeções com menos retrabalho.",
     },
     {
-      title: "Escala multiunidade",
-      description: "Padronização de processos para expansão com previsibilidade.",
+      title: "Saúde financeira e margem",
+      description: "Visibilidade de custos, preços e rentabilidade para decisões mais seguras por unidade.",
     },
   ],
   modules: [
     {
-      title: "Operação farmacêutica",
-      description: "Ciclo operacional com regras de negócio por contexto de uso.",
+      title: "Entrada e abastecimento orientados",
+      description: "Compras, recebimento e reposição conectados para manter estoque saudável.",
     },
     {
-      title: "Fiscal e tributário",
-      description: "Estrutura de conformidade para cenários fiscais de maior complexidade.",
+      title: "Rotina fiscal com governança",
+      description: "Regras tributárias e validações centralizadas para reduzir inconsistências.",
     },
     {
-      title: "Estoque e compras",
-      description: "Planejamento e reposição com rastreabilidade de itens críticos.",
+      title: "Operação comercial com controle",
+      description: "Preço, margem e desempenho por categoria para apoiar escala com disciplina.",
     },
   ],
   ctas: [

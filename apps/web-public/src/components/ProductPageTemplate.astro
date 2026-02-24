@@ -1,47 +1,49 @@
 ---
+import CTASectionPattern from "./patterns/CTASectionPattern.astro";
+import FooterPattern from "./patterns/FooterPattern.astro";
+import ProductHeroPattern from "./patterns/ProductHeroPattern.astro";
+import ProductHighlightsPattern from "./patterns/ProductHighlightsPattern.astro";
 import type { Product } from "../products/types";
 
 interface Props {
   product: Product;
 }
 
-const { product } = Astro.props;
+const { product } = Astro.props as Props;
+const accent = product.slug === "proformafarm" ? "farm" : "medcore";
+const primaryCta = product.ctas[0] ?? { label: "Falar com Especialista", href: "/contato" };
+const secondaryCta = product.ctas[1];
 ---
 
-<section class="content-card product-page">
-  <h1>{product.name}</h1>
-  <p class="product-headline">{product.tagline}</p>
-  <p>{product.description}</p>
+<ProductHeroPattern
+  name={product.name}
+  title={product.tagline}
+  description={product.description}
+  accent={accent}
+  primaryCta={{ label: primaryCta.label, href: primaryCta.href }}
+  secondaryCta={secondaryCta ? { label: secondaryCta.label, href: secondaryCta.href } : undefined}
+/>
 
-  <h2>Capabilities</h2>
-  <ul>
-    {
-      product.features.map((feature) => (
-        <li>
-          <strong>{feature.title}:</strong> {feature.description}
-        </li>
-      ))
-    }
-  </ul>
+<ProductHighlightsPattern
+  featuresTitle="Benefícios estratégicos"
+  modulesTitle="Como funciona na prática"
+  features={product.features}
+  modules={product.modules}
+/>
 
-  <h2>Módulos</h2>
-  <ul>
-    {
-      product.modules.map((module) => (
-        <li>
-          <strong>{module.title}:</strong> {module.description}
-        </li>
-      ))
-    }
-  </ul>
+<CTASectionPattern
+  title={`Avalie ${product.name} com foco em resultado operacional`}
+  description="Converse com o time Proforma para mapear prioridades, riscos e ganhos da implementação."
+  ctaLabel={primaryCta.label}
+  ctaHref={primaryCta.href}
+/>
 
-  <div class="product-cta-row">
-    {
-      product.ctas.map((cta) => (
-        <a class={cta.kind === "secondary" ? "cta-secondary" : "cta-primary"} href={cta.href}>
-          {cta.label}
-        </a>
-      ))
-    }
-  </div>
-</section>
+<FooterPattern
+  title="Explore também"
+  links={[
+    { label: "Plataforma", href: "/" },
+    { label: "Arquitetura", href: "/arquitetura" },
+    { label: "Segurança", href: "/seguranca" },
+    { label: "Contato", href: "/contato" },
+  ]}
+/>
