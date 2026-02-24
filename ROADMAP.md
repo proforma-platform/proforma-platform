@@ -3,12 +3,15 @@
 Este é o roadmap oficial da plataforma.
 
 ## 🎯 Fase Atual
+
 Objetivo macro da fase: tangibilizar produtos no `apps/web-public` com governança, performance e baseline de qualidade.
 
 ### 🔵 Em Execução
+
 - [GOV-0031] Refinar páginas de produto com narrativa comercial orientada a conversão (Owner: Codex) – Status: In Progress
 
 ### 🟡 Próximas (fila imediata)
+
 - [GOV-0032] Publicar release `v0.3.0` com Product Pages + evidências de Lighthouse (Owner: Codex) – Status: Planned
 - [GOV-0033] Consolidar baseline de SEO institucional (`title`, `description`, `og:*`) em todas as páginas públicas (Owner: Codex) – Status: Planned
 
@@ -17,10 +20,13 @@ Objetivo macro da fase: tangibilizar produtos no `apps/web-public` com governan�
 ## 🧱 Estratégia de Fases
 
 ### 🟦 FASE 1 — Infraestrutura & Governança
+
 **Objetivo**
+
 Fundação técnica e organizacional do projeto.
 
 **Tarefas iniciais**
+
 - Monorepo estruturado
 - CI funcionando
 - Docusaurus ativo
@@ -31,16 +37,21 @@ Fundação técnica e organizacional do projeto.
 - n8n protegido
 
 **Em Execução**
+
 - Nenhuma
 
 **Backlog**
+
 - Ajustes incrementais de runbooks e padronização operacional
 
 ### 🟩 FASE 2 — Identidade & Layout Institucional
+
 **Objetivo**
+
 Consolidar presença institucional com linguagem de produto enterprise.
 
 **Tarefas iniciais**
+
 - Layout base institucional
 - Hero multi-produto
 - Página de produtos
@@ -52,34 +63,44 @@ Consolidar presença institucional com linguagem de produto enterprise.
 - Aplicação consistente de marca no `apps/web-public`
 
 **Em Execução**
+
 - Nenhuma
 
 **Backlog**
+
 - Evolução visual e narrativa institucional orientada a conversão
 - Revisão periódica de aderência aos brand tokens
 - Manutenção do Brand System (`packages/brand`, ADR e guidelines)
 
 ### 🟨 FASE 3 — Portal Base (Sem Auth Real)
+
 **Objetivo**
+
 Estruturar navegação funcional de portal antes de integrações reais.
 
 **Tarefas iniciais**
+
 - Layout do portal
 - Rotas base estruturadas
 - Placeholder de autenticação
 - HelpLauncher contextual
 
 **Em Execução**
+
 - Nenhuma
 
 **Backlog**
+
 - Revisões de UX do portal sem integração com backend real
 
 ### 🟧 FASE 4 — Integração Real
+
 **Objetivo**
+
 Conectar o portal ao ecossistema operacional existente com segurança.
 
 **Tarefas iniciais**
+
 - SSO com ERP
 - Estratégia de conexão futura com Postgres existente
 - Suporte real e ouvidoria persistente
@@ -87,16 +108,21 @@ Conectar o portal ao ecossistema operacional existente com segurança.
 - Observabilidade
 
 **Em Execução**
+
 - Nenhuma
 
 **Backlog**
+
 - Plano de migração por etapas para integrações produtivas
 
 ### 🟥 FASE 5 — Hardening & Produção
+
 **Objetivo**
+
 Elevar maturidade operacional e segurança para produção contínua.
 
 **Tarefas iniciais**
+
 - Headers de segurança avançados
 - Rate limiting
 - CSP rigoroso
@@ -106,14 +132,17 @@ Elevar maturidade operacional e segurança para produção contínua.
 - Monitoramento
 
 **Em Execução**
+
 - [GOV-0025] Programa de revisão cruzada de incidentes com áreas de negócio (Owner: Codex) – Status: In Progress
 
 **Backlog**
+
 - Playbooks de incidentes e auditoria contínua
 
 ---
 
 ## 🧭 Backlog Prioritário
+
 Itens importantes, mas não imediatos.
 
 - [GOV-0034] Política de maturidade de resiliência por domínio de produto – Status: Planned
@@ -121,6 +150,7 @@ Itens importantes, mas não imediatos.
 ---
 
 ## 🧪 Backlog Futuro
+
 Ideias estratégicas, não executáveis ainda.
 
 - [GOV-0027] Estratégia de validação anual de governança por auditoria externa independente – Status: Planned
@@ -128,6 +158,7 @@ Ideias estratégicas, não executáveis ainda.
 ---
 
 ## ✅ Concluído
+
 Itens finalizados com referência ao commit.
 
 - [GOV-0001] Estrutura inicial do monorepo + CI básico + Docusaurus – Commit: `ee40bc8`
@@ -163,20 +194,25 @@ Itens finalizados com referência ao commit.
 ### [ID-001] Nome da Tarefa
 
 **Objetivo**
+
 Explicação clara do problema.
 
 **Escopo**
+
 Arquivos afetados:
+
 - apps/...
 - docs/...
 - infra/...
 
 **Critério de Aceite**
+
 - `npm run build` passa
 - Documentação atualizada
 - Nenhuma dependência nova desnecessária
 
 **Riscos**
+
 - Impacto na arquitetura?
 - Segurança?
 - SEO?
