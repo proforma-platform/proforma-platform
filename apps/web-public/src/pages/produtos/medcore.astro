@@ -1,21 +1,25 @@
 ---
-import PublicLayout from "../../layouts/PublicLayout.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { buildCanonicalUrl } from "../../lib/seo";
+
+const targetPath = "/medcore";
+const canonical = buildCanonicalUrl({ site: Astro.site, path: targetPath });
 ---
 
-<PublicLayout
+<BaseLayout
   title="MedCore"
-  description="Plataforma médica multi-tenant para produtos e serviços de saúde."
+  description="Página antiga de MedCore. Use a rota oficial em /medcore."
+  canonical={canonical}
+  robots="noindex,follow"
 >
+  <Fragment slot="head">
+    <meta http-equiv="refresh" content={`0;url=${targetPath}`} />
+  </Fragment>
   <section class="content-card">
-    <h1>MedCore</h1>
+    <h1>Conteúdo movido</h1>
     <p>
-      Plataforma médica multi-tenant preparada para escalar produtos SaaS em saúde,
-      mantendo isolamento de contexto e governança operacional.
+      A página de MedCore foi migrada para a rota principal.
+      Continue em <a href={targetPath}>{targetPath}</a>.
     </p>
-    <ul>
-      <li>Arquitetura orientada a domínio</li>
-      <li>Preparação para integrações com fluxos clínicos</li>
-      <li>Base para evolução de novos produtos</li>
-    </ul>
   </section>
-</PublicLayout>
+</BaseLayout>

@@ -5,11 +5,31 @@ interface Props {
   title: string;
   description: string;
   ogImage?: string;
+  canonical?: string;
+  robots?: string;
+  jsonLd?: Record<string, unknown> | Record<string, unknown>[];
+  enableHelpLauncher?: boolean;
 }
 
-const { title, description, ogImage } = Astro.props;
+const {
+  title,
+  description,
+  ogImage,
+  canonical,
+  robots,
+  jsonLd,
+  enableHelpLauncher = false,
+} = Astro.props;
 ---
 
-<BaseLayout title={title} description={description} ogImage={ogImage}>
+<BaseLayout
+  title={title}
+  description={description}
+  ogImage={ogImage}
+  canonical={canonical}
+  robots={robots}
+  jsonLd={jsonLd}
+  enableHelpLauncher={enableHelpLauncher}
+>
   <slot />
 </BaseLayout>

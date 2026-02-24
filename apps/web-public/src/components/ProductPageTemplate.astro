@@ -1,0 +1,47 @@
+---
+import type { Product } from "../products/types";
+
+interface Props {
+  product: Product;
+}
+
+const { product } = Astro.props;
+---
+
+<section class="content-card product-page">
+  <h1>{product.name}</h1>
+  <p class="product-headline">{product.tagline}</p>
+  <p>{product.description}</p>
+
+  <h2>Capabilities</h2>
+  <ul>
+    {
+      product.features.map((feature) => (
+        <li>
+          <strong>{feature.title}:</strong> {feature.description}
+        </li>
+      ))
+    }
+  </ul>
+
+  <h2>Módulos</h2>
+  <ul>
+    {
+      product.modules.map((module) => (
+        <li>
+          <strong>{module.title}:</strong> {module.description}
+        </li>
+      ))
+    }
+  </ul>
+
+  <div class="product-cta-row">
+    {
+      product.ctas.map((cta) => (
+        <a class={cta.kind === "secondary" ? "cta-secondary" : "cta-primary"} href={cta.href}>
+          {cta.label}
+        </a>
+      ))
+    }
+  </div>
+</section>

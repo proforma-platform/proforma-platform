@@ -1,0 +1,32 @@
+---
+import ProductPageTemplate from "../components/ProductPageTemplate.astro";
+import { buildCanonicalUrl, buildJsonLdSoftwareApplication } from "../lib/seo";
+import PublicLayout from "../layouts/PublicLayout.astro";
+import { productSlugs, productsBySlug } from "../products";
+import type { Product } from "../products/types";
+
+interface Props {
+  product: Product;
+}
+
+export function getStaticPaths() {
+  return productSlugs.map((slug) => ({
+    params: { slug },
+    props: { product: productsBySlug[slug] },
+  }));
+}
+
+const { product } = Astro.props as Props;
+const canonical = buildCanonicalUrl({ site: Astro.site, path: `/${product.slug}` });
+const jsonLd = buildJsonLdSoftwareApplication(product, canonical);
+---
+
+<PublicLayout
+  title={product.seo.title}
+  description={product.seo.description}
+  canonical={canonical}
+  ogImage={product.ogImage}
+  jsonLd={jsonLd}
+>
+  <ProductPageTemplate product={product} />
+</PublicLayout>

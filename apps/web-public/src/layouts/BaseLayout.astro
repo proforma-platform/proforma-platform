@@ -1,16 +1,38 @@
 ---
 import "../styles/site.css";
 import "@proforma/ui/help-launcher.css";
+import { buildCanonicalUrl, buildMetaTags } from "../lib/seo";
 
 interface Props {
   title: string;
   description: string;
   ogImage?: string;
+  canonical?: string;
+  robots?: string;
+  jsonLd?: Record<string, unknown> | Record<string, unknown>[];
+  enableHelpLauncher?: boolean;
 }
 
-const { title, description, ogImage = "/brand/mark.svg" } = Astro.props;
-const canonical = new URL(Astro.url.pathname, "https://proforma.net.br").toString();
+const {
+  title,
+  description,
+  ogImage = "/brand/mark.svg",
+  canonical,
+  robots,
+  jsonLd,
+  enableHelpLauncher = false,
+} = Astro.props;
+
 const pageTitle = `${title} | Proforma Platform`;
+const canonicalUrl =
+  canonical ?? buildCanonicalUrl({ site: Astro.site, path: Astro.url.pathname });
+const meta = buildMetaTags({
+  title: pageTitle,
+  description,
+  canonical: canonicalUrl,
+  ogImage,
+});
+const jsonLdEntries = Array.isArray(jsonLd) ? jsonLd : jsonLd ? [jsonLd] : [];
 ---
 
 <html lang="pt-BR">
@@ -18,23 +40,32 @@ const pageTitle = `${title} | Proforma Platform`;
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="generator" content={Astro.generator} />
-    <meta name="description" content={description} />
-    <title>{pageTitle}</title>
+    <meta name="description" content={meta.description} />
+    <title>{meta.title}</title>
+    <link rel="canonical" href={meta.canonical} />
+    {robots && <meta name="robots" content={robots} />}
 
     <link rel="icon" type="image/svg+xml" href="/brand/mark.svg" />
     <link rel="apple-touch-icon" href="/brand/mark.svg" />
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Proforma Platform" />
-    <meta property="og:title" content={pageTitle} />
-    <meta property="og:description" content={description} />
-    <meta property="og:image" content={ogImage} />
-    <meta property="og:url" content={canonical} />
+    <meta property="og:title" content={meta.og.title} />
+    <meta property="og:description" content={meta.og.description} />
+    <meta property="og:image" content={meta.og.image} />
+    <meta property="og:url" content={meta.og.url} />
 
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content={pageTitle} />
-    <meta name="twitter:description" content={description} />
-    <meta name="twitter:image" content={ogImage} />
+    <meta name="twitter:card" content={meta.twitter.card} />
+    <meta name="twitter:title" content={meta.twitter.title} />
+    <meta name="twitter:description" content={meta.twitter.description} />
+    <meta name="twitter:image" content={meta.twitter.image} />
+
+    {
+      jsonLdEntries.map((entry) => (
+        <script type="application/ld+json" set:html={JSON.stringify(entry)} />
+      ))
+    }
+    <slot name="head" />
   </head>
   <body>
     <header class="site-header">
@@ -62,13 +93,17 @@ const pageTitle = `${title} | Proforma Platform`;
         <p>© {new Date().getFullYear()} Proforma Platform</p>
       </div>
     </footer>
-    <script type="module">
-      import {
-        getPublicHelpConfig,
-        initHelpLauncher,
-      } from "@proforma/ui/help-launcher";
+    {
+      enableHelpLauncher && (
+        <script type="module">
+          import {
+            getPublicHelpConfig,
+            initHelpLauncher,
+          } from "@proforma/ui/help-launcher";
 
-      initHelpLauncher(getPublicHelpConfig());
-    </script>
+          initHelpLauncher(getPublicHelpConfig());
+        </script>
+      )
+    }
   </body>
 </html>
