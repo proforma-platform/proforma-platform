@@ -1,4 +1,4 @@
-@import "../../../../packages/brand/tokens.css";
+@import "@proforma/brand/tokens.css";
 
 :root {
   --ifm-color-primary: var(--pf-color-brand-500);

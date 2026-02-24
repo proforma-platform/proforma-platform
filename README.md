@@ -39,6 +39,12 @@ Build completo:
 npm run build
 ```
 
+Build direto com Turbo (sem instalação global):
+
+```bash
+npx turbo build
+```
+
 ## Governança e Operação do Codex
 
 ### Regra central
@@ -80,6 +86,8 @@ Evolução da marca:
 
 - Alterações estruturais de identidade exigem nova ADR.
 - Tokens devem ser alterados primeiro em `packages/brand`, depois aplicados nas apps.
+- Consumo de tokens deve ocorrer via workspace import (`@proforma/brand/tokens.css`), sem caminhos relativos para `packages/brand`.
+- Arquivo oficial do símbolo é `mark.svg` (`packages/brand/assets/mark.svg`).
 
 ## Deploy no Ubuntu (visão geral)
 

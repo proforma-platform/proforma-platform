@@ -69,6 +69,11 @@ Enquanto o logo final não estiver aprovado, usar placeholders em:
 - `packages/brand/assets/logo-white.svg`
 - `packages/brand/assets/mark.svg`
 
+Padrão oficial do símbolo:
+
+- Nome canônico: `mark.svg`
+- Não usar `symbol.svg` como fonte primária.
+
 Formato esperado do logo final:
 
 - SVG vetorial limpo

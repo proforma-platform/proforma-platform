@@ -1,4 +1,4 @@
-@import "./brand-tokens.css";
+@import "@proforma/brand/tokens.css";
 
 :root {
   --pf-border: #d7dfea;

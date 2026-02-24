@@ -6,9 +6,13 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "lint": "echo \"no lint yet\" && exit 0",
+    "typecheck": "echo \"no typecheck yet\" && exit 0",
+    "test": "echo \"no tests yet\" && exit 0"
   },
   "dependencies": {
+    "@proforma/brand": "*",
     "@proforma/ui": "*",
     "astro": "^5.17.1"
   }

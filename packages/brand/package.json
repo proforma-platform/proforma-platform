@@ -3,6 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "build": "echo \"no build yet\" && exit 0",
+    "lint": "echo \"no lint yet\" && exit 0",
+    "typecheck": "echo \"no typecheck yet\" && exit 0",
+    "test": "echo \"no tests yet\" && exit 0"
+  },
   "exports": {
     "./tokens.css": "./tokens.css",
     "./colors": "./colors.ts"

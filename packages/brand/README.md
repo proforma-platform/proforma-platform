@@ -24,7 +24,7 @@ Pacote de tokens e ativos de marca para uso em apps e documentação.
 ```ts
 import { brandColors } from "@proforma/brand/colors";
 
-const primary = brandColors.brand700;
+const primary = brandColors.brand500;
 ```
 
 ## Placeholders de logo
@@ -32,5 +32,7 @@ const primary = brandColors.brand700;
 - `assets/logo.svg`
 - `assets/logo-white.svg`
 - `assets/mark.svg`
+
+Símbolo oficial de marca: `mark.svg`.
 
 Substituir pelos SVG finais aprovados no processo de branding.

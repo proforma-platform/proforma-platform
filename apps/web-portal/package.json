@@ -6,9 +6,12 @@
     "dev": "next dev",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"no tests yet\" && exit 0"
   },
   "dependencies": {
+    "@proforma/brand": "*",
     "@proforma/ui": "*",
     "next": "16.1.6",
     "react": "19.2.3",

@@ -6,6 +6,8 @@
     "docusaurus": "docusaurus",
     "start": "docusaurus start",
     "build": "docusaurus build",
+    "lint": "echo \"no lint yet\" && exit 0",
+    "test": "echo \"no tests yet\" && exit 0",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",
     "clear": "docusaurus clear",
@@ -15,6 +17,7 @@
     "typecheck": "tsc"
   },
   "dependencies": {
+    "@proforma/brand": "*",
     "@docusaurus/core": "3.9.2",
     "@docusaurus/preset-classic": "3.9.2",
     "@mdx-js/react": "^3.0.0",
