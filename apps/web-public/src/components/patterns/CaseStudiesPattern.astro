@@ -1,0 +1,37 @@
+---
+interface CaseStudyItem {
+  scenario: string;
+  intervention: string;
+  expectedImpact: string;
+}
+
+interface Props {
+  title: string;
+  description: string;
+  items: CaseStudyItem[];
+}
+
+const { title, description, items } = Astro.props as Props;
+---
+
+<section class="pf-container pf-container--lg home-section" aria-label="Case studies">
+  <h2 class="pf-typography pf-typography--h2">{title}</h2>
+  <p class="pf-typography pf-typography--body home-section-text">{description}</p>
+
+  <div class="home-case-grid">
+    {
+      items.map((item) => (
+        <article class="pf-card pf-surface-card home-case-card">
+          <h3 class="pf-typography pf-typography--h3">Exemplo de cenário</h3>
+          <p class="pf-typography pf-typography--body">{item.scenario}</p>
+
+          <h4 class="pf-typography pf-typography--small home-case-kicker">Intervenção</h4>
+          <p class="pf-typography pf-typography--body">{item.intervention}</p>
+
+          <h4 class="pf-typography pf-typography--small home-case-kicker">Impacto esperado</h4>
+          <p class="pf-typography pf-typography--body">{item.expectedImpact}</p>
+        </article>
+      ))
+    }
+  </div>
+</section>

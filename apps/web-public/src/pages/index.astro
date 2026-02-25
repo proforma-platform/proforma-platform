@@ -1,8 +1,10 @@
 ---
 import CTASectionPattern from "../components/patterns/CTASectionPattern.astro";
+import CaseStudiesPattern from "../components/patterns/CaseStudiesPattern.astro";
 import FeatureGridPattern from "../components/patterns/FeatureGridPattern.astro";
 import FooterPattern from "../components/patterns/FooterPattern.astro";
 import HeroPattern from "../components/patterns/HeroPattern.astro";
+import IntegrationsPattern from "../components/patterns/IntegrationsPattern.astro";
 import ProductSwitcherPattern from "../components/patterns/ProductSwitcherPattern.astro";
 import SocialProofPattern from "../components/patterns/SocialProofPattern.astro";
 import TrustCompliancePattern from "../components/patterns/TrustCompliancePattern.astro";
@@ -92,6 +94,56 @@ const trustItems = [
     description: "Base modular para crescimento multi-produto sem regressão de qualidade.",
   },
 ];
+
+const integrationItems = [
+  {
+    title: "ERP / Financeiro",
+    description: "Conectividade preparada para sincronizar eventos de operação e dados financeiros.",
+  },
+  {
+    title: "BI / Analytics",
+    description: "Estrutura para alimentar análises executivas e indicadores de governança.",
+  },
+  {
+    title: "Automação (n8n)",
+    description: "Fluxos orquestráveis para automações operacionais com rastreabilidade.",
+  },
+  {
+    title: "Identidade (SSO)",
+    description: "Preparação para estratégias de identidade corporativa e acesso centralizado.",
+  },
+  {
+    title: "Mensageria / Webhooks",
+    description: "Modelo orientado a eventos para integrações desacopladas sob demanda.",
+  },
+  {
+    title: "Documentação / KB",
+    description: "Base documental integrada para acelerar adoção e suporte operacional.",
+  },
+  {
+    title: "Observabilidade",
+    description: "Telemetria e logs estruturados para análise contínua de comportamento da plataforma.",
+  },
+  {
+    title: "Integrações sob demanda",
+    description: "Camada evolutiva para incorporar sistemas críticos conforme prioridade de negócio.",
+  },
+];
+
+const caseStudiesItems = [
+  {
+    scenario: "Exemplo de cenário: operação farmacêutica com processos distribuídos e baixa visibilidade de riscos.",
+    intervention: "Resultados típicos após intervenção: consolidação de dados operacionais e trilhas auditáveis por unidade.",
+    expectedImpact:
+      "Impacto esperado: redução de retrabalho e maior previsibilidade para decisões de estoque e conformidade.",
+  },
+  {
+    scenario: "Exemplo de cenário: rede clínica em expansão com alto volume assistencial e controles heterogêneos.",
+    intervention: "Resultados típicos após intervenção: padronização de fluxo, governança de eventos e indicadores comuns.",
+    expectedImpact:
+      "Impacto esperado: consistência operacional e ganho progressivo de capacidade analítica para escalar serviços.",
+  },
+];
 ---
 
 <PublicLayout
@@ -126,6 +178,20 @@ const trustItems = [
   />
 
   <TrustCompliancePattern title="Trust & Compliance" items={trustItems} />
+
+  <IntegrationsPattern
+    title="Integrações e ecossistema"
+    description="A plataforma está preparada para evoluir integrações com sistemas corporativos sem prometer conectores prontos fora do escopo atual."
+    items={integrationItems}
+    ctaLabel="Falar sobre integrações"
+    ctaHref="/contato"
+  />
+
+  <CaseStudiesPattern
+    title="Case studies estruturados para evolução"
+    description="Base pronta para publicar casos com métricas reais quando houver evidência validada."
+    items={caseStudiesItems}
+  />
 
   <CTASectionPattern
     title="Pronto para evoluir sua operação com base sólida?"

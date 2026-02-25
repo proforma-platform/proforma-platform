@@ -5,6 +5,8 @@
 ### Added
 
 - Workspace `@proforma/design-system` com tokens semânticos, contratos tipados de componentes e tema TypeScript.
+- Novos patterns institucionais no `web-public`: `IntegrationsPattern` e `CaseStudiesPattern` para camada de credibilidade enterprise.
+- Evidência de versão publicada via `apps/web-public/public/version.txt`, gerada em `prebuild` com commit, tag e timestamp UTC.
 - Componentes base do Design System Foundations em `@proforma/design-system`: `Typography`, `Button`, `Card` e `Container`.
 - Documento de referência do núcleo do design system em `docs/design-system/core.md`.
 - ADR de design system core para governança de evolução de UI compartilhada.
