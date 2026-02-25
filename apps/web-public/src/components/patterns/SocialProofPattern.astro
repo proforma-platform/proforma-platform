@@ -1,0 +1,40 @@
+---
+interface TestimonialItem {
+  name: string;
+  role: string;
+  company: string;
+  metric: string;
+  quote: string;
+}
+
+interface Props {
+  title: string;
+  description: string;
+  items: TestimonialItem[];
+}
+
+const { title, description, items } = Astro.props as Props;
+---
+
+<section class="pf-container pf-container--lg home-section" aria-label="Prova social">
+  <h2 class="pf-typography pf-typography--h2">{title}</h2>
+  <p class="pf-typography pf-typography--body home-section-text">{description}</p>
+  <div class="home-social-grid">
+    {
+      items.map((item) => (
+        <article class="pf-card pf-surface-card home-social-card">
+          <div class="home-social-avatar" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="24" height="24" role="img" focusable="false">
+              <circle cx="12" cy="8" r="4" fill="currentColor"></circle>
+              <rect x="6" y="14" width="12" height="7" rx="3.5" fill="currentColor"></rect>
+            </svg>
+          </div>
+          <p class="home-social-metric">{item.metric}</p>
+          <p class="pf-typography pf-typography--body">“{item.quote}”</p>
+          <p class="home-social-author">{item.name}</p>
+          <p class="home-social-meta">{item.role} · {item.company}</p>
+        </article>
+      ))
+    }
+  </div>
+</section>

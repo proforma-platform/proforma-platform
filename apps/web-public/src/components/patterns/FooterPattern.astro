@@ -5,24 +5,70 @@ interface LinkItem {
 }
 
 interface Props {
+  logoLabel?: string;
   title: string;
+  description?: string;
+  products?: LinkItem[];
+  companyLinks?: LinkItem[];
   links: LinkItem[];
+  legal?: {
+    cnpj: string;
+    address: string;
+    copyright: string;
+  };
 }
 
-const { title, links } = Astro.props as Props;
+const {
+  logoLabel = "Proforma Platform",
+  title,
+  description = "Plataforma enterprise multi-produto para operação, dados e governança.",
+  products = [
+    { label: "ProformaFarm", href: "/proformafarm/" },
+    { label: "MedCore", href: "/medcore/" },
+  ],
+  companyLinks = links,
+  links,
+  legal = {
+    cnpj: "CNPJ: 00.000.000/0000-00",
+    address: "Endereço: <ENDERECO_EMPRESA>",
+    copyright: "© 2026 Proforma Platform",
+  },
+} = Astro.props as Props;
 ---
 
 <section class="pf-container pf-container--lg home-section">
-  <section class="pf-card pf-surface-card home-trust-nav">
-    <h2 class="pf-typography pf-typography--h3">{title}</h2>
-    <nav aria-label="Navegação institucional">
-      <ul class="home-trust-links">
-        {
-          links.map((link) => (
-            <li><a href={link.href} class="home-inline-link">{link.label}</a></li>
-          ))
-        }
-      </ul>
-    </nav>
-  </section>
+  <footer class="pf-card pf-surface-card home-institutional-footer">
+    <div class="home-footer-grid">
+      <div class="home-footer-col">
+        <h2 class="pf-typography pf-typography--h3">{logoLabel}</h2>
+        <p class="pf-typography pf-typography--body">{description}</p>
+      </div>
+      <div class="home-footer-col">
+        <h3 class="pf-typography pf-typography--h3">Produtos</h3>
+        <ul class="home-trust-links">
+          {products.map((link) => <li><a href={link.href} class="home-inline-link">{link.label}</a></li>)}
+        </ul>
+      </div>
+      <div class="home-footer-col">
+        <h3 class="pf-typography pf-typography--h3">Empresa</h3>
+        <ul class="home-trust-links">
+          {companyLinks.map((link) => <li><a href={link.href} class="home-inline-link">{link.label}</a></li>)}
+        </ul>
+      </div>
+    </div>
+    <div class="home-footer-legal">
+      <p class="pf-typography pf-typography--small">{legal.cnpj}</p>
+      <p class="pf-typography pf-typography--small">{legal.address}</p>
+      <p class="pf-typography pf-typography--small">{legal.copyright}</p>
+    </div>
+    {
+      links.length > 0 && (
+        <nav aria-label={title} class="home-footer-extra-nav">
+          <ul class="home-trust-links">
+            {links.map((link) => <li><a href={link.href} class="home-inline-link">{link.label}</a></li>)}
+          </ul>
+        </nav>
+      )
+    }
+  </footer>
 </section>

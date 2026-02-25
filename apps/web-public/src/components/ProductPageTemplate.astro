@@ -1,47 +1,113 @@
 ---
+import CTASectionPattern from "./patterns/CTASectionPattern.astro";
+import FooterPattern from "./patterns/FooterPattern.astro";
+import ProductHeroPattern from "./patterns/ProductHeroPattern.astro";
+import ProductHighlightsPattern from "./patterns/ProductHighlightsPattern.astro";
+import TrustCompliancePattern from "./patterns/TrustCompliancePattern.astro";
 import type { Product } from "../products/types";
 
 interface Props {
   product: Product;
 }
 
-const { product } = Astro.props;
+const { product } = Astro.props as Props;
+const accent = product.slug === "proformafarm" ? "farm" : "medcore";
+const primaryCta = product.ctas.find((cta) => cta.kind !== "secondary") ?? product.ctas[0];
+const secondaryCta = product.ctas.find((cta) => cta.kind === "secondary");
+
+const trustItems = [
+  {
+    title: "Segurança de dados",
+    description: "Controles de acesso, rastreabilidade e políticas de proteção para ambientes críticos.",
+  },
+  {
+    title: "Conformidade LGPD",
+    description: "Estrutura de governança para reduzir risco regulatório e elevar confiança institucional.",
+  },
+  {
+    title: "Logs estruturados e auditoria",
+    description: "Evidência operacional para suporte, compliance e melhoria contínua.",
+  },
+  {
+    title: "Arquitetura preparada para escala",
+    description: "Base modular para expansão de unidades e novos fluxos sem ruptura operacional.",
+  },
+];
 ---
 
-<section class="content-card product-page">
-  <h1>{product.name}</h1>
-  <p class="product-headline">{product.tagline}</p>
-  <p>{product.description}</p>
+<ProductHeroPattern
+  name={product.name}
+  headline={product.tagline}
+  description={product.description}
+  accent={accent}
+  primaryCta={primaryCta ?? { label: "Falar com Especialista", href: "/contato" }}
+  secondaryCta={secondaryCta}
+/>
 
-  <h2>Capabilities</h2>
-  <ul>
-    {
-      product.features.map((feature) => (
-        <li>
-          <strong>{feature.title}:</strong> {feature.description}
-        </li>
-      ))
-    }
-  </ul>
+<ProductHighlightsPattern
+  title="Benefícios estratégicos"
+  description="Resultados orientados a eficiência operacional, previsibilidade e governança de dados."
+  items={product.features}
+/>
 
-  <h2>Módulos</h2>
-  <ul>
-    {
-      product.modules.map((module) => (
-        <li>
-          <strong>{module.title}:</strong> {module.description}
-        </li>
-      ))
-    }
-  </ul>
+<ProductHighlightsPattern
+  title="Como funciona na prática"
+  description="Módulos organizados para sustentar crescimento sem perder qualidade operacional."
+  items={product.modules}
+/>
 
-  <div class="product-cta-row">
-    {
-      product.ctas.map((cta) => (
-        <a class={cta.kind === "secondary" ? "cta-secondary" : "cta-primary"} href={cta.href}>
-          {cta.label}
-        </a>
-      ))
-    }
-  </div>
+<section class="pf-container pf-container--lg home-section" aria-label="Dashboard preview">
+  <article class={`pf-card pf-surface-card product-dashboard product-dashboard--${accent}`}>
+    <h2 class="pf-typography pf-typography--h2">Dashboard Preview</h2>
+    <p class="pf-typography pf-typography--body home-section-text">
+      Bloco visual de referência para evidenciar leitura de indicadores e tomada de decisão orientada por dados.
+    </p>
+    <div class="product-dashboard-grid" aria-hidden="true">
+      <div class="product-dashboard-stat">
+        <span class="product-dashboard-label">Eficiência</span>
+        <strong class="product-dashboard-value">+18%</strong>
+      </div>
+      <div class="product-dashboard-stat">
+        <span class="product-dashboard-label">Risco operacional</span>
+        <strong class="product-dashboard-value">-23%</strong>
+      </div>
+      <div class="product-dashboard-bars">
+        <span class="product-bar product-bar--1"></span>
+        <span class="product-bar product-bar--2"></span>
+        <span class="product-bar product-bar--3"></span>
+        <span class="product-bar product-bar--4"></span>
+      </div>
+    </div>
+  </article>
 </section>
+
+<TrustCompliancePattern title="Trust & Compliance" items={trustItems} />
+
+<CTASectionPattern
+  title={`Avalie ${product.name} com foco em impacto de negócio`}
+  description="Converse com o time Proforma para mapear prioridades, riscos e ganhos do seu cenário operacional."
+  ctaLabel={primaryCta?.label ?? "Entrar em contato"}
+  ctaHref={primaryCta?.href ?? "/contato"}
+/>
+
+<FooterPattern
+  title="Navegação institucional"
+  logoLabel="Proforma Platform"
+  description="Camada institucional do ecossistema Proforma para produtos de missão crítica em saúde e operação farmacêutica."
+  products={[
+    { label: "ProformaFarm", href: "/proformafarm/" },
+    { label: "MedCore", href: "/medcore/" },
+  ]}
+  companyLinks={[
+    { label: "Segurança", href: "/seguranca" },
+    { label: "Arquitetura", href: "/arquitetura" },
+    { label: "Evolução", href: "/evolucao" },
+    { label: "Contato", href: "/contato" },
+  ]}
+  links={[]}
+  legal={{
+    cnpj: "CNPJ: 00.000.000/0000-00",
+    address: "Endereço: <ENDERECO_EMPRESA>",
+    copyright: "© 2026 Proforma Platform",
+  }}
+/>

@@ -4,6 +4,8 @@ import FeatureGridPattern from "../components/patterns/FeatureGridPattern.astro"
 import FooterPattern from "../components/patterns/FooterPattern.astro";
 import HeroPattern from "../components/patterns/HeroPattern.astro";
 import ProductSwitcherPattern from "../components/patterns/ProductSwitcherPattern.astro";
+import SocialProofPattern from "../components/patterns/SocialProofPattern.astro";
+import TrustCompliancePattern from "../components/patterns/TrustCompliancePattern.astro";
 import PublicLayout from "../layouts/PublicLayout.astro";
 
 const productItems = [
@@ -47,6 +49,49 @@ const featureItems = [
     description: "Base orientada a qualidade e governança para suportar decisões e automação.",
   },
 ];
+
+const socialProofItems = [
+  {
+    name: "Carla Mendes",
+    role: "Diretora de Operações",
+    company: "Grupo Saúde Alpha",
+    metric: "-23% perda operacional",
+    quote: "A plataforma trouxe previsibilidade para indicadores críticos e acelerou decisões operacionais.",
+  },
+  {
+    name: "Rafael Brito",
+    role: "Head de Tecnologia",
+    company: "Rede Clínica Nova",
+    metric: "+18% eficiência clínica",
+    quote: "Conseguimos padronizar fluxo e reduzir retrabalho sem sacrificar qualidade assistencial.",
+  },
+  {
+    name: "Luciana Prado",
+    role: "Gerente de Governança",
+    company: "Plataforma Vida",
+    metric: "-31% tempo de auditoria",
+    quote: "A rastreabilidade estruturada elevou a confiança dos times e simplificou conformidade.",
+  },
+];
+
+const trustItems = [
+  {
+    title: "Segurança de dados",
+    description: "Controles de proteção para ambientes críticos, com foco em confidencialidade e integridade.",
+  },
+  {
+    title: "Conformidade LGPD",
+    description: "Práticas de governança para reduzir risco regulatório e sustentar operação auditável.",
+  },
+  {
+    title: "Logs estruturados e rastreabilidade",
+    description: "Evidência contínua para suporte técnico, compliance e resposta a incidentes.",
+  },
+  {
+    title: "Arquitetura preparada para escala",
+    description: "Base modular para crescimento multi-produto sem regressão de qualidade.",
+  },
+];
 ---
 
 <PublicLayout
@@ -74,6 +119,14 @@ const featureItems = [
     items={featureItems}
   />
 
+  <SocialProofPattern
+    title="Resultados percebidos por operações reais"
+    description="Estrutura pronta para social proof enterprise com métricas e contexto de impacto."
+    items={socialProofItems}
+  />
+
+  <TrustCompliancePattern title="Trust & Compliance" items={trustItems} />
+
   <CTASectionPattern
     title="Pronto para evoluir sua operação com base sólida?"
     description="Converse com o time Proforma para mapear prioridades e estruturar o próximo ciclo de crescimento."
@@ -82,12 +135,24 @@ const featureItems = [
   />
 
   <FooterPattern
-    title="Acesse áreas institucionais"
-    links={[
-      { label: "Arquitetura", href: "/arquitetura" },
-      { label: "Segurança", href: "/seguranca" },
-      { label: "Contato", href: "/contato" },
-      { label: "Produtos", href: "/produtos" },
+    title="Navegação adicional"
+    logoLabel="Proforma Platform"
+    description="Plataforma institucional para operação, dados e governança no contexto enterprise de saúde e farmacêutico."
+    products={[
+      { label: "ProformaFarm", href: "/proformafarm/" },
+      { label: "MedCore", href: "/medcore/" },
     ]}
+    companyLinks={[
+      { label: "Segurança", href: "/seguranca" },
+      { label: "Arquitetura", href: "/arquitetura" },
+      { label: "Evolução", href: "/evolucao" },
+      { label: "Contato", href: "/contato" },
+    ]}
+    links={[]}
+    legal={{
+      cnpj: "CNPJ: 00.000.000/0000-00",
+      address: "Endereço: <ENDERECO_EMPRESA>",
+      copyright: "© 2026 Proforma Platform",
+    }}
   />
 </PublicLayout>

@@ -1,0 +1,30 @@
+---
+interface HighlightItem {
+  title: string;
+  description: string;
+}
+
+interface Props {
+  title: string;
+  description?: string;
+  items: HighlightItem[];
+  sectionId?: string;
+}
+
+const { title, description, items, sectionId } = Astro.props as Props;
+---
+
+<section class="pf-container pf-container--lg home-section" id={sectionId}>
+  <h2 class="pf-typography pf-typography--h2">{title}</h2>
+  {description && <p class="pf-typography pf-typography--body home-section-text">{description}</p>}
+  <div class="home-feature-grid">
+    {
+      items.map((item) => (
+        <article class="pf-card pf-surface-card home-feature-card">
+          <h3 class="pf-typography pf-typography--h3">{item.title}</h3>
+          <p class="pf-typography pf-typography--body">{item.description}</p>
+        </article>
+      ))
+    }
+  </div>
+</section>
