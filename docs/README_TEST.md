@@ -28,6 +28,55 @@ A estrutura segue o padrão de **Monorepo Gerenciado**, facilitando a governanç
 ├── docs/                 # Whitepapers e documentação técnica Enterprise
 └── scripts/              # Automação de infraestrutura (Terraform/Ansible)
 ```
+
+# Blueprint de Desenvolvimento: Proforma Platform
+
+## 1. Visão Geral do Projeto
+Desenvolver um portal SaaS B2B de alta performance que unifique o ecossistema **ProformaFarm** e **MedCore**, utilizando padrões globais de design, navegabilidade e conversão (Stripe, Atlassian, HubSpot).
+
+---
+
+## 2. Timeline Estratégica (Phases of Solution Development)
+A evolução da plataforma segue um cronograma rigoroso de marcos (Milestones), garantindo entregas contínuas e estabilidade.
+
+| Fase | Releases | Milestones | Foco de Desenvolvimento | UX & Design |
+| :--- | :--- | :--- | :--- | :--- |
+| **Q1** | v1.0.0 | Milestone 1 & 2 | Infraestrutura Base & MVP de Integração | Wireframes & Design do MVP |
+| **Q2** | v1.0.1 | Milestone 3 | Motor de Analytics & Protótipo Front-End | Refinamento de UI |
+| **Q3** | v1.1.0 | Milestone 4 | Upgrade de Requisitos de Sistema & QA | Auditoria de UX |
+| **Q4** | v1.2.0 | Milestone 5 | Escopo Final de Features & Métricas de Performance | Custom Color Palette & Final Assets |
+
+---
+
+## 3. Guia de Assets Visuais (Sugestões de Interfaces)
+
+Para transmitir autoridade técnica, as janelas dos sistemas devem ser apresentadas com o design limpo visto em ferramentas como o Jira Product Discovery.
+
+### 3.1. ProformaFarm ERP (Visual Pharma & Supply Chain)
+As imagens devem remeter à robustez e automação:
+* **Inventário & Supply Chain:** Interface de cronograma (Timeline) para gestão de pedidos e datas de validade.
+* **Impact Analysis:** Tabelas comparativas de impacto vs. esforço para tomadas de decisão logística.
+* **Integrações Cloud:** Diagramas simplificados representando a conexão segura e troca de dados em nuvem.
+
+### 3.2. MedCore (Visual Clínico & Odontológico)
+As imagens devem remeter a cuidado e precisão:
+* **Agenda Médica:** Interface de planejamento semanal limpa e intuitiva.
+* **Prontuário & Insights:** Telas de resumo com indicadores de saúde e histórico do paciente.
+
+---
+
+## 4. Suporte Inteligente: HubBot AI
+Inspirado na eficiência da HubSpot, a Proforma integrará um chatbot inteligente para triagem e suporte técnico.
+* **Acesso Rápido:** Botão flutuante minimalista no canto inferior direito.
+* **Ações Diretas:** Botões para "Agendar uma demo", "Chat com vendas" ou busca rápida na base de conhecimento.
+
+---
+
+## 5. Casos de Sucesso (Social Proof)
+* **Layout:** Depoimentos de CTOs e gestores, destacando métricas reais como a redução do ciclo médio de desenvolvimento de 5.8 dias para 2.9 dias.
+
+---
+
 ## 🛡️ Governança e Qualidade
 Para garantir o padrão Enterprise, todos os contribuidores devem seguir os protocolos de excelência:
 
@@ -66,8 +115,8 @@ Suporte Técnico: [support@proforma.net.br]
 
 ## Vendas e Parcerias: [comercial@proforma.net.br]
 
-<p align="center">
-<b>Proforma Platform</b></p>
+<p align="center"> 
+<b>Proforma Platform Rodapé Institucional (Enterprise Footer)</b></p>
 
 **[ Dados Legais ]**
 > **Proforma Platform**
