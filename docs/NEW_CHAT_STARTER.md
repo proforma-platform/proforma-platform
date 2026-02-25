@@ -4,6 +4,71 @@ Este documento estabelece o protocolo oficial de governança para a restauraçã
 
 ---
 
+## NCS v2.1 — Consolidação Técnica Dupla
+
+### A. Modelo de Consolidação Técnica Dupla
+
+O NCS v2.1 opera com três camadas formais:
+
+1. **Execução Técnica (CODEX):** implementação, validação local e evidências operacionais.
+2. **Validação Arquitetural (Staff):** revisão de coerência arquitetural, governança e riscos.
+3. **Consolidação Oficial (Projeto):** registro em documentação oficial (`ROADMAP.md`, `PROJECT-CONTEXT`, `CHANGELOG`, ADR quando aplicável).
+
+### B. Schema Obrigatório do Relatório CODEX
+
+Todo relatório do CODEX deve conter, nesta ordem:
+
+1. **Relatório Operacional**
+2. **Resumo Técnico (CODEX)**
+3. **Links de Auditoria (quando aplicável)**
+
+Exemplo estruturado:
+
+```md
+## RELATÓRIO OPERACIONAL
+- Branch: feat/exemplo
+- Commit: abc1234
+- Build: OK
+
+## RESUMO TÉCNICO (CODEX)
+- Objetivo entregue
+- Arquivos alterados
+- Critérios validados
+
+## LINKS DE AUDITORIA (REPOSITÓRIO)
+1. https://github.com/org/repo/blob/<SHA_FIXO>/README.md
+2. https://github.com/org/repo/commit/<SHA_FIXO>
+```
+
+### C. Template Oficial de Relatório CODEX
+
+```md
+## RELATÓRIO OPERACIONAL
+- GOV-ID:
+- Branch:
+- Commit SHA:
+- Build/Lint/Test:
+- Escopo executado:
+
+## RESUMO TÉCNICO (CODEX)
+- Alterações principais
+- Decisões técnicas aplicadas
+- Riscos remanescentes (se houver)
+
+## LINKS DE AUDITORIA (REPOSITÓRIO)
+1.
+2.
+3.
+```
+
+Regras do template:
+
+- Links devem usar **commit SHA fixo**.
+- Não usar links com branch dinâmica (`main`, `feature/*`) como evidência principal.
+- Máximo de **10 links** por relatório.
+
+---
+
 ## 1. DEFINIÇÃO DOS PAPÉIS E RESPONSABILIDADES
 
 * **Owner (Engenheiro de Sistemas):** Comanda a visão estratégica, delega missões e fornece os insumos do ambiente local para a IA Staff.
