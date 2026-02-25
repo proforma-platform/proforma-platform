@@ -88,4 +88,3 @@ Evolução da marca:
 
 - Produção via Docker + Traefik + Cloudflare usando `infra/docker/docker-compose.prod.yml`.
 - Detalhes operacionais em `docs/runbooks/deploy-ubuntu-cloudflare.md`.
-# gov-0070 test
