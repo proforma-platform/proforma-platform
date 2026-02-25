@@ -42,6 +42,7 @@
 
 - `apps/web-public`, `apps/web-portal` e `docs/docusaurus` passaram a consumir tokens via `@proforma/design-system/tokens.css`.
 - `apps/web-public/src/pages/index.astro` integrado de forma incremental com os componentes base do design system.
+- Runbook de deploy Ubuntu atualizado com o fluxo real de publicação estática (`build + rsync --delete + nginx reload`) e evidência operacional da publicação da `main` `e6b1364` (v0.6.0).
 - `packages/ui/src/help-launcher.css` atualizado para consumir tokens semânticos (cores, foco, superfície e z-index).
 - `README.md` e `ROADMAP.md` atualizados para refletir a trilha de Design System Core.
 - `README.md` atualizado com regra operacional: nenhuma tarefa fora da fase atual.
