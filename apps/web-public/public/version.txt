@@ -1,0 +1,7 @@
+commit=4d9a4e52a361624098f875539bfd783fa5f6e6e0
+tag=dev
+branch=feat/v0.6.1-enterprise-hardening
+dirty=true
+node_version=v20.20.0
+built_at=2026-02-25T03:01:32.578Z
+app=web-public
