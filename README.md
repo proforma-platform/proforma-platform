@@ -1,5 +1,7 @@
 # Proforma Platform
 
+[ STABILITY Stable ] [ SECURITY Hardened ] [ GOVERNANCE ADR+Runbooks ] [ RELEASE Integrity Enabled ] [ DEPLOY Proof (version.txt) ](https://proforma.net.br/version.txt)
+
 Proforma Platform is the institutional multi-product monorepo for public channels, customer portal, shared UI contracts, and technical governance documentation.
 
 ## Current Version
