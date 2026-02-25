@@ -1,0 +1,41 @@
+---
+interface CaseStudyItem {
+  typicalScenario: string;
+  architecturalApplication: string;
+  structuralExample: string;
+  operationalContext: string;
+}
+
+interface Props {
+  title: string;
+  description: string;
+  items: CaseStudyItem[];
+}
+
+const { title, description, items } = Astro.props as Props;
+---
+
+<section class="pf-container pf-container--lg home-section" aria-label="Case studies estruturais">
+  <h2 class="pf-typography pf-typography--h2">{title}</h2>
+  <p class="pf-typography pf-typography--body home-section-text">{description}</p>
+
+  <div class="home-case-grid">
+    {
+      items.map((item) => (
+        <article class="pf-card pf-surface-card home-case-card">
+          <h3 class="pf-typography pf-typography--h3">Cenário típico</h3>
+          <p class="pf-typography pf-typography--body">{item.typicalScenario}</p>
+
+          <h4 class="pf-typography pf-typography--small home-case-kicker">Aplicação arquitetural</h4>
+          <p class="pf-typography pf-typography--body">{item.architecturalApplication}</p>
+
+          <h4 class="pf-typography pf-typography--small home-case-kicker">Exemplo estrutural</h4>
+          <p class="pf-typography pf-typography--body">{item.structuralExample}</p>
+
+          <h4 class="pf-typography pf-typography--small home-case-kicker">Contexto operacional representativo</h4>
+          <p class="pf-typography pf-typography--body">{item.operationalContext}</p>
+        </article>
+      ))
+    }
+  </div>
+</section>

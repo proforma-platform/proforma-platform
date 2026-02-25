@@ -4,6 +4,8 @@
 
 ### Added
 
+- Enterprise release integrity metadata (`version.txt` estendido com commit/tag/branch/dirty/node_version/built_at).
+- Public deployment integrity endpoint via arquivo estático `/version.txt` no `web-public`.
 - Workspace `@proforma/design-system` com tokens semânticos, contratos tipados de componentes e tema TypeScript.
 - Componentes base do Design System Foundations em `@proforma/design-system`: `Typography`, `Button`, `Card` e `Container`.
 - Documento de referência do núcleo do design system em `docs/design-system/core.md`.
@@ -54,6 +56,11 @@
 - `ROADMAP.md` atualizado na Fase 2 com itens de identidade (logo SVG, kit de banners e aplicação no `web-public`).
 - `README.md` atualizado com arquitetura de marca e localização de tokens/guidelines.
 - `ROADMAP.md` e `docs/roadmap/platform-roadmap.md` atualizados para concluir `GOV-0007` até `GOV-0024` e avançar fila para `GOV-0025`.
+
+### Improved
+
+- Narrativa de integrações endurecida para evitar promessa implícita de conectores específicos não implementados.
+- Narrativa de case studies alinhada a realismo arquitetural, sem claims quantitativos não auditáveis.
 
 ### Fixed
 

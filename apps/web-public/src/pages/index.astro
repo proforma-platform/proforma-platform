@@ -1,8 +1,10 @@
 ---
 import CTASectionPattern from "../components/patterns/CTASectionPattern.astro";
+import CaseStudiesPattern from "../components/patterns/CaseStudiesPattern.astro";
 import FeatureGridPattern from "../components/patterns/FeatureGridPattern.astro";
 import FooterPattern from "../components/patterns/FooterPattern.astro";
 import HeroPattern from "../components/patterns/HeroPattern.astro";
+import IntegrationsPattern from "../components/patterns/IntegrationsPattern.astro";
 import ProductSwitcherPattern from "../components/patterns/ProductSwitcherPattern.astro";
 import SocialProofPattern from "../components/patterns/SocialProofPattern.astro";
 import TrustCompliancePattern from "../components/patterns/TrustCompliancePattern.astro";
@@ -92,6 +94,62 @@ const trustItems = [
     description: "Base modular para crescimento multi-produto sem regressão de qualidade.",
   },
 ];
+
+const integrationItems = [
+  {
+    title: "ERP / Financeiro",
+    description: "Infraestrutura compatível com integrações corporativas para domínios transacionais e financeiros.",
+  },
+  {
+    title: "BI / Analytics",
+    description: "Camada orientada a APIs para consolidação de dados e análise executiva.",
+  },
+  {
+    title: "Automação de processos",
+    description: "Base preparada para conectores em fluxos de automação operacional.",
+  },
+  {
+    title: "Identidade corporativa",
+    description: "Arquitetura preparada para integrações de identidade e governança de acesso.",
+  },
+  {
+    title: "Mensageria e eventos",
+    description: "Camada orientada a APIs e eventos para integrações desacopladas.",
+  },
+  {
+    title: "Documentação e conhecimento",
+    description: "Infraestrutura compatível com integrações corporativas em bases documentais e KB.",
+  },
+  {
+    title: "Observabilidade",
+    description: "Base preparada para conectores de monitoramento e rastreabilidade de operação.",
+  },
+  {
+    title: "Integrações sob demanda",
+    description: "Arquitetura preparada para integrações conforme prioridade de negócio e maturidade técnica.",
+  },
+];
+
+const caseStudiesItems = [
+  {
+    typicalScenario: "Operação distribuída com baixa padronização entre times e processos críticos.",
+    architecturalApplication:
+      "Aplicação arquitetural com contratos claros de dados e fluxo para reduzir ambiguidade operacional.",
+    structuralExample:
+      "Exemplo estrutural com separação entre domínio de operação, governança e canais de atendimento.",
+    operationalContext:
+      "Contexto operacional representativo de empresas em fase de consolidação de práticas enterprise.",
+  },
+  {
+    typicalScenario: "Ambiente multiunidade com crescimento de demanda e necessidade de previsibilidade.",
+    architecturalApplication:
+      "Aplicação arquitetural com base modular para evolução progressiva sem ruptura do core operacional.",
+    structuralExample:
+      "Exemplo estrutural com trilha auditável e padronização de pontos de integração entre sistemas.",
+    operationalContext:
+      "Contexto operacional representativo de organizações que precisam escalar com governança formal.",
+  },
+];
 ---
 
 <PublicLayout
@@ -126,6 +184,20 @@ const trustItems = [
   />
 
   <TrustCompliancePattern title="Trust & Compliance" items={trustItems} />
+
+  <IntegrationsPattern
+    title="Integrações e ecossistema"
+    description="A Proforma Platform mantém arquitetura preparada para integrações sem afirmar conectores específicos já implementados."
+    items={integrationItems}
+    ctaLabel="Falar sobre integrações"
+    ctaHref="/contato"
+  />
+
+  <CaseStudiesPattern
+    title="Case studies em linguagem arquitetural"
+    description="Estrutura orientada a cenários representativos, sem claims quantitativos não auditáveis."
+    items={caseStudiesItems}
+  />
 
   <CTASectionPattern
     title="Pronto para evoluir sua operação com base sólida?"

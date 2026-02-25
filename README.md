@@ -88,3 +88,18 @@ Evolução da marca:
 
 - Produção via Docker + Traefik + Cloudflare usando `infra/docker/docker-compose.prod.yml`.
 - Detalhes operacionais em `docs/runbooks/deploy-ubuntu-cloudflare.md`.
+
+## Release Integrity
+
+Every build of `apps/web-public` generates a `version.txt` file containing:
+
+- commit SHA
+- git tag
+- branch
+- dirty state
+- node version
+- build timestamp
+
+This file is publicly accessible at:
+
+`https://proforma.net.br/version.txt`
