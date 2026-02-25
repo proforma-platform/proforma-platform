@@ -1,10 +1,11 @@
 # <p align="center">Proforma Platform</p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-1.0.0-blue?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/Version-v0.6.1-blue?style=for-the-badge" alt="Version">
   <img src="https://img.shields.io/badge/Stability-Stable-green?style=for-the-badge" alt="Stability">
   <img src="https://img.shields.io/badge/Compliance-LGPD_Ready-blue?style=for-the-badge" alt="LGPD">
-  <img src="https://img.shields.io/badge/Security-AES_256-lightgrey?style=for-the-badge" alt="Security">
+  <img src="https://img.shields.io/badge/RELEASE%20Integrity-Enabled-lightgrey?style=for-the-badge" alt="Security">
+  <img src="https://img.shields.io/badge/Deploy%20Proof-version.txt-black?style=for-the-badge" alt="Deploy Proof">
 </p>
 
 ---
