@@ -56,9 +56,9 @@ O rodapé deve seguir o padrão "Enterprise Trust", contendo links rápidos e os
 * **Coluna 3 (Empresa):** Sobre Nós, Segurança e LGPD, Contato.
 
 **[Dados Legais - Exemplo para Apresentação]**
-> **Proforma Platform S.A.**
-> CNPJ: 00.000.000/0001-00
-> Endereço: Av. Paulista, 1000 - Bela Vista, São Paulo - SP, 01310-100
+> **Proforma Platform**
+> CNPJ: 41.287.212/0001-89
+> Endereço: R. Prefeito Dib Cherem, 2463, Capoeiras Florianópolis - SC, 88090-000 - +55-48-3771-1873
 > © 2026 Proforma Platform. Todos os direitos reservados.
 
 ---
