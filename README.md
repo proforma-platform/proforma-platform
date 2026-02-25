@@ -4,11 +4,11 @@ Proforma Platform is the institutional multi-product monorepo for public channel
 
 ## Current Version
 
-Current version: `v0.6.1`
+Current release: see Git tags / Releases.
 
 ## Governance
 
-All contributions follow GOV-0070: [Branch and Release Policy](docs/governance/GOV-0070-branch-and-release-policy.md).
+All contributions follow GOV-0070: [Branch and Release Policy](/docs/governance/GOV-0070-branch-and-release-policy.md).
 
 ## Platform Structure
 
@@ -47,4 +47,5 @@ npm run build
 - At least one approval and resolved conversations
 - CI green required before merge
 - SemVer tags only after validated release evidence
-- `CHANGELOG.md` and context snapshot update required before tagging
+- When releasing, update `CHANGELOG.md` (if present) or follow the repository release notes standard
+- Context snapshot update required before tagging
