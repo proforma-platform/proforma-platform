@@ -4,17 +4,33 @@
 
 This policy defines mandatory controls for branch governance and release discipline in the Proforma Platform repository.
 
+## Enforcement on GitHub (Required Settings)
+
+GitHub Branch Protection for `main` MUST be configured to enforce this policy with the following settings:
+
+- Require a pull request before merging
+- Require approvals (minimum 1)
+- Require review from Code Owners
+- Require conversation resolution
+- Require status checks to pass before merging (build, lint, typecheck, test)
+- Require branches to be up to date before merging
+- Require linear history
+- Include administrators
+- Restrict who can push to matching branches (recommended)
+- Disable force pushes
+- Disable branch deletion
+
 ## Main Branch Protection
 
-The `main` branch is protected by default and follows these mandatory rules:
+The `main` branch MUST follow these mandatory rules:
 
-1. Pull Request is required for every change.
-2. Minimum one approval is required before merge.
-3. All review conversations must be resolved before merge.
-4. Linear history is required.
-5. Force push is prohibited.
-6. Branch deletion is prohibited.
-7. Continuous Integration must be green before merge.
+1. Pull Request MUST be required for every change.
+2. Minimum one approval MUST be required before merge.
+3. All review conversations MUST be resolved before merge.
+4. Linear history MUST be required.
+5. Force push MUST NOT be allowed.
+6. Branch deletion MUST NOT be allowed.
+7. Continuous Integration checks MUST be green before merge.
 
 ## Pull Request Governance
 
@@ -42,4 +58,4 @@ Before a public release tag:
 
 ## Enforcement
 
-This policy is part of repository governance and must be observed in all release cycles.
+This policy is part of repository governance and MUST be enforced through GitHub branch protection configuration and release controls in every cycle.
