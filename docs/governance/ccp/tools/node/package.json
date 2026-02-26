@@ -1,0 +1,7 @@
+{
+  "name": "ccp-local-validator",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Optional local JSON Schema validator for CCP payloads"
+}

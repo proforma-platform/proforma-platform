@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://proforma.net.br/schemas/ccp/ccp-mission.schema.json",
+  "title": "CCP Mission",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ccp_ver", "id", "ts", "repo_key", "agent_id"],
+  "properties": {
+    "ccp_ver": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "id": { "type": "string", "minLength": 1 },
+    "ts": { "type": "string", "format": "date-time" },
+    "repo_key": { "type": "string", "minLength": 1 },
+    "agent_id": { "type": "string", "minLength": 1 },
+    "objective": { "type": "string" },
+    "steps": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "non_goals": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "constraints": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "src": { "type": "string" },
+    "br": { "type": "string" },
+    "sha": { "type": "string" },
+    "obj": { "type": "string" },
+    "t": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "ng": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "x_ext": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "patternProperties": {
+    "^x_": {}
+  }
+}

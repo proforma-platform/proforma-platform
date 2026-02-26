@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://proforma.net.br/schemas/ccp/ccp-error.schema.json",
+  "title": "CCP Error",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ccp_ver", "id", "ts", "status", "error_code", "message"],
+  "properties": {
+    "ccp_ver": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "id": { "type": "string", "minLength": 1 },
+    "ts": { "type": "string", "format": "date-time" },
+    "status": {
+      "type": "string",
+      "enum": ["invalid_ccp", "unauthorized", "invalid_request", "internal_error"]
+    },
+    "error_code": { "type": "string", "minLength": 1 },
+    "message": { "type": "string", "minLength": 1 },
+    "details": { "type": "object" }
+  },
+  "patternProperties": {
+    "^x_": {}
+  }
+}

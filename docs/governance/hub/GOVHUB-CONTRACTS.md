@@ -162,3 +162,18 @@ Examples of forbidden sensitive content:
 - `409` idempotency conflict
 - `422` unsafe payload (secret exposure)
 - `500` internal processing failure
+
+## CCP Payloads
+CCP payloads are supported as the canonical compact protocol for mission and report transport.
+
+Rules:
+- missions-next MAY return a CCP mission envelope for agent consumption.
+- submit-report MAY carry CCP report JSON as `report_content` (inline) or as attached file content.
+- every CCP payload MUST pass:
+  - `docs/governance/ccp/tools/ccp-secret-scan.*`
+  - `docs/governance/ccp/tools/ccp-lint.*`
+
+References:
+- `docs/governance/ccp/CCP-SPEC.md`
+- `docs/governance/ccp/KEYS.md`
+- `docs/governance/ccp/schema/`
