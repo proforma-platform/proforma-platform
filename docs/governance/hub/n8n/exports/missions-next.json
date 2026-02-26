@@ -24,7 +24,7 @@
       {
         "parameters": {
           "mode": "runOnceForAllItems",
-          "jsCode": "const headers = $json.headers ?? {};\nconst tokenHeader = headers['x-govhub-token'] || headers['X-GOVHUB-TOKEN'];\nconst allowed = String($env.GOVHUB_TOKENS || '').split(',').map((v) => v.trim()).filter(Boolean);\nif (!tokenHeader || !allowed.includes(String(tokenHeader).trim())) {\n  return [{ json: { ok: false, statusCode: 401, status: 'unauthorized', error_code: 'AUTH_INVALID_TOKEN', message: 'invalid token' } }];\n}\nconst input = { ...($json.query ?? {}), ...($json.body ?? {}) };\nconst repo_key = input.repo_key ? String(input.repo_key).trim() : '';\nconst agent_id = input.agent_id ? String(input.agent_id).trim() : '';\nif (!repo_key || !agent_id) {\n  return [{ json: { ok: false, statusCode: 400, status: 'invalid_request', error_code: 'MISSIONS_NEXT_INVALID_REQUEST', message: 'repo_key and agent_id are required' } }];\n}\nconst esc = (value) => String(value).replace(/'/g, \"''\");\nreturn [{ json: { ok: true, repo_key, repo_key_sql: esc(repo_key), agent_id, agent_id_sql: esc(agent_id), lock_ttl_seconds: 900 } }];"
+          "jsCode": "const headers = $json.headers ?? {};\nconst tokenHeader = headers['x-govhub-token'] || headers['X-GOVHUB-TOKEN'];\nconst allowed = String($env.GOVHUB_TOKENS || '').split(',').map((v) => v.trim()).filter(Boolean);\nif (!tokenHeader || !allowed.includes(String(tokenHeader).trim())) {\n  return [{ json: { ok: false, statusCode: 401, status: 'unauthorized', error_code: 'AUTH_INVALID_TOKEN', message: 'invalid token' } }];\n}\nconst query = ($json.query && typeof $json.query === 'object') ? $json.query : {};\nlet body = $json.body ?? {};\nif (typeof body === 'string') {\n  try { body = JSON.parse(body); } catch { body = {}; }\n}\nif (!body || typeof body !== 'object') body = {};\nconst input = { ...query, ...body };\nconst repo_key = input.repo_key ? String(input.repo_key).trim() : '';\nconst agent_id = input.agent_id ? String(input.agent_id).trim() : '';\nif (!repo_key || !agent_id) {\n  return [{ json: { ok: false, statusCode: 400, status: 'invalid_request', error_code: 'MISSIONS_NEXT_INVALID_REQUEST', message: 'repo_key and agent_id are required' } }];\n}\nconst esc = (value) => String(value).replace(/'/g, \"''\");\nreturn [{ json: { ok: true, repo_key, repo_key_sql: esc(repo_key), agent_id, agent_id_sql: esc(agent_id), lock_ttl_seconds: 900 } }];"
         },
         "id": "Code_ValidateAuthInput",
         "name": "Validate Auth + Input",
@@ -76,57 +76,6 @@
       },
       {
         "parameters": {
-          "conditions": {
-            "string": [
-              {
-                "value1": "={{$json.status}}",
-                "operation": "equal",
-                "value2": "assigned"
-              }
-            ]
-          }
-        },
-        "id": "If_Assigned",
-        "name": "Assigned?",
-        "type": "n8n-nodes-base.if",
-        "typeVersion": 2,
-        "position": [
-          1180,
-          180
-        ]
-      },
-      {
-        "parameters": {
-          "respondWith": "json",
-          "responseCode": 200,
-          "responseBody": "={{ { status: 'assigned', mission_key: $json.mission_key, repo_key: $json.repo_key, agent_id: $json.agent_id, lock_ttl_seconds: Number($json.lock_ttl_seconds || 900), lock_expires_at_utc: $json.lock_expires_at_utc, instructions: $json.instructions ?? null, source: $json.source || 'govhub-n8n' } }}"
-        },
-        "id": "Respond_Assigned",
-        "name": "Respond Assigned",
-        "type": "n8n-nodes-base.respondToWebhook",
-        "typeVersion": 1,
-        "position": [
-          1400,
-          120
-        ]
-      },
-      {
-        "parameters": {
-          "respondWith": "json",
-          "responseCode": 200,
-          "responseBody": "={{ { status: 'no_work', source: 'govhub-n8n' } }}"
-        },
-        "id": "Respond_NoWork",
-        "name": "Respond No Work",
-        "type": "n8n-nodes-base.respondToWebhook",
-        "typeVersion": 1,
-        "position": [
-          1400,
-          260
-        ]
-      },
-      {
-        "parameters": {
           "respondWith": "json",
           "responseCode": "={{$json.statusCode || 500}}",
           "responseBody": "={{ { status: $json.status || 'internal_error', error_code: $json.error_code || 'MISSIONS_NEXT_INTERNAL_ERROR', message: $json.message || 'internal error' } }}"
@@ -138,6 +87,21 @@
         "position": [
           960,
           420
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseCode": 200,
+          "responseBody": "={{ { status: $json.status || 'no_work', mission_key: $json.mission_key || null, repo_key: $json.repo_key || null, agent_id: $json.agent_id || null, lock_ttl_seconds: Number($json.lock_ttl_seconds || 900), lock_expires_at_utc: $json.lock_expires_at_utc || null, instructions: $json.instructions ?? null, source: $json.source || 'govhub-n8n' } }}"
+        },
+        "id": "Respond_Dispatch",
+        "name": "Respond Dispatch",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [
+          1180,
+          180
         ]
       }
     ],
@@ -186,25 +150,7 @@
         "main": [
           [
             {
-              "node": "Assigned?",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Assigned?": {
-        "main": [
-          [
-            {
-              "node": "Respond Assigned",
-              "type": "main",
-              "index": 0
-            }
-          ],
-          [
-            {
-              "node": "Respond No Work",
+              "node": "Respond Dispatch",
               "type": "main",
               "index": 0
             }
