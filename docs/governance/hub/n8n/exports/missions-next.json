@@ -16,6 +16,7 @@
         "name": "Webhook Missions Next",
         "type": "n8n-nodes-base.webhook",
         "typeVersion": 2,
+        "webhookId": "8c6df146-e4fd-4ded-933f-2f3470a77f42",
         "position": [
           220,
           280
@@ -24,7 +25,7 @@
       {
         "parameters": {
           "mode": "runOnceForAllItems",
-          "jsCode": "const headers = $json.headers ?? {};\nconst tokenHeader = headers['x-govhub-token'] || headers['X-GOVHUB-TOKEN'];\nconst allowed = String($env.GOVHUB_TOKENS || '').split(',').map((v) => v.trim()).filter(Boolean);\nif (!tokenHeader || !allowed.includes(String(tokenHeader).trim())) {\n  return [{ json: { ok: false, statusCode: 401, status: 'unauthorized', error_code: 'AUTH_INVALID_TOKEN', message: 'invalid token' } }];\n}\nconst query = ($json.query && typeof $json.query === 'object') ? $json.query : {};\nlet body = $json.body ?? {};\nif (typeof body === 'string') {\n  try { body = JSON.parse(body); } catch { body = {}; }\n}\nif (!body || typeof body !== 'object') body = {};\nconst input = { ...query, ...body };\nconst repo_key = input.repo_key ? String(input.repo_key).trim() : '';\nconst agent_id = input.agent_id ? String(input.agent_id).trim() : '';\nif (!repo_key || !agent_id) {\n  return [{ json: { ok: false, statusCode: 400, status: 'invalid_request', error_code: 'MISSIONS_NEXT_INVALID_REQUEST', message: 'repo_key and agent_id are required' } }];\n}\nconst esc = (value) => String(value).replace(/'/g, \"''\");\nreturn [{ json: { ok: true, repo_key, repo_key_sql: esc(repo_key), agent_id, agent_id_sql: esc(agent_id), lock_ttl_seconds: 900 } }];"
+          "jsCode": "const headers = $json.headers ?? {};\nconst tokenHeader = headers['x-govhub-token'] || headers['X-GOVHUB-TOKEN'];\nconst allowed = String($env.GOVHUB_TOKENS || '').split(',').map((v) => v.trim()).filter(Boolean);\nif (!tokenHeader || !allowed.includes(String(tokenHeader).trim())) {\n  return [{ json: { route: 'error', statusCode: 401, status: 'unauthorized', error_code: 'AUTH_INVALID_TOKEN', message: 'invalid token' } }];\n}\nconst query = ($json.query && typeof $json.query === 'object') ? $json.query : {};\nlet body = $json.body ?? {};\nif (typeof body === 'string') {\n  try { body = JSON.parse(body); } catch { body = {}; }\n}\nif (!body || typeof body !== 'object') body = {};\nconst input = { ...query, ...body };\nconst repo_key = input.repo_key ? String(input.repo_key).trim() : '';\nconst agent_id = input.agent_id ? String(input.agent_id).trim() : '';\nif (!repo_key || !agent_id) {\n  return [{ json: { route: 'error', statusCode: 400, status: 'invalid_request', error_code: 'MISSIONS_NEXT_INVALID_REQUEST', message: 'repo_key and agent_id are required' } }];\n}\nconst esc = (value) => String(value).replace(/'/g, \"''\");\nreturn [{ json: { route: 'valid', repo_key, repo_key_sql: esc(repo_key), agent_id, agent_id_sql: esc(agent_id), lock_ttl_seconds: 900 } }];"
         },
         "id": "Code_ValidateAuthInput",
         "name": "Validate Auth + Input",
@@ -40,7 +41,7 @@
           "conditions": {
             "boolean": [
               {
-                "value1": "={{$json.ok}}"
+                "value1": "={{$json.route === 'valid'}}"
               }
             ]
           }

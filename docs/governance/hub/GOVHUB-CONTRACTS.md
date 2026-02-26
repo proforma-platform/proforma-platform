@@ -29,6 +29,9 @@ Method:
 Canonical endpoint:
 - `https://govhub.proforma.net.br/webhook/govhub/missions/next`
 
+Temporary compatibility endpoint (deprecated, removal pending canonical conformance):
+- `https://govhub.proforma.net.br/webhook/govhub-phase1-missions-next/webhook%2520missions%2520next/govhub/missions/next`
+
 Required input:
 - `repo_key` (JSON body, required; query string accepted for compatibility)
 - `agent_id` (JSON body, required; query string accepted for compatibility)
