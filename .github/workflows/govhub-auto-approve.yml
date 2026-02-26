@@ -12,9 +12,6 @@ jobs:
   auto-approve:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Evaluate PR criteria
         id: evaluate
         uses: actions/github-script@v7
@@ -23,12 +20,15 @@ jobs:
           script: |
             const { owner, repo } = context.repo;
             const pull_number = context.payload.pull_request.number;
+            const blockGovernanceDocs = (process.env.GOVHUB_BLOCK_GOV_DOCS || 'false').toLowerCase() === 'true';
 
             const restrictedPathRegex = [
               /^infra\//,
               /^docker-compose/,
               /^nginx\//,
               /^cloudflare\//,
+              /^\.github\/workflows\//,
+              /^\.github\//,
               /^.*\.pem$/,
               /^.*\.key$/,
               /^secrets/i,
@@ -60,9 +60,10 @@ jobs:
             });
 
             const changedPaths = files.map((f) => f.filename);
-            const touchesRestricted = changedPaths.some((p) =>
-              restrictedPathRegex.some((rx) => rx.test(p))
-            );
+            const touchesRestricted = changedPaths.some((p) => {
+              if (blockGovernanceDocs && /^docs\/governance\//.test(p)) return true;
+              return restrictedPathRegex.some((rx) => rx.test(p));
+            });
 
             if (touchesRestricted) {
               core.notice('Restricted path changed. Auto-approval skipped.');
