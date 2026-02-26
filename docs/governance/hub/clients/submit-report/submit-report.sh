@@ -4,13 +4,14 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 Usage:
-  submit-report.sh --mission-key <key> --repo-key <repo> --report-file <path> [--agent-id <id>] [--hub-url <url>]
+  submit-report.sh --mission-key <key> --repo-key <repo> --report-file <path> [--agent-id <id>]
 
-Environment fallbacks:
-  GOVHUB_REPORT_INGEST_URL   Full endpoint URL (preferred)
-  GOVHUB_URL                 Base URL, endpoint appended as /webhook/govhub/report-ingest
-  GOVHUB_TOKEN               Auth token for X-GOVHUB-TOKEN header
-  GOVHUB_AGENT_ID            Agent id if --agent-id is not passed
+Required environment variables:
+  GOVHUB_REPORT_INGEST_URL  Full report-ingest webhook URL
+  GOVHUB_TOKEN              Value for X-GOVHUB-TOKEN header
+
+Optional environment variables:
+  GOVHUB_AGENT_ID           Used when --agent-id is not provided
 USAGE
 }
 
@@ -18,9 +19,9 @@ MISSION_KEY=""
 REPO_KEY=""
 AGENT_ID="${GOVHUB_AGENT_ID:-}"
 REPORT_FILE=""
-HUB_URL="${GOVHUB_URL:-}"
 REPORT_INGEST_URL="${GOVHUB_REPORT_INGEST_URL:-}"
 TOKEN="${GOVHUB_TOKEN:-}"
+MAX_SIZE_BYTES=$((512 * 1024))
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -28,7 +29,6 @@ while [[ $# -gt 0 ]]; do
     --repo-key) REPO_KEY="$2"; shift 2 ;;
     --agent-id) AGENT_ID="$2"; shift 2 ;;
     --report-file) REPORT_FILE="$2"; shift 2 ;;
-    --hub-url) HUB_URL="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage; exit 1 ;;
   esac
@@ -41,12 +41,22 @@ if [[ -z "$MISSION_KEY" || -z "$REPO_KEY" || -z "$REPORT_FILE" ]]; then
 fi
 
 if [[ -z "$AGENT_ID" ]]; then
-  echo "Error: agent_id missing. Use --agent-id or GOVHUB_AGENT_ID." >&2
+  echo "Error: missing agent_id. Use --agent-id or GOVHUB_AGENT_ID." >&2
+  exit 1
+fi
+
+if [[ -z "$REPORT_INGEST_URL" ]]; then
+  echo "Error: GOVHUB_REPORT_INGEST_URL is required." >&2
   exit 1
 fi
 
 if [[ -z "$TOKEN" ]]; then
   echo "Error: GOVHUB_TOKEN is required." >&2
+  exit 1
+fi
+
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "Error: current directory is not inside a git repository." >&2
   exit 1
 fi
 
@@ -60,25 +70,17 @@ if [[ ! -s "$REPORT_FILE" ]]; then
   exit 1
 fi
 
-if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  echo "Error: current directory is not inside a git repository." >&2
+FILE_SIZE_BYTES=$(wc -c < "$REPORT_FILE" | tr -d ' ')
+if (( FILE_SIZE_BYTES > MAX_SIZE_BYTES )); then
+  echo "Error: report file exceeds 512KB (${FILE_SIZE_BYTES} bytes)." >&2
   exit 1
-fi
-
-if [[ -z "$REPORT_INGEST_URL" ]]; then
-  if [[ -z "$HUB_URL" ]]; then
-    echo "Error: set GOVHUB_REPORT_INGEST_URL or GOVHUB_URL (or pass --hub-url)." >&2
-    exit 1
-  fi
-  REPORT_INGEST_URL="${HUB_URL%/}/webhook/govhub/report-ingest"
 fi
 
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 HEAD_SHA="$(git rev-parse HEAD)"
-
 REPORT_MD_RAW="$(cat "$REPORT_FILE")"
 
-if printf '%s' "$REPORT_MD_RAW" | grep -Eq 'BEGIN PRIVATE KEY|AWS_SECRET_ACCESS_KEY|password=|ConnectionStrings.*Password'; then
+if printf '%s' "$REPORT_MD_RAW" | grep -Eq 'PRIVATE KEY|AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY|ghp_|github_pat_|xoxb-|token=|password=|secret='; then
   echo "Error: high-risk secret pattern detected in report. Submission aborted." >&2
   exit 1
 fi
@@ -118,6 +120,6 @@ if [[ "$HTTP_STATUS" -lt 200 || "$HTTP_STATUS" -ge 300 ]]; then
 fi
 
 echo "submit-report: success"
-echo "mission_key=$MISSION_KEY repo_key=$REPO_KEY head_sha=$HEAD_SHA http_status=$HTTP_STATUS"
+echo "repo_key=$REPO_KEY mission_key=$MISSION_KEY agent_id=$AGENT_ID branch=$BRANCH head_sha=$HEAD_SHA file_size_bytes=$FILE_SIZE_BYTES http_status=$HTTP_STATUS"
 cat "$TMP_BODY"
 rm -f "$TMP_BODY"
