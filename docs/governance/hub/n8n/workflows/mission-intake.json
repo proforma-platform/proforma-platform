@@ -1,0 +1,228 @@
+{
+  "name": "govhub-phase1-mission-intake",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "govhub/mission-intake",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "Webhook_MissionIntake",
+      "name": "Webhook Mission Intake",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const body = $json.body ?? $json;\nconst headers = $json.headers ?? {};\nconst tokenHeader = headers['x-govhub-token'] || headers['X-GOVHUB-TOKEN'];\nconst allowed = String($env.GOVHUB_TOKENS || '').split(',').map((v) => v.trim()).filter(Boolean);\nif (!tokenHeader || !allowed.includes(String(tokenHeader).trim())) {\n  return [{ json: { ok: false, statusCode: 401, error_code: 'AUTH_INVALID_TOKEN', message: 'invalid token' } }];\n}\nif (!body.mission_key || !Array.isArray(body.repos) || body.repos.length === 0 || !body.created_by) {\n  return [{ json: { ok: false, statusCode: 400, error_code: 'MISSION_INTAKE_INVALID_PAYLOAD', message: 'missing required fields' } }];\n}\nconst repos = [...new Set(body.repos.map((r) => String(r).trim()).filter(Boolean))];\nif (!repos.length) {\n  return [{ json: { ok: false, statusCode: 400, error_code: 'MISSION_INTAKE_INVALID_REPOS', message: 'repos must contain at least one repo_key' } }];\n}\nreturn [{ json: { ok: true, mission_key: String(body.mission_key), title: body.title || null, created_by: String(body.created_by), repos } }];"
+      },
+      "id": "Code_ValidateMission",
+      "name": "Validate + Auth",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.ok}}"
+            }
+          ]
+        }
+      },
+      "id": "If_MissionValid",
+      "name": "Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        740,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO governance.missions (mission_key, title, status, started_at)\nVALUES ('{{$json.mission_key}}', {{$json.title ? '\'' + $json.title.replace(/'/g, '\\'\\'') + '\'' : 'NULL'}}, 'execution', now())\nON CONFLICT (mission_key) DO UPDATE SET title = EXCLUDED.title\nRETURNING id AS mission_id, mission_key;"
+      },
+      "id": "Postgres_UpsertMission",
+      "name": "Upsert Mission",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        980,
+        180
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GOVHUB_DB",
+          "name": "GOVHUB_DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH repos AS (\n  SELECT unnest(ARRAY[{{ $json.repos.map(r => '\'' + r.replace(/'/g, '\\'\\'') + '\'').join(',') }}]::text[]) AS repo_key\n)\nINSERT INTO governance.repositories (repo_key, repo_url, default_branch, active)\nSELECT repo_key, NULL, 'main', true\nFROM repos\nON CONFLICT (repo_key) DO NOTHING\nRETURNING id, repo_key;"
+      },
+      "id": "Postgres_UpsertRepos",
+      "name": "Upsert Repositories",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        180
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GOVHUB_DB",
+          "name": "GOVHUB_DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH m AS (\n  SELECT id AS mission_id FROM governance.missions WHERE mission_key = '{{$node['Validate + Auth'].json['mission_key']}}'\n), r AS (\n  SELECT id AS repo_id, repo_key\n  FROM governance.repositories\n  WHERE repo_key = ANY(ARRAY[{{ $node['Validate + Auth'].json.repos.map(r => '\'' + r.replace(/'/g, '\\'\\'') + '\'').join(',') }}]::text[])\n), ins AS (\n  INSERT INTO governance.mission_tasks (mission_id, repo_id, task_key, status, assigned_agent, started_at)\n  SELECT m.mission_id, r.repo_id, 'inventory', 'pending', 'unassigned', now()\n  FROM m CROSS JOIN r\n  ON CONFLICT (mission_id, repo_id, task_key) DO NOTHING\n  RETURNING id\n)\nSELECT\n  (SELECT mission_id FROM m) AS mission_id,\n  ARRAY(SELECT id FROM governance.mission_tasks WHERE mission_id = (SELECT mission_id FROM m) ORDER BY created_at) AS task_ids;"
+      },
+      "id": "Postgres_CreateTasks",
+      "name": "Create Mission Tasks",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1420,
+        180
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GOVHUB_DB",
+          "name": "GOVHUB_DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 200,
+        "responseBody": "={{ { status: 'ok', mission_id: $json[0]?.mission_id || $json.mission_id, task_ids: $json[0]?.task_ids || $json.task_ids } }}"
+      },
+      "id": "Respond_MissionOk",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1660,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": "={{$json.statusCode || 400}}",
+        "responseBody": "={{ { status: 'error', error_code: $json.error_code || 'MISSION_INTAKE_VALIDATION_ERROR', message: $json.message || 'invalid request' } }}"
+      },
+      "id": "Respond_MissionError",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        980,
+        420
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Mission Intake": {
+      "main": [
+        [
+          {
+            "node": "Validate + Auth",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate + Auth": {
+      "main": [
+        [
+          {
+            "node": "Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid?": {
+      "main": [
+        [
+          {
+            "node": "Upsert Mission",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Mission": {
+      "main": [
+        [
+          {
+            "node": "Upsert Repositories",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Repositories": {
+      "main": [
+        [
+          {
+            "node": "Create Mission Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Mission Tasks": {
+      "main": [
+        [
+          {
+            "node": "Respond 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "pinData": {},
+  "versionId": "phase1-mission-intake-v1",
+  "id": "govhub-phase1-mission-intake",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

@@ -1,0 +1,170 @@
+{
+  "name": "govhub-phase1-decision-aggregate",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "Trigger_ExecuteWorkflow",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const input = $json;\nconst mission_key = input.mission_key ? String(input.mission_key) : null;\nconst mission_id = input.mission_id ? String(input.mission_id) : null;\nif (!mission_key && !mission_id) {\n  throw new Error('DECISION_AGGREGATE_INVALID_INPUT: mission_key or mission_id is required');\n}\nreturn [{ json: { mission_key, mission_id } }];"
+      },
+      "id": "Code_ValidateInput",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH target AS (\n  SELECT id AS mission_id, mission_key\n  FROM governance.missions\n  WHERE ({{$json.mission_id ? '\'' + $json.mission_id + '\'' : 'NULL'}} IS NOT NULL AND id = {{$json.mission_id ? '\'' + $json.mission_id + '\'' : 'NULL'}}::uuid)\n     OR ({{$json.mission_key ? '\'' + $json.mission_key.replace(/'/g, '\\'\\'') + '\'' : 'NULL'}} IS NOT NULL AND mission_key = {{$json.mission_key ? '\'' + $json.mission_key.replace(/'/g, '\\'\\'') + '\'' : 'NULL'}})\n  LIMIT 1\n), agg AS (\n  SELECT\n    t.mission_id,\n    t.mission_key,\n    COUNT(r.id) AS report_count,\n    string_agg(\n      format('- repo_id=%s head_sha=%s at=%s hash=%s', r.repo_id, r.head_sha, to_char(r.created_at, 'YYYY-MM-DD\"T\"HH24:MI:SSOF'), r.report_hash),\n      E'\\n'\n      ORDER BY r.created_at\n    ) AS report_lines\n  FROM target t\n  LEFT JOIN governance.mission_tasks mt ON mt.mission_id = t.mission_id\n  LEFT JOIN governance.reports r ON r.mission_task_id = mt.id\n  GROUP BY t.mission_id, t.mission_key\n)\nSELECT\n  mission_id,\n  mission_key,\n  CASE WHEN report_count = 0 THEN 'NO_GO' ELSE 'CONDITIONAL_GO' END AS outcome,\n  format('# Decision %s\\n\\nOutcome: %s\\n\\nMission: %s\\n\\nReports:\\n%s', mission_key, CASE WHEN report_count = 0 THEN 'NO_GO' ELSE 'CONDITIONAL_GO' END, mission_key, coalesce(report_lines, '- no reports')) AS decision_md\nFROM agg;"
+      },
+      "id": "Postgres_Aggregate",
+      "name": "Aggregate Reports",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        700,
+        280
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GOVHUB_DB",
+          "name": "GOVHUB_DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const crypto = require('crypto');\nconst row = $json[0] || $json;\nif (!row.mission_id) {\n  throw new Error('DECISION_AGGREGATE_NOT_FOUND: mission not found');\n}\nconst hash = crypto.createHash('sha256').update(String(row.decision_md || '')).digest('hex');\nreturn [{ json: { ...row, decision_hash: hash } }];"
+      },
+      "id": "Code_DecisionHash",
+      "name": "Compute Decision Hash",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        940,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO governance.decisions (mission_id, decision, decision_hash, rationale, decided_by)\nVALUES ({{$json.mission_id ? '\'' + $json.mission_id + '\'' : 'NULL'}}::uuid, '{{$json.outcome}}', '{{$json.decision_hash}}', {{$json.decision_md ? '\'' + $json.decision_md.replace(/'/g, '\\'\\'') + '\'' : 'NULL'}}, 'governance-hub')\nRETURNING id;"
+      },
+      "id": "Postgres_InsertDecision",
+      "name": "Insert Decision",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1180,
+        280
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GOVHUB_DB",
+          "name": "GOVHUB_DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE governance.missions\nSET status = 'closed', closed_at = now()\nWHERE id = {{$node['Compute Decision Hash'].json['mission_id'] ? '\'' + $node['Compute Decision Hash'].json['mission_id'] + '\'' : 'NULL'}}::uuid\nRETURNING id;"
+      },
+      "id": "Postgres_CloseMission",
+      "name": "Set Mission Done",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1420,
+        280
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GOVHUB_DB",
+          "name": "GOVHUB_DB"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Validate Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Reports",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Reports": {
+      "main": [
+        [
+          {
+            "node": "Compute Decision Hash",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Decision Hash": {
+      "main": [
+        [
+          {
+            "node": "Insert Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Decision": {
+      "main": [
+        [
+          {
+            "node": "Set Mission Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "pinData": {},
+  "versionId": "phase1-decision-aggregate-v1",
+  "id": "govhub-phase1-decision-aggregate",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

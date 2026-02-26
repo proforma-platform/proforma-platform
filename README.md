@@ -1,90 +1,53 @@
 # Proforma Platform
 
-Monorepo institucional com `npm workspaces` + `turbo` para produtos e documentação do grupo.
+[ STABILITY Stable ] [ SECURITY Hardened ] [ GOVERNANCE ADR+Runbooks ] [ RELEASE Integrity Enabled ] [ DEPLOY Proof (version.txt) ](https://proforma.net.br/version.txt)
 
-## Estrutura
+Proforma Platform is the institutional multi-product monorepo for public channels, customer portal, shared UI contracts, and technical governance documentation.
 
-- `apps/web-public` (Astro): site público institucional
-- `apps/web-portal` (Next.js App Router): portal do cliente
-- `docs/docusaurus` (Docusaurus): documentação técnica e governança
-- `packages/ui`: componentes compartilhados (inclui `HelpLauncher`)
-- `packages/brand`: tokens e assets de marca institucional
-- `packages/design-system`: Design System Core (tokens semânticos, contratos e tipagem)
-- `docs/architecture`: decisões arquiteturais (ADR)
-- `docs/roadmap`: detalhamento de fila e processo de execução
-- `docs/brand`: guidelines visuais e regras de marca
-- `docs/design-system`: documentação do núcleo do design system
-- `docs/runbooks`: procedimentos operacionais
+## Current Version
 
-## Rodando localmente
+Current release: see Git tags / Releases.
 
-Pré-requisitos:
+## Governance
+
+All contributions follow GOV-0070: [Branch and Release Policy](/docs/governance/GOV-0070-branch-and-release-policy.md).
+
+## Platform Structure
+
+- `apps/web-public` (Astro): institutional public website
+- `apps/web-portal` (Next.js App Router): customer portal base
+- `docs/docusaurus` (Docusaurus): technical documentation portal
+- `packages/ui`: shared UI primitives
+- `packages/brand`: brand assets and tokens
+- `packages/design-system`: semantic tokens and UI contracts
+- `docs/architecture`: Architectural Decision Records (ADRs)
+- `docs/context`: official context snapshots
+- `docs/governance`: governance and release policies
+
+## Architecture Summary
+
+The repository follows npm workspaces with Turbo orchestration, clear app/package boundaries, and documentation-first governance for traceable releases.
+
+## Development
+
+Prerequisites:
 
 - Node.js 20+
 - npm 10+
 
-Instalar dependências:
+Commands:
 
 ```bash
 npm ci
-```
-
-Desenvolvimento:
-
-```bash
 npm run dev
-```
-
-Build completo:
-
-```bash
 npm run build
 ```
 
-## Governança e Operação do Codex
+## Release Discipline
 
-### Regra central
-
-Nenhuma tarefa pode ser executada fora da fase atual definida no `ROADMAP.md`.
-
-### Como o Codex deve operar
-
-1. Identificar a fase atual no roadmap.
-2. Verificar se a tarefa está na fila da fase.
-3. Se não estiver, adicionar no roadmap antes de executar.
-4. Executar incrementalmente apenas itens da fase ativa.
-5. Atualizar documentação obrigatória ao concluir:
-   - `ROADMAP.md`
-   - `CHANGELOG.md`
-   - ADR em `docs/architecture/` quando houver decisão arquitetural
-
-### Referências de processo
-
-- Fila oficial: `ROADMAP.md`
-- Processo Founder Mode: `docs/roadmap/processo-desenvolvimento.md`
-- Changelog semântico: `CHANGELOG.md`
-- ADRs: `docs/architecture/`
-
-## Arquitetura de Marca
-
-- Arquitetura adotada: **Branded House**
-- Marca principal: **Proforma**
-- Assinatura formal: **Proforma Platform**
-- Submarcas: **ProformaFarm** e **MedCore**
-
-Referências:
-
-- ADR de marca: `docs/architecture/ADR-0003-brand-architecture.md`
-- Guidelines visuais: `docs/brand/visual-guidelines.md`
-- Tokens e assets: `packages/brand/`
-- Design System Core: `packages/design-system/` e `docs/design-system/core.md`
-
-Evolução da marca:
-
-- Alterações estruturais de identidade exigem nova ADR.
-- Tokens devem ser alterados primeiro em `packages/brand`, depois aplicados nas apps.
-
-## Deploy no Ubuntu (visão geral)
-
-- Produção via Docker + Traefik + Cloudflare usando `infra/docker/docker-compose.prod.yml`.
-- Detalhes operacionais em `docs/runbooks/deploy-ubuntu-cloudflare.md`.
+- Pull Request mandatory before merge to `main`
+- At least one approval and resolved conversations
+- CI green required before merge
+- SemVer tags only after validated release evidence
+- When releasing, update `CHANGELOG.md` (if present) or follow the repository release notes standard
+- Context snapshot update required before tagging

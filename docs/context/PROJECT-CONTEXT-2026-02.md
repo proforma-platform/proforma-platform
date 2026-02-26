@@ -1,4 +1,35 @@
-# PROFORMA PLATFORM — NOVO CHAT STARTER (2026-02-24 14:14:00)
+# PROFORMA PLATFORM — NOVO CHAT STARTER
+
+## Missão Ativa
+
+- GOV-ID atual: `GOV-0070-NCS-V2.1-DUAL-CONSOLIDATION`
+- Versão alvo: `NCS v2.1`
+- Branch ativa: `docs/gov-0070-ncs-v2-1-dual-consolidation`
+- Status: `In Progress`
+
+## Estado do Deploy Público
+
+- Último commit publicado: `e6b1364` (baseline operacional v0.6.0)
+- `version.txt` público: `https://proforma.net.br/version.txt`
+- Canonical/trailing slash: estável para páginas de produto (`/proformafarm/` e `/medcore/`)
+
+## Histórico de Consolidação Técnica
+
+| GOV-ID | Commit | Decisão | Data |
+|--------|--------|---------|------|
+| GOV-0060 | `e6b1364` | Enterprise credibility layer consolidado no web-public | 2026-02-25 |
+| GOV-0061 | `e6b1364` | Regra de trailing slash validada em canonical/og/json-ld | 2026-02-25 |
+| OPS-0060 | `3141611` | Evidência de republish documentada em runbook operacional | 2026-02-25 |
+| GOV-0065 | `30dbff6` | Hardening narrativo e release integrity metadata no web-public | 2026-02-25 |
+
+## Release Checklist Padrão
+
+- [ ] Build OK
+- [ ] Canonical OK
+- [ ] JSON-LD OK
+- [ ] version.txt OK
+- [ ] Links auditáveis OK
+- [ ] Sem alteração infra
 
 ## Contexto Oficial (fonte única)
 - Repo: proforma-platform (agora sob conta institucional `proforma-platform`)
