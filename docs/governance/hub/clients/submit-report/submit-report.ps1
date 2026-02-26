@@ -72,18 +72,37 @@ try {
 
   Write-Host "submit-report: success"
   Write-Host "repo_key=$RepoKey mission_key=$MissionKey agent_id=$AgentId branch=$branch head_sha=$headSha file_size_bytes=$($fileInfo.Length) http_status=$statusCode"
-  if ($response.Content) {
-    Write-Host $response.Content
-  }
 }
 catch {
   $statusCode = "N/A"
+  $errorPreview = $null
   if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
     $statusCode = $_.Exception.Response.StatusCode.value__
   }
+  if ($_.Exception.Response -and $_.Exception.Response.GetResponseStream) {
+    try {
+      $stream = $_.Exception.Response.GetResponseStream()
+      if ($stream) {
+        $reader = New-Object System.IO.StreamReader($stream)
+        $rawError = $reader.ReadToEnd()
+        if ($rawError) {
+          $maxLen = [Math]::Min(1200, $rawError.Length)
+          $errorPreview = $rawError.Substring(0, $maxLen)
+        }
+      }
+    }
+    catch {
+      $errorPreview = $null
+    }
+  }
   Write-Error "Submission failed (HTTP $statusCode)."
-  if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
-    Write-Error $_.ErrorDetails.Message
+  if ($errorPreview) {
+    Write-Error ("error_preview=" + $errorPreview)
+  }
+  elseif ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+    $rawDetails = $_.ErrorDetails.Message
+    $maxLen = [Math]::Min(1200, $rawDetails.Length)
+    Write-Error ("error_preview=" + $rawDetails.Substring(0, $maxLen))
   }
   throw
 }

@@ -106,6 +106,11 @@ JSON
 )
 
 TMP_BODY="$(mktemp)"
+cleanup() {
+  rm -f "${TMP_BODY:-}"
+}
+trap cleanup EXIT
+
 HTTP_STATUS=$(curl -sS -o "$TMP_BODY" -w "%{http_code}" \
   -X POST "$REPORT_INGEST_URL" \
   -H "Content-Type: application/json" \
@@ -114,12 +119,12 @@ HTTP_STATUS=$(curl -sS -o "$TMP_BODY" -w "%{http_code}" \
 
 if [[ "$HTTP_STATUS" -lt 200 || "$HTTP_STATUS" -ge 300 ]]; then
   echo "Submission failed (HTTP $HTTP_STATUS)." >&2
-  cat "$TMP_BODY" >&2
-  rm -f "$TMP_BODY"
+  BODY_PREVIEW="$(head -c 1200 "$TMP_BODY" || true)"
+  if [[ -n "$BODY_PREVIEW" ]]; then
+    echo "error_preview=${BODY_PREVIEW}" >&2
+  fi
   exit 1
 fi
 
 echo "submit-report: success"
 echo "repo_key=$REPO_KEY mission_key=$MISSION_KEY agent_id=$AGENT_ID branch=$BRANCH head_sha=$HEAD_SHA file_size_bytes=$FILE_SIZE_BYTES http_status=$HTTP_STATUS"
-cat "$TMP_BODY"
-rm -f "$TMP_BODY"

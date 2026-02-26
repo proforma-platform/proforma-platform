@@ -53,6 +53,8 @@ pwsh docs/governance/hub/clients/submit-report/submit-report.ps1 `
   - `password=`
   - `secret=`
 - Fails on non-2xx HTTP response.
+- On success, clients do not print the hub response body (log leakage prevention).
+- On HTTP error, clients print only a truncated preview of response body (max 1200 chars).
 
 ## Troubleshooting
 - `401/403`: invalid token or unauthorized token scope.
