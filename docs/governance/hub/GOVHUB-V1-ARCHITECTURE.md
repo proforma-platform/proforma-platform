@@ -73,6 +73,9 @@ No ecossistema multi-repo, o GOVHUB atua como camada central de orquestracao:
 - `POST /webhook/govhub/report-ingest`
 - `POST /webhook/govhub/missions/next`
 
+Compatibilidade temporaria (deprecated):
+- `POST /webhook/govhub-phase1-missions-next/webhook%2520missions%2520next/govhub/missions/next`
+
 Headers obrigatorios:
 - `Content-Type: application/json`
 - `X-GOVHUB-TOKEN: <token>`
