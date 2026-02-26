@@ -1,0 +1,56 @@
+**Resumo Técnico Estruturado — GOVHUB (até 26/02/2026)**
+
+## 1) Escopo executado (somente resultados positivos)
+- Foi feito rollback completo do que havia sido aplicado no ambiente MedCore.
+- Foi provisionado ambiente dedicado e isolado para GOVHUB.
+- O GOVHUB dedicado ficou funcional com ingestão real via domínio público.
+- Foi validada persistência no Postgres dedicado (`missions`, `mission_tasks`, `reports`).
+
+## 2) Linha do tempo objetiva (resultado positivo)
+1. Diagnóstico inicial: não havia GOVHUB configurado no n8n.
+2. Levantamento de parâmetros técnicos de DB/n8n e validação de conectividade.
+3. Rollback completo de mudanças no `medcore-n8n`/`medcore-db`.
+4. Criação de stack dedicada:
+- `govhub-db` (Postgres dedicado)
+- `govhub-n8n` (n8n dedicado)
+5. Aplicação do schema `governance` no banco dedicado.
+6. Importação/publicação dos workflows GOVHUB.
+7. Configuração de domínio `govhub.proforma.net.br` para o n8n dedicado.
+8. Testes HTTP de ingestão com `200 OK`.
+9. Validação SQL confirmando gravação real:
+- missão criada
+- task criada/completada
+- report persistido com hash
+
+## 3) Estado atual operacional (confirmado)
+- Domínio GOVHUB: `https://govhub.proforma.net.br`
+- Webhook ingest em uso: funcionando com `200`.
+- Banco dedicado GOVHUB: persistência confirmada.
+- Evidência confirmada no SQL:
+- `mission_key = SMOKE-GOVHUB-DOMAIN`
+- task `completed`
+- report com `head_sha=dom124` e `report_hash` gravado.
+
+## 4) Painel web (acesso)
+- Painel correto do GOVHUB é o n8n dedicado (não o MedCore).
+- Acesso web viabilizado por domínio dedicado.
+- `n8n.proforma.net.br` permanece MedCore.
+- `govhub.proforma.net.br` é o painel do GOVHUB.
+
+## 5) Recomendação técnica (para Staff)
+- Formalizar endpoint canônico dos webhooks no editor n8n e republicar (evitar variações legadas de path).
+- Padronizar autenticação de painel (decidir entre Basic Auth, Cloudflare Access ou ambos).
+- Congelar configuração dedicada em runbook operacional (startup, backup, recovery, smoke script).
+- Registrar evidência oficial da operação (SQL + curl) em documentação de governança.
+
+## 6) Pendências objetivas (próximo passo do Staff)
+1. Consolidar URL canônica definitiva de `mission-intake` e `report-ingest`.
+2. Definir política final de acesso ao painel web (segurança de acesso humano).
+3. Publicar documentação operacional final no repositório (runbook atualizado).
+4. Validar teste negativo final (token inválido) para fechar evidência de controle de falha.
+5. Aprovar próximos incrementos do GOVHUB com base nesse estado estável.
+
+## 7) Conclusão executiva
+- O GOVHUB está funcional em ambiente dedicado, com domínio próprio, ingestão ativa e persistência comprovada.
+- A transição de “não configurado” para “operacional com evidência” foi concluída.
+- Restam apenas padronizações finais de governança/acesso para o Staff decidir e formalizar.

@@ -3,6 +3,9 @@ dist/
 # generated types
 .astro/
 
+# build metadata generated in prebuild
+public/version.txt
+
 # dependencies
 node_modules/
 
