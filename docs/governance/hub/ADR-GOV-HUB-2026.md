@@ -74,6 +74,7 @@ Operational posture:
 - mission key + repo key + head SHA define execution identity
 - failed steps MUST be retry-safe
 - consolidation is deterministic from stored artifacts
+- workflow definitions and contracts MUST remain versioned in-repo under `docs/governance/hub/`
 
 Mission progress MUST be traceable from intake to decision with explicit state transitions.
 
