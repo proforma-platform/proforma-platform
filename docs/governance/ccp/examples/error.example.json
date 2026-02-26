@@ -1,0 +1,8 @@
+{
+  "ccp_ver": "1.0.0",
+  "id": "GOV-0082",
+  "ts": "2026-02-26T20:06:00Z",
+  "status": "invalid_request",
+  "error_code": "MISSIONS_NEXT_INVALID_REQUEST",
+  "message": "repo_key and agent_id are required"
+}

@@ -1,0 +1,39 @@
+{
+  "ccp_ver": "1.0.0",
+  "id": "GOV-0082",
+  "ts": "2026-02-26T20:05:00Z",
+  "repo_key": "platform",
+  "agent_id": "cpp",
+  "branch": "feat/govhub-v1-formal-model",
+  "head_sha": "289243d",
+  "files_modified": [
+    "docs/governance/hub/n8n/exports/missions-next.json"
+  ],
+  "tests": [
+    {
+      "id": "A",
+      "status": "pass",
+      "http": 401,
+      "evidence": "unauthorized invalid token"
+    },
+    {
+      "id": "B",
+      "status": "pass",
+      "http": 400,
+      "evidence": "invalid_request empty payload"
+    },
+    {
+      "id": "C",
+      "status": "pass",
+      "http": 200,
+      "evidence": "assigned valid payload"
+    }
+  ],
+  "security": {
+    "secret_scan": "pass",
+    "assertion": "no secret patterns in payload"
+  },
+  "mod": [
+    "docs/governance/hub/n8n/exports/missions-next.json"
+  ]
+}

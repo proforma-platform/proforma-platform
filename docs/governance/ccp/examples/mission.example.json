@@ -1,0 +1,32 @@
+{
+  "ccp_ver": "1.0.0",
+  "id": "GOV-0082",
+  "ts": "2026-02-26T20:00:00Z",
+  "repo_key": "platform",
+  "agent_id": "cpp",
+  "objective": "Fix canonical gate behavior",
+  "steps": [
+    "Add explicit route switch",
+    "Stop invalid requests before DB",
+    "Validate HTTP status codes"
+  ],
+  "non_goals": [
+    "Do not touch infra",
+    "Do not modify apps or packages"
+  ],
+  "constraints": [
+    "Keep legacy endpoint active until canonical verified"
+  ],
+  "br": "feat/govhub-v1-formal-model",
+  "obj": "Fix 401/400 gate",
+  "t": [
+    "switch-gate",
+    "error-respond",
+    "public-curl-tests"
+  ],
+  "ng": [
+    "infra",
+    "roadmap",
+    "root package.json"
+  ]
+}

@@ -96,6 +96,19 @@ Recovery:
 - Evidence publication MUST occur via PR.
 - Release-facing governance missions SHOULD include quality evidence references.
 
+CCP operational guidance:
+- Staff SHOULD issue mission payloads using CCP envelope format.
+- Agents SHOULD submit CCP report payloads for ingest.
+- CCP checks MUST run before submit:
+  - `bash docs/governance/ccp/tools/ccp-secret-scan.sh <file>`
+  - `bash docs/governance/ccp/tools/ccp-lint.sh mission|report|error <file>`
+  - `bash docs/governance/ccp/tools/ccp-minify.sh <in> <out>`
+
+CCP failure modes:
+- lint fail: payload missing required keys or invalid basic types
+- secret-scan fail: sensitive pattern detected
+- invalid_ccp: hub rejects malformed CCP envelope
+
 ## Expansion to New Products (N repositories)
 GOVHUB is repository-agnostic.
 
