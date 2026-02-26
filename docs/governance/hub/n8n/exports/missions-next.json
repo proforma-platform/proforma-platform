@@ -1,0 +1,222 @@
+[
+  {
+    "id": "govhub-phase1-missions-next",
+    "name": "govhub-phase1-missions-next",
+    "active": false,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "path": "govhub/missions/next",
+          "httpMethod": "POST",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "Webhook_MissionsNext",
+        "name": "Webhook Missions Next",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          220,
+          280
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const headers = $json.headers ?? {};\nconst tokenHeader = headers['x-govhub-token'] || headers['X-GOVHUB-TOKEN'];\nconst allowed = String($env.GOVHUB_TOKENS || '').split(',').map((v) => v.trim()).filter(Boolean);\nif (!tokenHeader || !allowed.includes(String(tokenHeader).trim())) {\n  return [{ json: { ok: false, statusCode: 401, status: 'unauthorized', error_code: 'AUTH_INVALID_TOKEN', message: 'invalid token' } }];\n}\nconst input = { ...($json.query ?? {}), ...($json.body ?? {}) };\nconst repo_key = input.repo_key ? String(input.repo_key).trim() : '';\nconst agent_id = input.agent_id ? String(input.agent_id).trim() : '';\nif (!repo_key || !agent_id) {\n  return [{ json: { ok: false, statusCode: 400, status: 'invalid_request', error_code: 'MISSIONS_NEXT_INVALID_REQUEST', message: 'repo_key and agent_id are required' } }];\n}\nconst esc = (value) => String(value).replace(/'/g, \"''\");\nreturn [{ json: { ok: true, repo_key, repo_key_sql: esc(repo_key), agent_id, agent_id_sql: esc(agent_id), lock_ttl_seconds: 900 } }];"
+        },
+        "id": "Code_ValidateAuthInput",
+        "name": "Validate Auth + Input",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          460,
+          280
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "boolean": [
+              {
+                "value1": "={{$json.ok}}"
+              }
+            ]
+          }
+        },
+        "id": "If_RequestValid",
+        "name": "Request Valid?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          700,
+          280
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "WITH candidate AS (\n  SELECT\n    mt.id AS mission_task_id,\n    m.mission_key\n  FROM governance.mission_tasks mt\n  JOIN governance.missions m ON m.id = mt.mission_id\n  JOIN governance.repositories r ON r.id = mt.repo_id\n  WHERE r.repo_key = '{{$json.repo_key_sql}}'\n    AND (\n      mt.status = 'pending'\n      OR (mt.status = 'in_progress' AND mt.started_at < now() - interval '15 minutes')\n    )\n  ORDER BY mt.created_at ASC\n  LIMIT 1\n  FOR UPDATE SKIP LOCKED\n), locked AS (\n  UPDATE governance.mission_tasks mt\n  SET\n    status = 'in_progress',\n    assigned_agent = '{{$json.agent_id_sql}}',\n    started_at = now()\n  FROM candidate c\n  WHERE mt.id = c.mission_task_id\n    AND (\n      mt.status = 'pending'\n      OR (mt.status = 'in_progress' AND mt.started_at < now() - interval '15 minutes')\n    )\n  RETURNING mt.id, mt.repo_id, c.mission_key\n)\nSELECT\n  CASE WHEN EXISTS (SELECT 1 FROM locked) THEN 'assigned' ELSE 'no_work' END AS status,\n  (SELECT mission_key FROM locked LIMIT 1) AS mission_key,\n  '{{$json.repo_key_sql}}' AS repo_key,\n  '{{$json.agent_id_sql}}' AS agent_id,\n  900 AS lock_ttl_seconds,\n  to_char((now() + interval '15 minutes') AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS lock_expires_at_utc,\n  NULL::text AS instructions,\n  'govhub-n8n'::text AS source;"
+        },
+        "id": "Postgres_SelectAndLockMission",
+        "name": "Select + Lock Mission",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2,
+        "position": [
+          960,
+          180
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "11111111-2222-4333-8444-555555555555",
+            "name": "GOVHUB_DB"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "string": [
+              {
+                "value1": "={{$json.status}}",
+                "operation": "equal",
+                "value2": "assigned"
+              }
+            ]
+          }
+        },
+        "id": "If_Assigned",
+        "name": "Assigned?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          1180,
+          180
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseCode": 200,
+          "responseBody": "={{ { status: 'assigned', mission_key: $json.mission_key, repo_key: $json.repo_key, agent_id: $json.agent_id, lock_ttl_seconds: Number($json.lock_ttl_seconds || 900), lock_expires_at_utc: $json.lock_expires_at_utc, instructions: $json.instructions ?? null, source: $json.source || 'govhub-n8n' } }}"
+        },
+        "id": "Respond_Assigned",
+        "name": "Respond Assigned",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [
+          1400,
+          120
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseCode": 200,
+          "responseBody": "={{ { status: 'no_work', source: 'govhub-n8n' } }}"
+        },
+        "id": "Respond_NoWork",
+        "name": "Respond No Work",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [
+          1400,
+          260
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseCode": "={{$json.statusCode || 500}}",
+          "responseBody": "={{ { status: $json.status || 'internal_error', error_code: $json.error_code || 'MISSIONS_NEXT_INTERNAL_ERROR', message: $json.message || 'internal error' } }}"
+        },
+        "id": "Respond_Error",
+        "name": "Respond Error",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [
+          960,
+          420
+        ]
+      }
+    ],
+    "connections": {
+      "Webhook Missions Next": {
+        "main": [
+          [
+            {
+              "node": "Validate Auth + Input",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Validate Auth + Input": {
+        "main": [
+          [
+            {
+              "node": "Request Valid?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Request Valid?": {
+        "main": [
+          [
+            {
+              "node": "Select + Lock Mission",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Respond Error",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Select + Lock Mission": {
+        "main": [
+          [
+            {
+              "node": "Assigned?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Assigned?": {
+        "main": [
+          [
+            {
+              "node": "Respond Assigned",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Respond No Work",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {},
+    "pinData": {},
+    "staticData": null,
+    "meta": {
+      "templateCredsSetupCompleted": false
+    }
+  }
+]
