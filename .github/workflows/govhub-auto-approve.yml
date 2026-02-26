@@ -1,0 +1,170 @@
+name: GOVHUB Auto Approve
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  auto-approve:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Evaluate PR criteria
+        id: evaluate
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.pull_request.number;
+
+            const restrictedPathRegex = [
+              /^infra\//,
+              /^docker-compose/,
+              /^nginx\//,
+              /^cloudflare\//,
+              /^.*\.pem$/,
+              /^.*\.key$/,
+              /^secrets/i,
+              /^\.env/,
+            ];
+
+            const titlePrefixRegex = /^(docs|chore|fix|feat)(\(|:)/i;
+            const secretRegex = /(AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|ghp_[A-Za-z0-9]{36,}|xox[baprs]-[A-Za-z0-9-]{10,}|(?<![A-Za-z0-9])(password|secret|token)\s*[:=]\s*['\"]?[A-Za-z0-9_\-\/+=]{8,})/i;
+
+            const pr = await github.rest.pulls.get({ owner, repo, pull_number });
+            const title = pr.data.title || '';
+            const headSha = pr.data.head.sha;
+
+            let mergeableState = pr.data.mergeable_state;
+            if (!mergeableState) {
+              for (let i = 0; i < 5; i++) {
+                await new Promise((r) => setTimeout(r, 1500));
+                const refresh = await github.rest.pulls.get({ owner, repo, pull_number });
+                mergeableState = refresh.data.mergeable_state;
+                if (mergeableState) break;
+              }
+            }
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner,
+              repo,
+              pull_number,
+              per_page: 100,
+            });
+
+            const changedPaths = files.map((f) => f.filename);
+            const touchesRestricted = changedPaths.some((p) =>
+              restrictedPathRegex.some((rx) => rx.test(p))
+            );
+
+            if (touchesRestricted) {
+              core.notice('Restricted path changed. Auto-approval skipped.');
+              core.setOutput('approve', 'false');
+              return;
+            }
+
+            for (const f of files) {
+              if (!f.patch) continue;
+              const added = f.patch
+                .split('\n')
+                .filter((line) => line.startsWith('+') && !line.startsWith('+++'))
+                .map((line) => line.slice(1));
+              for (const line of added) {
+                if (secretRegex.test(line)) {
+                  core.setFailed(`Security violation: potential secret pattern in ${f.filename}`);
+                  return;
+                }
+              }
+            }
+
+            const hasValidTitle = titlePrefixRegex.test(title);
+            if (!hasValidTitle) {
+              core.notice('Title prefix invalid. Auto-approval skipped.');
+              core.setOutput('approve', 'false');
+              return;
+            }
+
+            const totalChangedLines = files.reduce((acc, f) => acc + (f.changes || 0), 0);
+            if (totalChangedLines > 1000) {
+              core.notice('Soft limit exceeded (>1000 changed lines). Auto-approval skipped.');
+              core.setOutput('approve', 'false');
+              return;
+            }
+
+            const checks = await github.rest.checks.listForRef({
+              owner,
+              repo,
+              ref: headSha,
+              per_page: 100,
+            });
+
+            const status = await github.rest.repos.getCombinedStatusForRef({
+              owner,
+              repo,
+              ref: headSha,
+            });
+
+            const checkRuns = checks.data.check_runs || [];
+            const hasFailedChecks = checkRuns.some(
+              (c) => c.status === 'completed' && !['success', 'neutral', 'skipped'].includes(c.conclusion || '')
+            );
+            const hasIncompleteChecks = checkRuns.some((c) => c.status !== 'completed');
+
+            if (status.data.state === 'failure' || hasFailedChecks || hasIncompleteChecks) {
+              core.notice('Status checks not green. Auto-approval skipped.');
+              core.setOutput('approve', 'false');
+              return;
+            }
+
+            if (mergeableState === 'behind' || mergeableState === 'dirty') {
+              core.notice(`Branch not up-to-date/mergeable (${mergeableState}). Auto-approval skipped.`);
+              core.setOutput('approve', 'false');
+              return;
+            }
+
+            core.setOutput('approve', 'true');
+            core.info('All criteria met. PR eligible for auto-approval.');
+
+      - name: Approve PR
+        if: steps.evaluate.outputs.approve == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.pull_request.number;
+            await github.rest.pulls.createReview({
+              owner,
+              repo,
+              pull_number,
+              event: 'APPROVE',
+              body: 'Auto-approved by governance-bot under GOVHUB policy criteria.'
+            });
+
+      - name: Enable auto-merge (squash)
+        if: steps.evaluate.outputs.approve == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.pull_request.number;
+            const pr = await github.rest.pulls.get({ owner, repo, pull_number });
+            await github.graphql(
+              `mutation($pullRequestId: ID!) {
+                enablePullRequestAutoMerge(input: {
+                  pullRequestId: $pullRequestId,
+                  mergeMethod: SQUASH
+                }) {
+                  pullRequest { number }
+                }
+              }`,
+              { pullRequestId: pr.data.node_id }
+            );
