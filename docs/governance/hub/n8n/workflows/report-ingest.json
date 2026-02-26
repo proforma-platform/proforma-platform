@@ -1,0 +1,288 @@
+{
+  "name": "govhub-phase1-report-ingest",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "govhub/report-ingest",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "Webhook_ReportIngest",
+      "name": "Webhook Report Ingest",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        220,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const crypto = require('crypto');\nconst body = $json.body ?? $json;\nconst headers = $json.headers ?? {};\nconst tokenHeader = headers['x-govhub-token'] || headers['X-GOVHUB-TOKEN'];\nconst allowed = String($env.GOVHUB_TOKENS || '').split(',').map((v) => v.trim()).filter(Boolean);\nif (!tokenHeader || !allowed.includes(String(tokenHeader).trim())) {\n  return [{ json: { ok: false, statusCode: 401, error_code: 'AUTH_INVALID_TOKEN', message: 'invalid token' } }];\n}\nconst required = ['mission_key', 'repo_key', 'agent_id', 'branch', 'head_sha', 'report_md'];\nfor (const k of required) {\n  if (!body[k]) {\n    return [{ json: { ok: false, statusCode: 400, error_code: 'REPORT_INGEST_INVALID_PAYLOAD', message: `missing field: ${k}` } }];\n  }\n}\nconst content_hash = crypto.createHash('sha256').update(String(body.report_md)).digest('hex');\nreturn [{ json: { ok: true, mission_key: String(body.mission_key), repo_key: String(body.repo_key), agent_id: String(body.agent_id), branch: String(body.branch), head_sha: String(body.head_sha), report_md: String(body.report_md), content_hash } }];"
+      },
+      "id": "Code_ValidateReport",
+      "name": "Validate + Auth + Hash",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.ok}}"
+            }
+          ]
+        }
+      },
+      "id": "If_ReportValid",
+      "name": "Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        700,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH m AS (\n  SELECT id AS mission_id FROM governance.missions WHERE mission_key = '{{$json.mission_key}}'\n), r AS (\n  SELECT id AS repo_id FROM governance.repositories WHERE repo_key = '{{$json.repo_key}}'\n), mt AS (\n  SELECT id AS mission_task_id, mission_id, repo_id\n  FROM governance.mission_tasks\n  WHERE mission_id = (SELECT mission_id FROM m)\n    AND repo_id = (SELECT repo_id FROM r)\n  ORDER BY created_at ASC\n  LIMIT 1\n), ins AS (\n  INSERT INTO governance.reports (mission_task_id, repo_id, head_sha, report_hash, report_payload, ingest_status, submitted_by, source_env)\n  SELECT mt.mission_task_id, mt.repo_id, '{{$json.head_sha}}', '{{$json.content_hash}}',\n         jsonb_build_object(\n           'mission_key', '{{$json.mission_key}}',\n           'repo_key', '{{$json.repo_key}}',\n           'agent_id', '{{$json.agent_id}}',\n           'branch', '{{$json.branch}}',\n           'report_md', {{$json.report_md ? '\'' + $json.report_md.replace(/'/g, '\\'\\'') + '\'' : 'NULL'}}\n         ),\n         'accepted',\n         '{{$json.agent_id}}',\n         'n8n-phase1'\n  FROM mt\n  ON CONFLICT (mission_task_id, head_sha) DO NOTHING\n  RETURNING id\n)\nSELECT\n  (SELECT mission_id FROM mt) AS mission_id,\n  (SELECT mission_task_id FROM mt) AS mission_task_id,\n  (SELECT repo_id FROM mt) AS repo_id,\n  CASE WHEN EXISTS (SELECT 1 FROM ins) THEN false ELSE true END AS duplicate_ignored;"
+      },
+      "id": "Postgres_InsertReport",
+      "name": "Insert Report (Idempotent)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        960,
+        180
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GOVHUB_DB",
+          "name": "GOVHUB_DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE governance.mission_tasks\nSET status = 'completed', completed_at = now()\nWHERE id = {{$json[0]?.mission_task_id || $json.mission_task_id ? '\'' + String($json[0]?.mission_task_id || $json.mission_task_id) + '\'' : 'NULL'}}\nRETURNING id;"
+      },
+      "id": "Postgres_UpdateTaskDone",
+      "name": "Mark Task Done",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1180,
+        180
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GOVHUB_DB",
+          "name": "GOVHUB_DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH m AS (\n  SELECT id AS mission_id FROM governance.missions WHERE mission_key = '{{$node['Validate + Auth + Hash'].json['mission_key']}}'\n)\nSELECT\n  (SELECT mission_id FROM m) AS mission_id,\n  (SELECT COUNT(*) FROM governance.mission_tasks WHERE mission_id = (SELECT mission_id FROM m)) AS total_tasks,\n  (SELECT COUNT(*) FROM governance.mission_tasks WHERE mission_id = (SELECT mission_id FROM m) AND status = 'completed') AS done_tasks,\n  ((SELECT COUNT(*) FROM governance.mission_tasks WHERE mission_id = (SELECT mission_id FROM m)) =\n   (SELECT COUNT(*) FROM governance.mission_tasks WHERE mission_id = (SELECT mission_id FROM m) AND status = 'completed')) AS all_done;"
+      },
+      "id": "Postgres_CheckAllDone",
+      "name": "Check Mission Completion",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        180
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GOVHUB_DB",
+          "name": "GOVHUB_DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json[0]?.all_done || $json.all_done}}"
+            }
+          ]
+        }
+      },
+      "id": "If_AllDone",
+      "name": "All Tasks Done?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1620,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": "govhub-phase1-decision-aggregate",
+        "options": {
+          "waitForSubWorkflow": false
+        },
+        "inputSource": "json",
+        "jsonInput": "={{ { mission_key: $node['Validate + Auth + Hash'].json.mission_key } }}"
+      },
+      "id": "Exec_DecisionAggregate",
+      "name": "Execute decision-aggregate",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        1840,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 200,
+        "responseBody": "={{ { status: 'ok', mission_key: $node['Validate + Auth + Hash'].json.mission_key, repo_key: $node['Validate + Auth + Hash'].json.repo_key, head_sha: $node['Validate + Auth + Hash'].json.head_sha, content_hash: $node['Validate + Auth + Hash'].json.content_hash, duplicate_ignored: $node['Insert Report (Idempotent)'].json[0]?.duplicate_ignored ?? false } }}"
+      },
+      "id": "Respond_ReportOk",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1840,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": "={{$json.statusCode || 400}}",
+        "responseBody": "={{ { status: 'error', error_code: $json.error_code || 'REPORT_INGEST_VALIDATION_ERROR', message: $json.message || 'invalid request' } }}"
+      },
+      "id": "Respond_ReportError",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        960,
+        420
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Report Ingest": {
+      "main": [
+        [
+          {
+            "node": "Validate + Auth + Hash",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate + Auth + Hash": {
+      "main": [
+        [
+          {
+            "node": "Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid?": {
+      "main": [
+        [
+          {
+            "node": "Insert Report (Idempotent)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Report (Idempotent)": {
+      "main": [
+        [
+          {
+            "node": "Mark Task Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Task Done": {
+      "main": [
+        [
+          {
+            "node": "Check Mission Completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Mission Completion": {
+      "main": [
+        [
+          {
+            "node": "All Tasks Done?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "All Tasks Done?": {
+      "main": [
+        [
+          {
+            "node": "Execute decision-aggregate",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Respond 200",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "pinData": {},
+  "versionId": "phase1-report-ingest-v1",
+  "id": "govhub-phase1-report-ingest",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
