@@ -38,18 +38,14 @@
       },
       {
         "parameters": {
-          "conditions": {
-            "boolean": [
-              {
-                "value1": "={{$json.route === 'valid'}}"
-              }
-            ]
-          }
+          "mode": "expression",
+          "numberOutputs": 2,
+          "output": "={{$json.route === 'error' ? 0 : 1}}"
         },
-        "id": "If_RequestValid",
-        "name": "Request Valid?",
-        "type": "n8n-nodes-base.if",
-        "typeVersion": 2,
+        "id": "Switch_RequestRoute",
+        "name": "Route Request",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
         "position": [
           700,
           280
@@ -78,8 +74,10 @@
       {
         "parameters": {
           "respondWith": "json",
-          "responseCode": "={{$json.statusCode || 500}}",
-          "responseBody": "={{ { status: $json.status || 'internal_error', error_code: $json.error_code || 'MISSIONS_NEXT_INTERNAL_ERROR', message: $json.message || 'internal error' } }}"
+          "responseBody": "={{ { status: $json.status || 'internal_error', error_code: $json.error_code || 'MISSIONS_NEXT_INTERNAL_ERROR', message: $json.message || 'internal error' } }}",
+          "options": {
+            "responseCode": "={{$json.statusCode || 500}}"
+          }
         },
         "id": "Respond_Error",
         "name": "Respond Error",
@@ -122,25 +120,25 @@
         "main": [
           [
             {
-              "node": "Request Valid?",
+              "node": "Route Request",
               "type": "main",
               "index": 0
             }
           ]
         ]
       },
-      "Request Valid?": {
+      "Route Request": {
         "main": [
           [
             {
-              "node": "Select + Lock Mission",
+              "node": "Respond Error",
               "type": "main",
               "index": 0
             }
           ],
           [
             {
-              "node": "Respond Error",
+              "node": "Select + Lock Mission",
               "type": "main",
               "index": 0
             }
