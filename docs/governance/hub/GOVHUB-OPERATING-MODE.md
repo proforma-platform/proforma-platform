@@ -117,3 +117,9 @@ To onboard a new product repository:
 - bind mission routing to repo key
 - apply same payload contracts and gates
 - avoid hardcoded product-specific workflow logic
+
+## Chat Bootstrap via Snapshot
+- Staff/Agent MUST retrieve the latest `state_inventory_v1` snapshot before starting a new governance mission.
+- Snapshot MUST be decoded locally and SHA256-verified.
+- Prompt execution MUST reference snapshot metadata (`snapshot_type`, `created_at_utc`, `payload_sha256`).
+- If no snapshot exists, operator MUST generate inventory, ingest a new snapshot, then proceed.

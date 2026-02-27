@@ -1,0 +1,222 @@
+[
+  {
+    "id": "govhub-phase1-snapshot-latest",
+    "name": "govhub-phase1-snapshot-latest",
+    "active": false,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "path": "govhub/snapshots/latest",
+          "httpMethod": "GET",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "Webhook_SnapshotLatest",
+        "name": "Webhook Snapshot Latest",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "webhookId": "93b9ee20-1c0e-4998-8ca9-cfdfc270d8dd",
+        "position": [
+          220,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const headers = $json.headers ?? {};\nconst tokenHeader = headers['x-govhub-token'] || headers['X-GOVHUB-TOKEN'];\nconst allowed = String($env.GOVHUB_TOKENS || '').split(',').map(v => v.trim()).filter(Boolean);\nif (!tokenHeader || !allowed.includes(String(tokenHeader).trim())) {\n  return [{ json: { route: 'error', statusCode: 401, status: 'unauthorized', error_code: 'AUTH_INVALID_TOKEN', message: 'invalid token' } }];\n}\nconst query = ($json.query && typeof $json.query === 'object') ? $json.query : {};\nconst snapshot_type = query.snapshot_type ? String(query.snapshot_type).trim() : '';\nif (!snapshot_type) {\n  return [{ json: { route: 'error', statusCode: 400, status: 'invalid_request', error_code: 'SNAPSHOT_TYPE_REQUIRED', message: 'snapshot_type is required' } }];\n}\nconst esc = (v) => String(v).replace(/'/g, \"''\");\nreturn [{ json: { route: 'valid', snapshot_type, snapshot_type_sql: esc(snapshot_type) } }];"
+        },
+        "id": "Code_ValidateSnapshotLatest",
+        "name": "Validate Snapshot Latest",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          500,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "expression",
+          "numberOutputs": 2,
+          "output": "={{$json.route === 'error' ? 0 : 1}}"
+        },
+        "id": "Switch_SnapshotLatestRoute",
+        "name": "Route Snapshot Latest",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
+        "position": [
+          760,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { status: $json.status || 'internal_error', error_code: $json.error_code || 'SNAPSHOT_LATEST_INTERNAL', message: $json.message || 'internal error' } }}",
+          "options": {
+            "responseCode": "={{$json.statusCode || 500}}"
+          }
+        },
+        "id": "Respond_SnapshotLatestError",
+        "name": "Respond Snapshot Latest Error",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [
+          1020,
+          180
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "SELECT\n  snapshot_type, protocol, version, encoding, compression, payload_b64, payload_sha256, payload_size_bytes,\n  to_char(created_at_utc AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at_utc,\n  created_by, source_repo, source_ref\nFROM governance.hub_snapshots\nWHERE snapshot_type = '{{$json.snapshot_type_sql}}'\n  AND is_active = true\nORDER BY created_at_utc DESC\nLIMIT 1;"
+        },
+        "id": "Postgres_GetLatestSnapshot",
+        "name": "Get Latest Snapshot",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2,
+        "position": [
+          1020,
+          420
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "11111111-2222-4333-8444-555555555555",
+            "name": "GOVHUB_DB"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "string": [
+              {
+                "value1": "={{$json.snapshot_type || \"\"}}",
+                "operation": "notEmpty"
+              }
+            ]
+          }
+        },
+        "id": "If_SnapshotFound",
+        "name": "Snapshot Found?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          1250,
+          420
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseCode": 200,
+          "responseBody": "={{ { status: 'ok', snapshot_type: $json.snapshot_type, protocol: $json.protocol, version: $json.version, encoding: $json.encoding, compression: $json.compression, payload_b64: $json.payload_b64, payload_sha256: $json.payload_sha256, payload_size_bytes: Number($json.payload_size_bytes), created_at_utc: $json.created_at_utc, created_by: $json.created_by, source_repo: $json.source_repo, source_ref: $json.source_ref } }}"
+        },
+        "id": "Respond_SnapshotLatestOk",
+        "name": "Respond Snapshot Latest OK",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [
+          1480,
+          360
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { status: 'not_found', error_code: 'SNAPSHOT_NOT_FOUND', message: 'no active snapshot for requested type' } }}",
+          "options": {
+            "responseCode": 404
+          }
+        },
+        "id": "Respond_SnapshotLatestNotFound",
+        "name": "Respond Snapshot Latest Not Found",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [
+          1480,
+          500
+        ]
+      }
+    ],
+    "connections": {
+      "Webhook Snapshot Latest": {
+        "main": [
+          [
+            {
+              "node": "Validate Snapshot Latest",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Validate Snapshot Latest": {
+        "main": [
+          [
+            {
+              "node": "Route Snapshot Latest",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Route Snapshot Latest": {
+        "main": [
+          [
+            {
+              "node": "Respond Snapshot Latest Error",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Get Latest Snapshot",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Latest Snapshot": {
+        "main": [
+          [
+            {
+              "node": "Snapshot Found?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Snapshot Found?": {
+        "main": [
+          [
+            {
+              "node": "Respond Snapshot Latest OK",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Respond Snapshot Latest Not Found",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {},
+    "pinData": {},
+    "staticData": null,
+    "meta": {
+      "templateCredsSetupCompleted": false
+    }
+  }
+]

@@ -177,3 +177,43 @@ References:
 - `docs/governance/ccp/CCP-SPEC.md`
 - `docs/governance/ccp/KEYS.md`
 - `docs/governance/ccp/schema/`
+
+## Snapshots (UBIN v1)
+
+Canonical endpoints:
+- `POST /webhook/govhub/snapshots/ingest`
+- `GET /webhook/govhub/snapshots/latest?snapshot_type=<type>`
+
+Auth:
+- `X-GOVHUB-TOKEN` required.
+
+Ingest request (minimum):
+- `snapshot_type`
+- `protocol` (`UBIN`)
+- `version` (`1.0`)
+- `encoding` (`json`)
+- `compression` (`gzip`)
+- `payload_b64`
+- `payload_sha256`
+- `payload_size_bytes`
+- `created_by`
+
+Latest response (200):
+- metadata + `payload_b64` + `payload_sha256`
+
+Error codes:
+- `401` unauthorized
+- `400` invalid request
+- `404` snapshot not found (latest)
+- `200` stored/ok
+
+Size limits:
+- compressed payload max: `256KB` (MVP)
+
+Secret scan policy:
+- client-side scan is mandatory before ingest (`snapshot-pack.*`).
+- server-side Phase 1 scan is limited to transport payload checks (`payload_b64`) and rejects known risky patterns.
+- rejection response: `{"status":"rejected","error_code":"SNAPSHOT_SECRET_DETECTED"}`
+
+SHA256 definition:
+- `payload_sha256` MUST be SHA256 of gzip-compressed payload bytes (decoded from `payload_b64`).
