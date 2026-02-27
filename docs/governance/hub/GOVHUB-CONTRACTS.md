@@ -3,7 +3,21 @@
 All webhook requests MUST include header:
 - `X-GOVHUB-TOKEN: <token>`
 
-Requests without valid token MUST be rejected.
+AUTH v1 (database-backed):
+- Raw tokens MUST NOT be stored.
+- Tokens are validated by `sha256(token + pepper)` where pepper comes from env (`GOVHUB_TOKEN_PEPPER`).
+- Token metadata is stored in:
+  - `governance.hub_agents`
+  - `governance.hub_agent_tokens`
+- Validation gates:
+  - token hash exists
+  - token not revoked (`revoked_at IS NULL`)
+  - token not expired (`expires_at IS NULL OR expires_at > now()`)
+  - owning agent active (`hub_agents.is_active = true`)
+
+HTTP behavior:
+- `401` invalid token / revoked / expired / inactive agent
+- `403` valid token but missing required scope
 
 ## Webhook: mission-intake
 Endpoint purpose:
@@ -18,6 +32,9 @@ Endpoint purpose:
 
 Method:
 - `POST`
+
+Required scope:
+- `reports:submit`
 
 ## Webhook: missions-next
 Endpoint purpose:
@@ -34,7 +51,10 @@ Temporary compatibility endpoint (deprecated, removal pending canonical conforma
 
 Required input:
 - `repo_key` (JSON body, required; query string accepted for compatibility)
-- `agent_id` (JSON body, required; query string accepted for compatibility)
+- `agent_id` MUST be derived from authenticated token (`hub_agents.agent_key`), not trusted from body.
+
+Required scope:
+- `missions:pull`
 
 Success responses:
 - `200` + `{ "status": "no_work" }` when no mission is available
@@ -55,6 +75,7 @@ Success responses:
 Error responses:
 - `400` invalid request (`repo_key`/`agent_id` missing)
 - `401` unauthorized (`X-GOVHUB-TOKEN` invalid)
+- `403` forbidden (`X-GOVHUB-TOKEN` missing required scope)
 - `500` internal error
 
 ## Webhook: decision-publish (optional in Phase 1)
@@ -159,9 +180,17 @@ Examples of forbidden sensitive content:
 - `202` accepted for async processing
 - `400` invalid payload shape
 - `401` authentication failed
+- `403` authenticated but forbidden by scope
 - `409` idempotency conflict
 - `422` unsafe payload (secret exposure)
 - `500` internal processing failure
+
+## Auth Scopes (AUTH v1)
+Canonical scopes:
+- `missions:pull` for `/webhook/govhub/missions/next`
+- `reports:submit` for `/webhook/govhub/report-ingest`
+- `snapshots:write` for `/webhook/govhub/snapshots/ingest`
+- `snapshots:read` for `/webhook/govhub/snapshots/latest`
 
 ## CCP Payloads
 CCP payloads are supported as the canonical compact protocol for mission and report transport.

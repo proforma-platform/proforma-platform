@@ -25,6 +25,7 @@ Hub (n8n)
 - Orchestrates mission lifecycle.
 - Validates payload contracts.
 - Stores immutable audit artifacts and hashes.
+- Enforces AUTH v1 scope checks via DB-backed agent token registry.
 
 GitHub App bot
 - Publishes evidence artifacts via branch/PR flow.
@@ -59,6 +60,12 @@ Each mission MUST include:
 - execution report payload hash
 - consolidation/decision payload hash
 - timestamps and actor metadata
+- mission ledger entries (`governance.hub_mission_ledger`) for ingest/decision checkpoints
+
+AUTH v1 requirements:
+- Every webhook action MUST be attributed to `hub_agents.agent_key` derived from token hash lookup.
+- Token scopes MUST gate operation rights (`missions:pull`, `reports:submit`, `snapshots:read/write`).
+- Raw tokens MUST NOT be persisted in logs, DB, or evidence payloads.
 
 Working tree quality gate:
 - Execution evidence SHOULD be produced from clean working tree.
@@ -83,18 +90,21 @@ Failure modes:
 - schema incompatibility
 - idempotency collision
 - upstream GitHub publication failure
+- authentication/scope rejection (`401`/`403`)
 
 Recovery:
 - idempotent retry by mission identity
 - dead-letter capture for invalid payloads
 - manual re-drive with preserved audit linkage
 - explicit status transitions for partial failure
+- token lifecycle recovery (rotate token hash, scope fix, revoke compromised token)
 
 ## Versioning and Evidence Publication
 - Contracts MUST be versioned.
 - Mission evidence MUST reference fixed commit SHAs.
 - Evidence publication MUST occur via PR.
 - Release-facing governance missions SHOULD include quality evidence references.
+- Mission timeline evidence SHOULD be persisted in `hub_mission_ledger.evidence_json` as CCP `mission_report`.
 
 CCP operational guidance:
 - Staff SHOULD issue mission payloads using CCP envelope format.

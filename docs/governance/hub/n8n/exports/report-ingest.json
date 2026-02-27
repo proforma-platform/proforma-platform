@@ -1,0 +1,259 @@
+[
+  {
+    "id": "govhub-phase1-report-ingest",
+    "name": "govhub-phase1-report-ingest",
+    "active": false,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "path": "govhub/report-ingest",
+          "httpMethod": "POST",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "Webhook_ReportIngest",
+        "name": "Webhook Report Ingest",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [220, 280]
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const crypto = require('crypto');\nconst body = $json.body ?? $json;\nconst headers = $json.headers ?? {};\nconst tokenHeader = headers['x-govhub-token'] || headers['X-GOVHUB-TOKEN'];\nconst pepper = String($env.GOVHUB_TOKEN_PEPPER || '');\nif (!pepper) {\n  return [{ json: { route: 'error', statusCode: 500, error_code: 'AUTH_CONFIG_MISSING', message: 'token pepper not configured' } }];\n}\nif (!tokenHeader || !String(tokenHeader).trim()) {\n  return [{ json: { route: 'error', statusCode: 401, error_code: 'AUTH_INVALID_TOKEN', message: 'missing token' } }];\n}\nconst required = ['mission_key', 'repo_key', 'branch', 'head_sha', 'report_md'];\nfor (const k of required) {\n  if (!body[k]) {\n    return [{ json: { route: 'error', statusCode: 400, error_code: 'REPORT_INGEST_INVALID_PAYLOAD', message: `missing field: ${k}` } }];\n  }\n}\nconst token = String(tokenHeader).trim();\nconst token_hash = crypto.createHash('sha256').update(token + pepper).digest('hex');\nconst content_hash = crypto.createHash('sha256').update(String(body.report_md)).digest('hex');\nconst esc = (value) => String(value).replace(/'/g, \"''\");\nreturn [{ json: { route: 'valid', mission_key: String(body.mission_key), mission_key_sql: esc(body.mission_key), repo_key: String(body.repo_key), repo_key_sql: esc(body.repo_key), branch: String(body.branch), branch_sql: esc(body.branch), head_sha: String(body.head_sha), head_sha_sql: esc(body.head_sha), report_md: String(body.report_md), report_md_sql: esc(body.report_md), content_hash, content_hash_sql: esc(content_hash), token_hash, token_hash_sql: esc(token_hash) } }];"
+        },
+        "id": "Code_ValidateInput",
+        "name": "Validate Input + Token Hash",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [460, 280]
+      },
+      {
+        "parameters": {
+          "mode": "expression",
+          "numberOutputs": 2,
+          "output": "={{$json.route === 'error' ? 0 : 1}}"
+        },
+        "id": "Switch_InputRoute",
+        "name": "Route Input",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
+        "position": [700, 280]
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "WITH token_row AS (\n  SELECT\n    t.token_id,\n    a.agent_key,\n    a.is_active AS agent_active,\n    t.revoked_at,\n    t.expires_at,\n    (t.scopes @> ARRAY['reports:submit']::text[]) AS has_scope\n  FROM governance.hub_agent_tokens t\n  JOIN governance.hub_agents a ON a.agent_id = t.agent_id\n  WHERE t.token_hash = '{{$json.token_hash_sql}}'\n  ORDER BY t.created_at_utc DESC\n  LIMIT 1\n)\nSELECT\n  CASE\n    WHEN NOT EXISTS (SELECT 1 FROM token_row) THEN 'unauthorized'\n    WHEN (SELECT revoked_at FROM token_row) IS NOT NULL THEN 'unauthorized'\n    WHEN ((SELECT expires_at FROM token_row) IS NOT NULL AND (SELECT expires_at FROM token_row) <= now()) THEN 'unauthorized'\n    WHEN COALESCE((SELECT agent_active FROM token_row), false) = false THEN 'unauthorized'\n    WHEN COALESCE((SELECT has_scope FROM token_row), false) = false THEN 'forbidden'\n    ELSE 'authorized'\n  END AS auth_status,\n  (SELECT agent_key FROM token_row) AS agent_id;"
+        },
+        "id": "Postgres_AuthToken",
+        "name": "Auth Token Lookup",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2,
+        "position": [950, 160],
+        "credentials": {
+          "postgres": {
+            "id": "11111111-2222-4333-8444-555555555555",
+            "name": "GOVHUB_DB"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const row = Array.isArray($json) ? ($json[0] || {}) : $json;\nif (row.auth_status === 'unauthorized') {\n  return [{ json: { route: 'error', statusCode: 401, error_code: 'AUTH_INVALID_TOKEN', message: 'invalid or expired token' } }];\n}\nif (row.auth_status === 'forbidden') {\n  return [{ json: { route: 'error', statusCode: 403, error_code: 'AUTH_SCOPE_FORBIDDEN', message: 'missing scope reports:submit' } }];\n}\nif (row.auth_status !== 'authorized' || !row.agent_id) {\n  return [{ json: { route: 'error', statusCode: 500, error_code: 'AUTH_RESOLUTION_FAILED', message: 'auth resolution failed' } }];\n}\nconst prior = $node['Validate Input + Token Hash'].json;\nconst esc = (value) => String(value).replace(/'/g, \"''\");\nreturn [{ json: { route: 'valid', mission_key: prior.mission_key, mission_key_sql: prior.mission_key_sql, repo_key: prior.repo_key, repo_key_sql: prior.repo_key_sql, branch: prior.branch, branch_sql: prior.branch_sql, head_sha: prior.head_sha, head_sha_sql: prior.head_sha_sql, report_md: prior.report_md, report_md_sql: prior.report_md_sql, content_hash: prior.content_hash, content_hash_sql: prior.content_hash_sql, agent_id: row.agent_id, agent_id_sql: esc(row.agent_id) } }];"
+        },
+        "id": "Code_BindAuthAgent",
+        "name": "Resolve Auth + Bind Agent",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1160, 160]
+      },
+      {
+        "parameters": {
+          "mode": "expression",
+          "numberOutputs": 2,
+          "output": "={{$json.route === 'error' ? 0 : 1}}"
+        },
+        "id": "Switch_AuthRoute",
+        "name": "Route Auth",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
+        "position": [1360, 160]
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "WITH m AS (\n  SELECT id AS mission_id FROM governance.missions WHERE mission_key = '{{$json.mission_key_sql}}'\n), r AS (\n  SELECT id AS repo_id FROM governance.repositories WHERE repo_key = '{{$json.repo_key_sql}}'\n), mt AS (\n  SELECT id AS mission_task_id, mission_id, repo_id\n  FROM governance.mission_tasks\n  WHERE mission_id = (SELECT mission_id FROM m)\n    AND repo_id = (SELECT repo_id FROM r)\n  ORDER BY created_at ASC\n  LIMIT 1\n), ins AS (\n  INSERT INTO governance.reports (mission_task_id, repo_id, head_sha, report_hash, report_payload, ingest_status, submitted_by, source_env)\n  SELECT mt.mission_task_id, mt.repo_id, '{{$json.head_sha_sql}}', '{{$json.content_hash_sql}}',\n         jsonb_build_object(\n           'mission_key', '{{$json.mission_key_sql}}',\n           'repo_key', '{{$json.repo_key_sql}}',\n           'agent_id', '{{$json.agent_id_sql}}',\n           'branch', '{{$json.branch_sql}}',\n           'report_md', '{{$json.report_md_sql}}'\n         ),\n         'accepted',\n         '{{$json.agent_id_sql}}',\n         'n8n-phase1-authv1'\n  FROM mt\n  ON CONFLICT (mission_task_id, head_sha) DO NOTHING\n  RETURNING id\n)\nSELECT\n  (SELECT mission_id FROM mt)::text AS mission_id,\n  (SELECT mission_task_id FROM mt)::text AS mission_task_id,\n  (SELECT repo_id FROM mt)::text AS repo_id,\n  CASE WHEN EXISTS (SELECT 1 FROM ins) THEN false ELSE true END AS duplicate_ignored;"
+        },
+        "id": "Postgres_InsertReport",
+        "name": "Insert Report (Idempotent)",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2,
+        "position": [1560, 60],
+        "credentials": {
+          "postgres": {
+            "id": "11111111-2222-4333-8444-555555555555",
+            "name": "GOVHUB_DB"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "INSERT INTO governance.hub_mission_ledger (mission_key, repo_key, stage, actor_agent_key, head_sha, outcome, evidence_json)\nVALUES (\n  '{{$node['Resolve Auth + Bind Agent'].json.mission_key_sql}}',\n  '{{$node['Resolve Auth + Bind Agent'].json.repo_key_sql}}',\n  'report_ingest',\n  '{{$node['Resolve Auth + Bind Agent'].json.agent_id_sql}}',\n  '{{$node['Resolve Auth + Bind Agent'].json.head_sha_sql}}',\n  CASE WHEN {{$json[0]?.duplicate_ignored ?? false}} THEN 'duplicate_ignored' ELSE 'accepted' END,\n  jsonb_build_object(\n    'ccp_ver', '1.0',\n    'type', 'mission_report',\n    'mission_key', '{{$node['Resolve Auth + Bind Agent'].json.mission_key_sql}}',\n    'repo_key', '{{$node['Resolve Auth + Bind Agent'].json.repo_key_sql}}',\n    'agent_id', '{{$node['Resolve Auth + Bind Agent'].json.agent_id_sql}}',\n    'head_sha', '{{$node['Resolve Auth + Bind Agent'].json.head_sha_sql}}',\n    'content_hash', '{{$node['Resolve Auth + Bind Agent'].json.content_hash_sql}}',\n    'duplicate_ignored', {{$json[0]?.duplicate_ignored ?? false}},\n    'source', 'govhub-n8n'\n  )\n)\nRETURNING ledger_id::text;"
+        },
+        "id": "Postgres_InsertLedger",
+        "name": "Insert Mission Ledger",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2,
+        "position": [1760, 60],
+        "credentials": {
+          "postgres": {
+            "id": "11111111-2222-4333-8444-555555555555",
+            "name": "GOVHUB_DB"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "UPDATE governance.mission_tasks\nSET status = 'completed', completed_at = now()\nWHERE id = '{{$node['Insert Report (Idempotent)'].json[0]?.mission_task_id || ''}}'\nRETURNING id::text;"
+        },
+        "id": "Postgres_UpdateTaskDone",
+        "name": "Mark Task Done",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2,
+        "position": [1960, 60],
+        "credentials": {
+          "postgres": {
+            "id": "11111111-2222-4333-8444-555555555555",
+            "name": "GOVHUB_DB"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "WITH m AS (\n  SELECT id AS mission_id FROM governance.missions WHERE mission_key = '{{$node['Resolve Auth + Bind Agent'].json.mission_key_sql}}'\n)\nSELECT\n  (SELECT mission_id FROM m)::text AS mission_id,\n  (SELECT COUNT(*) FROM governance.mission_tasks WHERE mission_id = (SELECT mission_id FROM m)) AS total_tasks,\n  (SELECT COUNT(*) FROM governance.mission_tasks WHERE mission_id = (SELECT mission_id FROM m) AND status = 'completed') AS done_tasks,\n  ((SELECT COUNT(*) FROM governance.mission_tasks WHERE mission_id = (SELECT mission_id FROM m)) =\n   (SELECT COUNT(*) FROM governance.mission_tasks WHERE mission_id = (SELECT mission_id FROM m) AND status = 'completed')) AS all_done;"
+        },
+        "id": "Postgres_CheckAllDone",
+        "name": "Check Mission Completion",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2,
+        "position": [2160, 60],
+        "credentials": {
+          "postgres": {
+            "id": "11111111-2222-4333-8444-555555555555",
+            "name": "GOVHUB_DB"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "boolean": [
+              {
+                "value1": "={{$json[0]?.all_done || $json.all_done}}"
+              }
+            ]
+          }
+        },
+        "id": "If_AllDone",
+        "name": "All Tasks Done?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [2360, 60]
+      },
+      {
+        "parameters": {
+          "workflowId": "govhub-phase1-decision-aggregate",
+          "options": {
+            "waitForSubWorkflow": false
+          },
+          "inputSource": "json",
+          "jsonInput": "={{ { mission_key: $node['Resolve Auth + Bind Agent'].json.mission_key } }}"
+        },
+        "id": "Exec_DecisionAggregate",
+        "name": "Execute decision-aggregate",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1,
+        "position": [2560, -20]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseCode": 200,
+          "responseBody": "={{ { status: 'ok', mission_key: $node['Resolve Auth + Bind Agent'].json.mission_key, repo_key: $node['Resolve Auth + Bind Agent'].json.repo_key, head_sha: $node['Resolve Auth + Bind Agent'].json.head_sha, content_hash: $node['Resolve Auth + Bind Agent'].json.content_hash, duplicate_ignored: $node['Insert Report (Idempotent)'].json[0]?.duplicate_ignored ?? false } }}"
+        },
+        "id": "Respond_ReportOk",
+        "name": "Respond 200",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [2560, 180]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseCode": "={{$json.statusCode || 400}}",
+          "responseBody": "={{ { status: 'error', error_code: $json.error_code || 'REPORT_INGEST_VALIDATION_ERROR', message: $json.message || 'invalid request' } }}"
+        },
+        "id": "Respond_ReportError",
+        "name": "Respond Error",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [1560, 380]
+      }
+    ],
+    "connections": {
+      "Webhook Report Ingest": {
+        "main": [[{ "node": "Validate Input + Token Hash", "type": "main", "index": 0 }]]
+      },
+      "Validate Input + Token Hash": {
+        "main": [[{ "node": "Route Input", "type": "main", "index": 0 }]]
+      },
+      "Route Input": {
+        "main": [
+          [{ "node": "Respond Error", "type": "main", "index": 0 }],
+          [{ "node": "Auth Token Lookup", "type": "main", "index": 0 }]
+        ]
+      },
+      "Auth Token Lookup": {
+        "main": [[{ "node": "Resolve Auth + Bind Agent", "type": "main", "index": 0 }]]
+      },
+      "Resolve Auth + Bind Agent": {
+        "main": [[{ "node": "Route Auth", "type": "main", "index": 0 }]]
+      },
+      "Route Auth": {
+        "main": [
+          [{ "node": "Respond Error", "type": "main", "index": 0 }],
+          [{ "node": "Insert Report (Idempotent)", "type": "main", "index": 0 }]
+        ]
+      },
+      "Insert Report (Idempotent)": {
+        "main": [[{ "node": "Insert Mission Ledger", "type": "main", "index": 0 }]]
+      },
+      "Insert Mission Ledger": {
+        "main": [[{ "node": "Mark Task Done", "type": "main", "index": 0 }]]
+      },
+      "Mark Task Done": {
+        "main": [[{ "node": "Check Mission Completion", "type": "main", "index": 0 }]]
+      },
+      "Check Mission Completion": {
+        "main": [[{ "node": "All Tasks Done?", "type": "main", "index": 0 }]]
+      },
+      "All Tasks Done?": {
+        "main": [
+          [{ "node": "Execute decision-aggregate", "type": "main", "index": 0 }, { "node": "Respond 200", "type": "main", "index": 0 }],
+          [{ "node": "Respond 200", "type": "main", "index": 0 }]
+        ]
+      }
+    },
+    "settings": {},
+    "pinData": {},
+    "staticData": null,
+    "meta": {
+      "templateCredsSetupCompleted": false
+    }
+  }
+]

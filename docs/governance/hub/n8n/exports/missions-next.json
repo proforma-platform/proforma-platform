@@ -16,25 +16,18 @@
         "name": "Webhook Missions Next",
         "type": "n8n-nodes-base.webhook",
         "typeVersion": 2,
-        "webhookId": "8c6df146-e4fd-4ded-933f-2f3470a77f42",
-        "position": [
-          220,
-          280
-        ]
+        "position": [220, 280]
       },
       {
         "parameters": {
           "mode": "runOnceForAllItems",
-          "jsCode": "const headers = $json.headers ?? {};\nconst tokenHeader = headers['x-govhub-token'] || headers['X-GOVHUB-TOKEN'];\nconst allowed = String($env.GOVHUB_TOKENS || '').split(',').map((v) => v.trim()).filter(Boolean);\nif (!tokenHeader || !allowed.includes(String(tokenHeader).trim())) {\n  return [{ json: { route: 'error', statusCode: 401, status: 'unauthorized', error_code: 'AUTH_INVALID_TOKEN', message: 'invalid token' } }];\n}\nconst query = ($json.query && typeof $json.query === 'object') ? $json.query : {};\nlet body = $json.body ?? {};\nif (typeof body === 'string') {\n  try { body = JSON.parse(body); } catch { body = {}; }\n}\nif (!body || typeof body !== 'object') body = {};\nconst input = { ...query, ...body };\nconst repo_key = input.repo_key ? String(input.repo_key).trim() : '';\nconst agent_id = input.agent_id ? String(input.agent_id).trim() : '';\nif (!repo_key || !agent_id) {\n  return [{ json: { route: 'error', statusCode: 400, status: 'invalid_request', error_code: 'MISSIONS_NEXT_INVALID_REQUEST', message: 'repo_key and agent_id are required' } }];\n}\nconst esc = (value) => String(value).replace(/'/g, \"''\");\nreturn [{ json: { route: 'valid', repo_key, repo_key_sql: esc(repo_key), agent_id, agent_id_sql: esc(agent_id), lock_ttl_seconds: 900 } }];"
+          "jsCode": "const crypto = require('crypto');\nconst headers = $json.headers ?? {};\nconst tokenHeader = headers['x-govhub-token'] || headers['X-GOVHUB-TOKEN'];\nconst pepper = String($env.GOVHUB_TOKEN_PEPPER || '');\nif (!pepper) {\n  return [{ json: { route: 'error', statusCode: 500, status: 'internal_error', error_code: 'AUTH_CONFIG_MISSING', message: 'token pepper not configured' } }];\n}\nif (!tokenHeader || !String(tokenHeader).trim()) {\n  return [{ json: { route: 'error', statusCode: 401, status: 'unauthorized', error_code: 'AUTH_INVALID_TOKEN', message: 'missing token' } }];\n}\nconst query = ($json.query && typeof $json.query === 'object') ? $json.query : {};\nlet body = $json.body ?? {};\nif (typeof body === 'string') {\n  try { body = JSON.parse(body); } catch { body = {}; }\n}\nif (!body || typeof body !== 'object') body = {};\nconst input = { ...query, ...body };\nconst repo_key = input.repo_key ? String(input.repo_key).trim() : '';\nif (!repo_key) {\n  return [{ json: { route: 'error', statusCode: 400, status: 'invalid_request', error_code: 'MISSIONS_NEXT_INVALID_REQUEST', message: 'repo_key is required' } }];\n}\nconst token = String(tokenHeader).trim();\nconst token_hash = crypto.createHash('sha256').update(token + pepper).digest('hex');\nconst esc = (value) => String(value).replace(/'/g, \"''\");\nreturn [{ json: { route: 'valid', repo_key, repo_key_sql: esc(repo_key), token_hash, token_hash_sql: esc(token_hash), lock_ttl_seconds: 900 } }];"
         },
-        "id": "Code_ValidateAuthInput",
-        "name": "Validate Auth + Input",
+        "id": "Code_ValidateInputAndHash",
+        "name": "Validate Input + Token Hash",
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
-        "position": [
-          460,
-          280
-        ]
+        "position": [470, 280]
       },
       {
         "parameters": {
@@ -42,14 +35,51 @@
           "numberOutputs": 2,
           "output": "={{$json.route === 'error' ? 0 : 1}}"
         },
-        "id": "Switch_RequestRoute",
-        "name": "Route Request",
+        "id": "Switch_InputRoute",
+        "name": "Route Input",
         "type": "n8n-nodes-base.switch",
         "typeVersion": 3.4,
-        "position": [
-          700,
-          280
-        ]
+        "position": [710, 280]
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "WITH token_row AS (\n  SELECT\n    t.token_id,\n    a.agent_key,\n    a.is_active AS agent_active,\n    t.revoked_at,\n    t.expires_at,\n    (t.scopes @> ARRAY['missions:pull']::text[]) AS has_scope\n  FROM governance.hub_agent_tokens t\n  JOIN governance.hub_agents a ON a.agent_id = t.agent_id\n  WHERE t.token_hash = '{{$json.token_hash_sql}}'\n  ORDER BY t.created_at_utc DESC\n  LIMIT 1\n)\nSELECT\n  CASE\n    WHEN NOT EXISTS (SELECT 1 FROM token_row) THEN 'unauthorized'\n    WHEN (SELECT revoked_at FROM token_row) IS NOT NULL THEN 'unauthorized'\n    WHEN ((SELECT expires_at FROM token_row) IS NOT NULL AND (SELECT expires_at FROM token_row) <= now()) THEN 'unauthorized'\n    WHEN COALESCE((SELECT agent_active FROM token_row), false) = false THEN 'unauthorized'\n    WHEN COALESCE((SELECT has_scope FROM token_row), false) = false THEN 'forbidden'\n    ELSE 'authorized'\n  END AS auth_status,\n  (SELECT agent_key FROM token_row) AS agent_id;"
+        },
+        "id": "Postgres_AuthToken",
+        "name": "Auth Token Lookup",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2,
+        "position": [950, 180],
+        "credentials": {
+          "postgres": {
+            "id": "11111111-2222-4333-8444-555555555555",
+            "name": "GOVHUB_DB"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const row = Array.isArray($json) ? ($json[0] || {}) : $json;\nif (row.auth_status === 'unauthorized') {\n  return [{ json: { route: 'error', statusCode: 401, status: 'unauthorized', error_code: 'AUTH_INVALID_TOKEN', message: 'invalid or expired token' } }];\n}\nif (row.auth_status === 'forbidden') {\n  return [{ json: { route: 'error', statusCode: 403, status: 'forbidden', error_code: 'AUTH_SCOPE_FORBIDDEN', message: 'missing scope missions:pull' } }];\n}\nif (row.auth_status !== 'authorized' || !row.agent_id) {\n  return [{ json: { route: 'error', statusCode: 500, status: 'internal_error', error_code: 'AUTH_RESOLUTION_FAILED', message: 'auth resolution failed' } }];\n}\nconst prior = $node['Validate Input + Token Hash'].json;\nconst esc = (value) => String(value).replace(/'/g, \"''\");\nreturn [{ json: { route: 'valid', repo_key: prior.repo_key, repo_key_sql: prior.repo_key_sql, agent_id: row.agent_id, agent_id_sql: esc(row.agent_id), lock_ttl_seconds: Number(prior.lock_ttl_seconds || 900) } }];"
+        },
+        "id": "Code_ResolveAuth",
+        "name": "Resolve Auth",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1160, 180]
+      },
+      {
+        "parameters": {
+          "mode": "expression",
+          "numberOutputs": 2,
+          "output": "={{$json.route === 'error' ? 0 : 1}}"
+        },
+        "id": "Switch_AuthRoute",
+        "name": "Route Auth",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
+        "position": [1360, 180]
       },
       {
         "parameters": {
@@ -60,10 +90,7 @@
         "name": "Select + Lock Mission",
         "type": "n8n-nodes-base.postgres",
         "typeVersion": 2,
-        "position": [
-          960,
-          180
-        ],
+        "position": [1560, 80],
         "credentials": {
           "postgres": {
             "id": "11111111-2222-4333-8444-555555555555",
@@ -83,10 +110,7 @@
         "name": "Respond Error",
         "type": "n8n-nodes-base.respondToWebhook",
         "typeVersion": 1,
-        "position": [
-          960,
-          420
-        ]
+        "position": [1560, 360]
       },
       {
         "parameters": {
@@ -98,63 +122,36 @@
         "name": "Respond Dispatch",
         "type": "n8n-nodes-base.respondToWebhook",
         "typeVersion": 1,
-        "position": [
-          1180,
-          180
-        ]
+        "position": [1760, 80]
       }
     ],
     "connections": {
       "Webhook Missions Next": {
+        "main": [[{ "node": "Validate Input + Token Hash", "type": "main", "index": 0 }]]
+      },
+      "Validate Input + Token Hash": {
+        "main": [[{ "node": "Route Input", "type": "main", "index": 0 }]]
+      },
+      "Route Input": {
         "main": [
-          [
-            {
-              "node": "Validate Auth + Input",
-              "type": "main",
-              "index": 0
-            }
-          ]
+          [{ "node": "Respond Error", "type": "main", "index": 0 }],
+          [{ "node": "Auth Token Lookup", "type": "main", "index": 0 }]
         ]
       },
-      "Validate Auth + Input": {
-        "main": [
-          [
-            {
-              "node": "Route Request",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
+      "Auth Token Lookup": {
+        "main": [[{ "node": "Resolve Auth", "type": "main", "index": 0 }]]
       },
-      "Route Request": {
+      "Resolve Auth": {
+        "main": [[{ "node": "Route Auth", "type": "main", "index": 0 }]]
+      },
+      "Route Auth": {
         "main": [
-          [
-            {
-              "node": "Respond Error",
-              "type": "main",
-              "index": 0
-            }
-          ],
-          [
-            {
-              "node": "Select + Lock Mission",
-              "type": "main",
-              "index": 0
-            }
-          ]
+          [{ "node": "Respond Error", "type": "main", "index": 0 }],
+          [{ "node": "Select + Lock Mission", "type": "main", "index": 0 }]
         ]
       },
       "Select + Lock Mission": {
-        "main": [
-          [
-            {
-              "node": "Respond Dispatch",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
+        "main": [[{ "node": "Respond Dispatch", "type": "main", "index": 0 }]]
       }
     },
     "settings": {},
