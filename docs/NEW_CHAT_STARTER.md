@@ -65,3 +65,12 @@ O Staff, ao concluir o NCS, deve gerar o prompt para o Codex contendo:
 ---
 **Status da Governança:** Ativo
 **Método:** NCS-2026-v1.0
+
+## Mandatory Snapshot Bootstrap (GOVHUB)
+1. Retrieve latest snapshot from `GET /webhook/govhub/snapshots/latest?snapshot_type=state_inventory_v1`.
+2. Decode payload locally and verify `payload_sha256`.
+3. Start mission execution only after snapshot verification succeeds.
+
+Failure behavior:
+- If no snapshot exists (`404`), generate inventory and ingest a new snapshot before mission execution.
+- If SHA mismatch or secret policy violation, block execution and raise governance error.

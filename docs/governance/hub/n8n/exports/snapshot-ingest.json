@@ -1,0 +1,167 @@
+[
+  {
+    "id": "govhub-phase1-snapshot-ingest",
+    "name": "govhub-phase1-snapshot-ingest",
+    "active": false,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "path": "govhub/snapshots/ingest",
+          "httpMethod": "POST",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "Webhook_SnapshotIngest",
+        "name": "Webhook Snapshot Ingest",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "webhookId": "52ea6ef6-2ec4-4978-a4a4-6f11d9d699a1",
+        "position": [
+          220,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const crypto = require('crypto');\nconst headers = $json.headers ?? {};\nconst tokenHeader = headers['x-govhub-token'] || headers['X-GOVHUB-TOKEN'];\nconst allowed = String($env.GOVHUB_TOKENS || '').split(',').map(v => v.trim()).filter(Boolean);\nif (!tokenHeader || !allowed.includes(String(tokenHeader).trim())) {\n  return [{ json: { route: 'error', statusCode: 401, status: 'unauthorized', error_code: 'AUTH_INVALID_TOKEN', message: 'invalid token' } }];\n}\nlet body = $json.body ?? {};\nif (typeof body === 'string') {\n  try { body = JSON.parse(body); } catch { body = {}; }\n}\nconst required = ['snapshot_type','protocol','version','encoding','compression','payload_b64','payload_sha256','payload_size_bytes','created_by'];\nfor (const k of required) {\n  if (body[k] === undefined || body[k] === null || String(body[k]).trim() === '') {\n    return [{ json: { route: 'error', statusCode: 400, status: 'invalid_request', error_code: 'SNAPSHOT_INVALID_PAYLOAD', message: 'missing field: ' + k } }];\n  }\n}\nif (String(body.protocol) !== 'UBIN') {\n  return [{ json: { route: 'error', statusCode: 400, status: 'invalid_request', error_code: 'SNAPSHOT_PROTOCOL_INVALID', message: 'protocol must be UBIN' } }];\n}\nif (String(body.encoding) !== 'json' || String(body.compression) !== 'gzip') {\n  return [{ json: { route: 'error', statusCode: 400, status: 'invalid_request', error_code: 'SNAPSHOT_ENCODING_INVALID', message: 'encoding/compression must be json+gzip' } }];\n}\nlet zipped;\ntry {\n  zipped = Buffer.from(String(body.payload_b64), 'base64');\n} catch (e) {\n  return [{ json: { route: 'error', statusCode: 400, status: 'invalid_request', error_code: 'SNAPSHOT_DECODE_FAILED', message: 'payload_b64 is not valid base64' } }];\n}\nif (!zipped || zipped.length === 0) {\n  return [{ json: { route: 'error', statusCode: 400, status: 'invalid_request', error_code: 'SNAPSHOT_DECODE_FAILED', message: 'payload_b64 is empty or invalid' } }];\n}\nif (zipped.length > 262144) {\n  return [{ json: { route: 'error', statusCode: 400, status: 'invalid_request', error_code: 'SNAPSHOT_SIZE_LIMIT', message: 'compressed payload exceeds 256KB limit' } }];\n}\nconst sha = crypto.createHash('sha256').update(zipped).digest('hex');\nif (sha !== String(body.payload_sha256).trim()) {\n  return [{ json: { route: 'error', statusCode: 400, status: 'invalid_request', error_code: 'SNAPSHOT_SHA_MISMATCH', message: 'payload_sha256 mismatch' } }];\n}\n// Phase 1 scan: transport payload + base64-decoded bytes (no gunzip in task runner).\nconst payloadB64Text = String(body.payload_b64);\nconst decodedText = zipped.toString('utf8');\nconst secretPattern = /(PRIVATE KEY|AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY|ghp_|github_pat_|xoxb-|token=|password=|secret=)/i;\nconst keyPattern = /\"(token|password|secret|api_key)\"\\s*:/i;\nif (secretPattern.test(payloadB64Text) || secretPattern.test(decodedText) || keyPattern.test(decodedText)) {\n  return [{ json: { route: 'error', statusCode: 400, status: 'rejected', error_code: 'SNAPSHOT_SECRET_DETECTED', message: 'snapshot rejected by secret scan policy' } }];\n}\nconst esc = (v) => String(v ?? '').replace(/'/g, \"''\");\nreturn [{ json: {\n  route: 'valid',\n  snapshot_type: String(body.snapshot_type),\n  protocol: String(body.protocol),\n  version: String(body.version),\n  encoding: String(body.encoding),\n  compression: String(body.compression),\n  payload_b64: String(body.payload_b64),\n  payload_sha256: String(body.payload_sha256),\n  payload_size_bytes: Number(body.payload_size_bytes),\n  created_by: String(body.created_by),\n  source_repo: body.source_repo ? String(body.source_repo) : '',\n  source_ref: body.source_ref ? String(body.source_ref) : '',\n  snapshot_type_sql: esc(body.snapshot_type),\n  protocol_sql: esc(body.protocol),\n  version_sql: esc(body.version),\n  encoding_sql: esc(body.encoding),\n  compression_sql: esc(body.compression),\n  payload_b64_sql: esc(body.payload_b64),\n  payload_sha256_sql: esc(body.payload_sha256),\n  created_by_sql: esc(body.created_by),\n  source_repo_sql: esc(body.source_repo ?? ''),\n  source_ref_sql: esc(body.source_ref ?? '')\n} }];"
+        },
+        "id": "Code_ValidateSnapshotIngest",
+        "name": "Validate Snapshot Ingest",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          500,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "expression",
+          "numberOutputs": 2,
+          "output": "={{$json.route === 'error' ? 0 : 1}}"
+        },
+        "id": "Switch_SnapshotIngestRoute",
+        "name": "Route Snapshot Ingest",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
+        "position": [
+          760,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { status: $json.status || 'internal_error', error_code: $json.error_code || 'SNAPSHOT_INGEST_INTERNAL', message: $json.message || 'internal error' } }}",
+          "options": {
+            "responseCode": "={{$json.statusCode || 500}}"
+          }
+        },
+        "id": "Respond_SnapshotIngestError",
+        "name": "Respond Snapshot Ingest Error",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [
+          1020,
+          180
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "UPDATE governance.hub_snapshots\nSET is_active = false\nWHERE snapshot_type = '{{$json.snapshot_type_sql}}'\n  AND is_active = true;\n\nINSERT INTO governance.hub_snapshots (\n  snapshot_type, protocol, version, encoding, compression, payload_b64, payload_sha256, payload_size_bytes, created_by, source_repo, source_ref, is_active\n) VALUES (\n  '{{$json.snapshot_type_sql}}',\n  '{{$json.protocol_sql}}',\n  '{{$json.version_sql}}',\n  '{{$json.encoding_sql}}',\n  '{{$json.compression_sql}}',\n  '{{$json.payload_b64_sql}}',\n  '{{$json.payload_sha256_sql}}',\n  {{Math.trunc($json.payload_size_bytes)}},\n  '{{$json.created_by_sql}}',\n  NULLIF('{{$json.source_repo_sql}}',''),\n  NULLIF('{{$json.source_ref_sql}}',''),\n  true\n)\nRETURNING snapshot_id::text, snapshot_type, is_active;"
+        },
+        "id": "Postgres_StoreSnapshot",
+        "name": "Store Snapshot",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2,
+        "position": [
+          1020,
+          420
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "11111111-2222-4333-8444-555555555555",
+            "name": "GOVHUB_DB"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseCode": 200,
+          "responseBody": "={{ { status: 'stored', snapshot_id: ($json[0]?.snapshot_id || $json.snapshot_id || null), snapshot_type: ($json[0]?.snapshot_type || $json.snapshot_type || null), is_active: ($json[0]?.is_active ?? $json.is_active ?? true) } }}"
+        },
+        "id": "Respond_SnapshotStored",
+        "name": "Respond Snapshot Stored",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [
+          1260,
+          420
+        ]
+      }
+    ],
+    "connections": {
+      "Webhook Snapshot Ingest": {
+        "main": [
+          [
+            {
+              "node": "Validate Snapshot Ingest",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Validate Snapshot Ingest": {
+        "main": [
+          [
+            {
+              "node": "Route Snapshot Ingest",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Route Snapshot Ingest": {
+        "main": [
+          [
+            {
+              "node": "Respond Snapshot Ingest Error",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Store Snapshot",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Store Snapshot": {
+        "main": [
+          [
+            {
+              "node": "Respond Snapshot Stored",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {},
+    "pinData": {},
+    "staticData": null,
+    "meta": {
+      "templateCredsSetupCompleted": false
+    }
+  }
+]
