@@ -1,0 +1,39 @@
+{
+  "ccp_ver": "1.0",
+  "id": "DL-0001-DECISION_LOG_V1",
+  "ts": "2026-02-27T00:00:00Z",
+  "type": "decision_log_v1",
+  "project": "proforma-platform",
+  "governance_mode": "GOVERNANCE_ACTIVE",
+  "protocol_mode": "CCP_STRICT",
+  "decisions": [
+    {
+      "decision_id": "DEC-001",
+      "title": "Bootstrap delegado"
+    },
+    {
+      "decision_id": "DEC-002",
+      "title": "UBIN format"
+    },
+    {
+      "decision_id": "DEC-003",
+      "title": "state_snapshot"
+    },
+    {
+      "decision_id": "DEC-004",
+      "title": "Token perms"
+    },
+    {
+      "decision_id": "DEC-005",
+      "title": "HTTP WAF"
+    },
+    {
+      "decision_id": "DEC-006",
+      "title": "AUTH v1"
+    },
+    {
+      "decision_id": "DEC-007",
+      "title": "Ledger timeline"
+    }
+  ]
+}
