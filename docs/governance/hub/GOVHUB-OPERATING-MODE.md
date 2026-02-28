@@ -90,6 +90,19 @@ Recovery:
 - manual re-drive with preserved audit linkage
 - explicit status transitions for partial failure
 
+## Privilege Mode
+GOVHUB missions use two execution privilege modes:
+
+- `STANDARD` (default)
+- `ELEVATED_ALLOWED` (explicit only)
+
+Rules:
+- Agents MUST execute in `STANDARD` mode unless mission input explicitly declares `PRIVILEGE_MODE=ELEVATED_ALLOWED`.
+- In `STANDARD` mode, agents MUST use non-privileged command paths and MUST NOT request elevation for routine operations.
+- In `STANDARD` mode, when remote fetch fails with DNS/network errors, agents MUST collect diagnostics and return `ccp_error` with `stage=DNS` before any elevated path.
+- `ELEVATED_ALLOWED` permits privileged operations only for steps that cannot be completed safely without elevated rights.
+- Secret handling and logging safety rules remain mandatory in both modes.
+
 ## Versioning and Evidence Publication
 - Contracts MUST be versioned.
 - Mission evidence MUST reference fixed commit SHAs.
