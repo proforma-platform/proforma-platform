@@ -1,0 +1,25 @@
+{
+  "ccp_ver": "1.0",
+  "id": "BL-0001-BACKLOG_SNAPSHOT_V1",
+  "ts": "2026-02-27T00:00:00Z",
+  "type": "backlog_snapshot_v1",
+  "project": "proforma-platform",
+  "items": [
+    {
+      "mission_id": "GOV-0084",
+      "status": "queued"
+    },
+    {
+      "mission_id": "GOV-0088",
+      "status": "in_progress"
+    },
+    {
+      "mission_id": "GOV-0089",
+      "status": "done"
+    },
+    {
+      "mission_id": "GOV-0090",
+      "status": "queued"
+    }
+  ]
+}
