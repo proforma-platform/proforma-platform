@@ -1,0 +1,53 @@
+[
+  {
+    "name": "govhub-v7-orchestration-monitor",
+    "nodes": [
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "minutes",
+                "minutesInterval": 2
+              }
+            ]
+          }
+        },
+        "id": "Schedule_Monitor",
+        "name": "Schedule Trigger",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [240, 260]
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "SELECT run_id, mission_id, status, phase, nn, total, report_ref, to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS updated_at_utc FROM gov.mission_runs ORDER BY updated_at DESC LIMIT 50;"
+        },
+        "id": "Postgres_LoadMissionRuns",
+        "name": "Load recent mission runs",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2,
+        "position": [520, 260],
+        "credentials": { "postgres": { "id": "11111111-2222-4333-8444-555555555555", "name": "GOVHUB_DB" } }
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const runs = Array.isArray(items) ? items.map(i => i.json) : [];\nconst complete = runs.filter(r => String(r.status) === 'complete').length;\nconst blocked = runs.filter(r => ['blocked','failed'].includes(String(r.status))).length;\nconst running = runs.filter(r => String(r.status) === 'running').length;\nreturn [{json:{status:'ok', total:runs.length, complete, blocked, running, action: blocked > 0 ? 'notify_staff_placeholder' : complete > 0 ? 'timeline_finalize_placeholder' : 'no_op'}}];"
+        },
+        "id": "Code_EvaluateRuns",
+        "name": "Evaluate run state",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [780, 260]
+      }
+    ],
+    "connections": {
+      "Schedule Trigger": { "main": [[{ "node": "Load recent mission runs", "type": "main", "index": 0 }]] },
+      "Load recent mission runs": { "main": [[{ "node": "Evaluate run state", "type": "main", "index": 0 }]] }
+    },
+    "active": false,
+    "settings": {}
+  }
+]

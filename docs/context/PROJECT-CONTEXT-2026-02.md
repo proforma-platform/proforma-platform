@@ -113,3 +113,16 @@ Fechar GOV-0032: release `v0.3.0` com evidências Lighthouse anexadas + checks v
 - ledger_genesis_hash: `1a60c2703e8166c43db06554c345f024ac5f3b6cb5d62222bc290d9fde2a4242`
 - contract_adapter_hash: `6ce1ec1f089d035f789286b8185e0c4d4d170e1e2c650522ae20cbaad4792c7d`
 - documentation_hash: `b4c90f11eb5a558ff85f1475e5c98e2b0bc578adcbc0f76babc1540b7483c6d4`
+
+## GOV-HUB V7 ORCHESTRATION V1 (HASH BLOCK)
+- migration: `docs/governance/hub/schema/0004_govhub_v7_orchestration.sql`
+- endpoints:
+  - `POST /webhook/govhub/missions/register`
+  - `GET /webhook/govhub/missions/next`
+  - `POST /webhook/govhub/snapshot-update`
+  - `GET /webhook/govhub/snapshots/latest?snapshot_type=mission_runs_v1`
+- workflow_exports:
+  - `docs/governance/hub/n8n/exports/missions-register.json`
+  - `docs/governance/hub/n8n/exports/missions-next-get.json`
+  - `docs/governance/hub/n8n/exports/orchestration-monitor.json`
+  - `docs/governance/hub/n8n/exports/snapshot-update.json`

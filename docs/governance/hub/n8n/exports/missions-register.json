@@ -1,0 +1,100 @@
+[
+  {
+    "name": "govhub-v7-missions-register",
+    "nodes": [
+      {
+        "parameters": {
+          "path": "govhub/missions/register",
+          "httpMethod": "POST",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "Webhook_MissionsRegister",
+        "name": "Webhook Missions Register",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [240, 280]
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const crypto = require('crypto');\nconst headers = $json.headers ?? {};\nconst tokenHeader = String(headers['x-govhub-token'] || headers['X-GOVHUB-TOKEN'] || '').trim();\nconst allowed = String($env.GOVHUB_TOKENS || '').split(',').map(v => v.trim()).filter(Boolean);\nif (!tokenHeader || !allowed.includes(tokenHeader)) { return [{json:{ok:false,statusCode:401,error_code:'AUTH_INVALID_TOKEN',message:'invalid token'}}]; }\nlet scopes = [];\ntry { const m = JSON.parse(String($env.GOVHUB_TOKEN_SCOPES_JSON || '{}')); if (Array.isArray(m[tokenHeader])) scopes = m[tokenHeader]; } catch {}\nif (!(scopes.includes('s:w') || scopes.includes('snapshots:write'))) { return [{json:{ok:false,statusCode:403,error_code:'AUTH_SCOPE_REQUIRED',message:'missing write scope'}}]; }\nlet body = $json.body ?? {};\nif (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }\nconst required = ['mission_id','udn_mission','tdv_version','created_by'];\nfor (const k of required) { if (!body[k] || String(body[k]).trim() === '') { return [{json:{ok:false,statusCode:400,error_code:'MISSIONS_REGISTER_INVALID',message:'missing field: '+k}}]; } }\nconst canonical = String(body.udn_mission).replace(/\\r\\n/g,'\\n').split('\\n').map(x => x.trim()).filter(Boolean).join('\\n');\nif (!canonical) { return [{json:{ok:false,statusCode:400,error_code:'UDN_INVALID',message:'udn_mission empty after canonicalization'}}]; }\nconst integrity_hash = crypto.createHash('sha256').update(Buffer.from(canonical,'utf8')).digest('hex');\nconst esc = (v) => String(v ?? '').replace(/'/g, \"''\");\nreturn [{json:{ok:true, mission_id:String(body.mission_id), mission_id_sql:esc(body.mission_id), udn_mission:canonical, udn_mission_sql:esc(canonical), tdv_version:String(body.tdv_version), tdv_version_sql:esc(body.tdv_version), created_by:String(body.created_by), created_by_sql:esc(body.created_by), integrity_hash, integrity_hash_sql:esc(integrity_hash), branch:String(body.branch || 'main'), branch_sql:esc(body.branch || 'main'), agent_id:String(body.agent_id || 'CPP'), agent_id_sql:esc(body.agent_id || 'CPP')}}];"
+        },
+        "id": "Code_ValidateMissionsRegister",
+        "name": "Validate + Canonicalize Mission",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [500, 280]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "boolean": [{ "value1": "={{$json.ok}}" }]
+          }
+        },
+        "id": "If_MissionsRegisterValid",
+        "name": "Valid?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [740, 280]
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "INSERT INTO gov.missions (mission_id, udn_mission, tdv_version, created_by, integrity_hash) VALUES ('{{$json.mission_id_sql}}','{{$json.udn_mission_sql}}','{{$json.tdv_version_sql}}','{{$json.created_by_sql}}','{{$json.integrity_hash_sql}}') ON CONFLICT (mission_id) DO UPDATE SET udn_mission=EXCLUDED.udn_mission, tdv_version=EXCLUDED.tdv_version, created_by=EXCLUDED.created_by, integrity_hash=EXCLUDED.integrity_hash RETURNING mission_id, integrity_hash;"
+        },
+        "id": "Postgres_UpsertMissionV7",
+        "name": "Upsert gov.missions",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2,
+        "position": [980, 200],
+        "credentials": { "postgres": { "id": "11111111-2222-4333-8444-555555555555", "name": "GOVHUB_DB" } }
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "INSERT INTO gov.mission_runs (run_id, mission_id, branch, agent_id, status, phase, nn, total, udn_state, integrity_hash, updated_at) VALUES ('{{$json.mission_id_sql}}-run-001','{{$json.mission_id_sql}}','{{$json.branch_sql}}','{{$json.agent_id_sql}}','queued','registered',0,1,'{{$json.udn_mission_sql}}','{{$json.integrity_hash_sql}}',now()) ON CONFLICT (run_id) DO UPDATE SET mission_id=EXCLUDED.mission_id, branch=EXCLUDED.branch, agent_id=EXCLUDED.agent_id, status='queued', phase='registered', nn=0, total=1, udn_state=EXCLUDED.udn_state, integrity_hash=EXCLUDED.integrity_hash, updated_at=now() RETURNING run_id, mission_id, status, phase;"
+        },
+        "id": "Postgres_EnsureRunQueued",
+        "name": "Ensure queued run",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2,
+        "position": [1220, 200],
+        "credentials": { "postgres": { "id": "11111111-2222-4333-8444-555555555555", "name": "GOVHUB_DB" } }
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseCode": 200,
+          "responseBody": "={{ { status:'ok', mission_id:$json[0]?.mission_id || $json.mission_id, run_id:$json[0]?.run_id || $json.run_id, queued:true } }}"
+        },
+        "id": "Respond_MissionsRegisterOk",
+        "name": "Respond 200",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [1460, 200]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseCode": "={{$json.statusCode || 400}}",
+          "responseBody": "={{ { status:'error', error_code:$json.error_code || 'MISSIONS_REGISTER_ERROR', message:$json.message || 'invalid request' } }}"
+        },
+        "id": "Respond_MissionsRegisterError",
+        "name": "Respond Error",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [980, 420]
+      }
+    ],
+    "connections": {
+      "Webhook Missions Register": { "main": [[{ "node": "Validate + Canonicalize Mission", "type": "main", "index": 0 }]] },
+      "Validate + Canonicalize Mission": { "main": [[{ "node": "Valid?", "type": "main", "index": 0 }]] },
+      "Valid?": { "main": [[{ "node": "Upsert gov.missions", "type": "main", "index": 0 }],[{ "node": "Respond Error", "type": "main", "index": 0 }]] },
+      "Upsert gov.missions": { "main": [[{ "node": "Ensure queued run", "type": "main", "index": 0 }]] },
+      "Ensure queued run": { "main": [[{ "node": "Respond 200", "type": "main", "index": 0 }]] }
+    },
+    "active": false,
+    "settings": {}
+  }
+]
