@@ -1,0 +1,5 @@
+node_modules
+.next
+.env
+/src/generated/prisma
+coverage
