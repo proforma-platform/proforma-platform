@@ -57,7 +57,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm ci
+          set +e
+          npm ci --workspaces --include-workspace-root
+          RC=$?
+          set -e
+          if [[ "$RC" -ne 0 ]]; then
+            if grep -Rqs "code EUSAGE" "$HOME/.npm/_logs" 2>/dev/null; then
+              echo "npm ci failed with EUSAGE (package-lock/package metadata mismatch)." >&2
+              echo "Refresh package-lock.json in branch and rerun CI." >&2
+            fi
+            exit "$RC"
+          fi
 
       - name: Verify build tooling in workspaces
         shell: bash
