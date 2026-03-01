@@ -1,12 +1,14 @@
-import { stableLedgerRef } from "../core/determinism";
 import type { MissionRequest, MissionResponse } from "../contracts/mission";
+import { commitMissionToLedgerV7, createLedgerGenesis, type LedgerBlock } from "./ledger-v7";
+
+export { LEDGER_V7_VERSION, createLedgerGenesis, appendLedgerBlock } from "./ledger-v7";
+export type { LedgerBlock } from "./ledger-v7";
 
 export function commitMissionToLedger(input: MissionRequest): MissionResponse {
-  return {
-    status: "accepted",
-    mission_id: input.mission.id,
-    ledger_ref: stableLedgerRef(input.mission.id, input.udn),
-    contract_version: "v7-baseline",
-    errors: []
-  };
+  return commitMissionToLedgerV7(input);
+}
+
+export function ledgerGenesisHash(): string {
+  const genesis: LedgerBlock = createLedgerGenesis();
+  return genesis.block_hash;
 }

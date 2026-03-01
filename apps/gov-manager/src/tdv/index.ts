@@ -1,11 +1,8 @@
-export interface TDVResult {
-  valid: boolean;
-  reasons: string[];
-}
+import { type TDVValidation, validateSignalByTDV } from "./schema-v1";
 
-export function validateTDVSignal(value: string): TDVResult {
-  if (!value || value.trim().length < 8) {
-    return { valid: false, reasons: ["signal too short"] };
-  }
-  return { valid: true, reasons: [] };
+export type { TDVValidation } from "./schema-v1";
+export { TDV_SCHEMA_V1, TDV_SCHEMA_VERSION, tdvRootHash, validateSignalByTDV } from "./schema-v1";
+
+export function validateTDVSignal(value: string): TDVValidation {
+  return validateSignalByTDV(value);
 }

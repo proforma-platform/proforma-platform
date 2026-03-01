@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { resolveAuthContext } from "../../../auth";
 import { validateMissionRequest } from "../../../contracts/mission";
+import { adaptLegacyMissionEnvelope, normalizeMissionResponse } from "../../../contracts/adapter-v7";
 import { validateTDVSignal } from "../../../tdv";
 import { commitMissionToLedger } from "../../../infra/ledger";
 
@@ -23,7 +24,9 @@ export async function POST(request: Request) {
     );
   }
 
-  const validated = validateMissionRequest(body);
+  const adapted = adaptLegacyMissionEnvelope(body);
+  const validated = validateMissionRequest(adapted ?? body);
+
   if (!validated.valid || !validated.data) {
     return NextResponse.json(
       {
@@ -51,7 +54,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = commitMissionToLedger(validated.data);
+  const result = normalizeMissionResponse(commitMissionToLedger(validated.data));
 
   return NextResponse.json(
     {
