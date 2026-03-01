@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { resolveAuthContext } from "../../../auth";
-import { validateMissionRequest } from "../../../contracts/mission";
+import { validateMissionRequest } from "../../../contracts/mission-validator";
 import { adaptLegacyMissionEnvelope, normalizeMissionResponse } from "../../../contracts/adapter-v7";
 import { validateTDVSignal } from "../../../tdv";
 import { commitMissionToLedger } from "../../../infra/ledger";
