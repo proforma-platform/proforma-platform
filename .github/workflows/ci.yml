@@ -19,9 +19,56 @@ jobs:
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: package-lock.json
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Restore npm cache
+        id: npm-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-node20-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-node20-
 
-      - name: Build
-        run: npm run build
+      - name: Preflight network/cache mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          if getent hosts registry.npmjs.org >/dev/null 2>&1; then
+            echo "dns_ok=true" >> "$GITHUB_ENV"
+            echo "npm_config_prefer_offline=true" >> "$GITHUB_ENV"
+            echo "npm_config_audit=false" >> "$GITHUB_ENV"
+            echo "npm_config_fund=false" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          echo "dns_ok=false" >> "$GITHUB_ENV"
+
+          if [[ "${{ steps.npm-cache.outputs.cache-hit }}" != "true" ]]; then
+            echo "DNS for registry.npmjs.org is unavailable and npm cache is missing. Cannot run npm ci offline." >&2
+            exit 1
+          fi
+
+          echo "npm_config_offline=true" >> "$GITHUB_ENV"
+          echo "npm_config_audit=false" >> "$GITHUB_ENV"
+          echo "npm_config_fund=false" >> "$GITHUB_ENV"
+
+      - name: Install dependencies (root)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+
+      - name: Verify build tooling in workspaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ls next --workspace=apps/gov-manager
+          npm ls next --workspace=apps/web-portal
+          npm ls astro --workspace=apps/web-public
+
+      - name: Build workspaces (no turbo dependency)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build --workspaces --if-present
