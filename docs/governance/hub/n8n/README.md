@@ -7,6 +7,7 @@ These workflows implement:
 - mission intake
 - report ingest with idempotency and hashing
 - decision aggregation
+- snapshot update (mission run upsert + mission_runs_v1 snapshot publishing)
 
 The objective is auditable, reproducible governance execution that remains aligned with GOV-0070 and in-repo artifacts.
 
@@ -27,6 +28,10 @@ Use environment variables in the n8n runtime (container/env file/secrets manager
 - `GOVHUB_TOKENS`
   - Comma-separated token list accepted for webhook authentication.
   - Example: `token_agent_a,token_agent_b`
+- `GOVHUB_TOKEN_SCOPES_JSON`
+  - JSON map of token -> scopes used by scoped endpoints.
+  - `snapshot-update` requires scope `s:w` (or `snapshots:write`).
+  - Example: `{"token_agent_a":["s:w","snapshots:read"],"token_agent_b":["snapshots:read"]}`
 - `GOVHUB_DB_URL` (or equivalent DB host/user/db config)
   - Database connection for Governance Hub Postgres schema.
 
@@ -63,6 +68,30 @@ curl -X POST http://localhost:5678/webhook/govhub/report-ingest \
     "head_sha": "7cabb1d",
     "report_md": "# Inventory\\n..."
   }'
+```
+
+Snapshot update:
+```bash
+curl -X POST http://localhost:5678/webhook/govhub/snapshot-update \
+  -H "Content-Type: application/json" \
+  -H "X-GOVHUB-TOKEN: <token_with_s:w_scope>" \
+  -d '{
+    "run_id": "run-001",
+    "mission_id": "GOV-TEST",
+    "branch": "main",
+    "status": "in_progress",
+    "phase": "SNAPSHOT_LAYER",
+    "nn": 1,
+    "total": 3,
+    "last_event_ts": "2026-03-01T00:00:00Z",
+    "udn_state": "!GOV-TEST|ACT|CPP|PF|main\n#μ:test\n#τ:[a]\n#σ:running"
+  }'
+```
+
+Mission runs snapshot read:
+```bash
+curl "http://localhost:5678/webhook/govhub/snapshots/latest?snapshot_type=mission_runs_v1" \
+  -H "X-GOVHUB-TOKEN: <token>"
 ```
 
 ## Idempotency model

@@ -67,6 +67,64 @@ Method:
 Phase 1 note:
 - endpoint MAY be disabled; if disabled, decision is stored and published by internal workflow step.
 
+## Webhook: snapshot-update
+Endpoint purpose:
+- upsert mission run state and regenerate `mission_runs_v1` UBIN snapshot.
+
+Method:
+- `POST`
+
+Canonical endpoint:
+- `https://govhub.proforma.net.br/webhook/govhub/snapshot-update`
+
+Required headers:
+- `Content-Type: application/json`
+- `X-GOVHUB-TOKEN`
+
+Auth scope:
+- token MUST include `s:w` (or equivalent `snapshots:write` scope in runtime mapping).
+
+Required payload fields:
+- `run_id`
+- `mission_id`
+- `branch`
+- `status`
+- `phase`
+- `nn`
+- `total`
+- `udn_state`
+
+Optional payload fields:
+- `last_event_ts`
+- `last_error_code`
+- `last_error_excerpt_256` (truncated to 256)
+- `report_ref`
+- `integrity_hash` (if provided, MUST match server-calculated hash)
+
+Server behavior:
+- canonicalizes `udn_state`
+- computes `integrity_hash = sha256(bytes(udn_state_canonical))`
+- upserts row in `governance.mission_runs` by `run_id`
+- regenerates active `mission_runs_v1` snapshot in `governance.hub_snapshots`
+
+Success response (`200`):
+```json
+{
+  "status": "updated",
+  "run_id": "run-001",
+  "snapshot_type": "mission_runs_v1",
+  "payload_sha256": "<hex>",
+  "payload_size_bytes": 1234,
+  "snapshot_id": "<uuid>"
+}
+```
+
+Error responses:
+- `401` unauthorized token
+- `403` token missing write scope
+- `400` invalid payload / content-type / integrity mismatch
+- `500` internal error
+
 ## Payload Schemas
 Common required fields:
 - `schema_version` (string)

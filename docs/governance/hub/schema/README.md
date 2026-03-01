@@ -22,8 +22,8 @@ Policy:
 ## Migration strategy
 Migration numbering is append-only:
 - `0001_init.sql` (current baseline)
-- next: `0002_*`
-- then: `0003_*`
+- `0002_snapshots_and_backlog.sql`
+- `0003_mission_runs.sql`
 
 Rules:
 - Existing migrations MUST NOT be edited after merge.
