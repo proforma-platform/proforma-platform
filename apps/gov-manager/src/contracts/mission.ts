@@ -42,8 +42,8 @@ export function validateMissionRequest(input: unknown): { valid: boolean; errors
       udn: obj.udn as string,
       mission: {
         id: obj.mission!.id as string,
-        target: obj.mission!.target,
-        level: obj.mission!.level
+        ...(typeof obj.mission!.target === "string" ? { target: obj.mission!.target } : {}),
+        ...(typeof obj.mission!.level === "string" ? { level: obj.mission!.level } : {})
       }
     }
   };

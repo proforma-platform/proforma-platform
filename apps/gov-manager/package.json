@@ -2,6 +2,7 @@
   "name": "gov-manager",
   "version": "7.0.0-baseline",
   "private": true,
+  "type": "module",
   "engines": {
     "node": "20.11.x"
   },
