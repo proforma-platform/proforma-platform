@@ -1,0 +1,112 @@
+[
+  {
+    "name": "govhub-v7-missions-next-get",
+    "nodes": [
+      {
+        "parameters": {
+          "path": "govhub/missions/next",
+          "httpMethod": "GET",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "Webhook_MissionsNextGet",
+        "name": "Webhook Missions Next GET",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [220, 300]
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const headers = $json.headers ?? {};\nconst query = $json.query ?? {};\nconst tokenHeader = String(headers['x-govhub-token'] || headers['X-GOVHUB-TOKEN'] || '').trim();\nconst allowed = String($env.GOVHUB_TOKENS || '').split(',').map(v => v.trim()).filter(Boolean);\nif (!tokenHeader || !allowed.includes(tokenHeader)) { return [{json:{ok:false,statusCode:401,error_code:'AUTH_INVALID_TOKEN',message:'invalid token'}}]; }\nlet scopes = [];\ntry { const m = JSON.parse(String($env.GOVHUB_TOKEN_SCOPES_JSON || '{}')); if (Array.isArray(m[tokenHeader])) scopes = m[tokenHeader]; } catch {}\nif (!(scopes.includes('m:p') || scopes.includes('missions:pull'))) { return [{json:{ok:false,statusCode:403,error_code:'AUTH_SCOPE_REQUIRED',message:'missing pull scope'}}]; }\nconst repo_key = String(query.repo_key || '').trim();\nconst agent_id = String(query.agent_id || '').trim();\nif (!repo_key || !agent_id) { return [{json:{ok:false,statusCode:400,error_code:'MISSIONS_NEXT_INVALID',message:'repo_key and agent_id required'}}]; }\nconst esc=(v)=>String(v).replace(/'/g,\"''\");\nreturn [{json:{ok:true, repo_key, agent_id, repo_key_sql:esc(repo_key), agent_id_sql:esc(agent_id)}}];"
+        },
+        "id": "Code_ValidateMissionsNextGet",
+        "name": "Validate GET",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [500, 300]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "boolean": [{ "value1": "={{$json.ok}}" }]
+          }
+        },
+        "id": "If_MissionsNextGetValid",
+        "name": "Valid?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [740, 300]
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "WITH next_run AS (SELECT run_id FROM gov.mission_runs WHERE status = 'queued' AND agent_id = '{{$json.agent_id_sql}}' ORDER BY created_at ASC LIMIT 1), upd AS (UPDATE gov.mission_runs r SET status='running', phase='pull_assigned', nn=0, updated_at=now() FROM next_run n WHERE r.run_id = n.run_id RETURNING r.run_id, r.mission_id, r.branch, r.agent_id, r.status, r.phase, r.nn, r.total, r.report_ref, r.updated_at) SELECT run_id, mission_id, branch, agent_id, status, phase, nn, total, report_ref, to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') as updated_at_utc FROM upd;"
+        },
+        "id": "Postgres_AssignNextRun",
+        "name": "Assign next queued run",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2,
+        "position": [980, 220],
+        "credentials": { "postgres": { "id": "11111111-2222-4333-8444-555555555555", "name": "GOVHUB_DB" } }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "string": [{ "value1": "={{$json.run_id || ''}}", "operation": "isNotEmpty" }]
+          }
+        },
+        "id": "If_RunFound",
+        "name": "Run found?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [1210, 220]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseCode": 200,
+          "responseBody": "={{ { status:'assigned', run_id:$json.run_id, mission_id:$json.mission_id, agent_id:$json.agent_id, branch:$json.branch, phase:$json.phase, nn:$json.nn, total:$json.total, updated_at_utc:$json.updated_at_utc } }}"
+        },
+        "id": "Respond_Assigned",
+        "name": "Respond assigned",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [1440, 140]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseCode": 200,
+          "responseBody": "={{ { status:'no_work' } }}"
+        },
+        "id": "Respond_NoWork",
+        "name": "Respond no_work",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [1440, 300]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseCode": "={{$json.statusCode || 400}}",
+          "responseBody": "={{ { status:'error', error_code:$json.error_code || 'MISSIONS_NEXT_ERROR', message:$json.message || 'invalid request' } }}"
+        },
+        "id": "Respond_MissionsNextError",
+        "name": "Respond Error",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [980, 420]
+      }
+    ],
+    "connections": {
+      "Webhook Missions Next GET": { "main": [[{ "node": "Validate GET", "type": "main", "index": 0 }]] },
+      "Validate GET": { "main": [[{ "node": "Valid?", "type": "main", "index": 0 }]] },
+      "Valid?": { "main": [[{ "node": "Assign next queued run", "type": "main", "index": 0 }],[{ "node": "Respond Error", "type": "main", "index": 0 }]] },
+      "Assign next queued run": { "main": [[{ "node": "Run found?", "type": "main", "index": 0 }]] },
+      "Run found?": { "main": [[{ "node": "Respond assigned", "type": "main", "index": 0 }],[{ "node": "Respond no_work", "type": "main", "index": 0 }]] }
+    },
+    "active": false,
+    "settings": {}
+  }
+]
