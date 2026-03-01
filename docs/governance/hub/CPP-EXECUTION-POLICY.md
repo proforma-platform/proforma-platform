@@ -10,6 +10,19 @@ CPP MUST run in `STANDARD` mode by default.
 - CPP MUST execute allowlisted commands directly, without interactive confirmation.
 - CPP MUST attempt non-privileged fallbacks before any elevated path.
 
+## Runtime Routing Mode
+CPP runtime routing MUST be explicitly controlled by `GOVHUB_RUNTIME_MODE`.
+
+Supported values:
+- `LOCAL_ONLY` (default for this host): no external GOVHUB HTTP calls.
+- `REMOTE_ALLOWED`: external GOVHUB calls are permitted.
+
+`LOCAL_ONLY` rules:
+- CPP MUST read mission/state from local execution state (`docs/context/*` and local ledger artifacts).
+- CPP MUST NOT call `https://govhub.proforma.net.br/*`.
+- Status outputs MUST use `LOCAL_ONLY_ACTIVE` (not degraded) when local state is available.
+- If local state is missing, return structured error `LOCAL_STATE_MISSING`.
+
 ## Privilege Mode
 CPP MAY use elevated operations only when mission input explicitly declares:
 - `PRIVILEGE_MODE=ELEVATED_ALLOWED`
