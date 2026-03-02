@@ -91,14 +91,10 @@
       {
         "parameters": {
           "conditions": {
-            "string": [
+            "boolean": [
               {
-                "value1": "={{$json.payload_b64 || \"\"}}",
-                "operation": "notEmpty"
-              },
-              {
-                "value1": "={{$json.payload_sha256 || \"\"}}",
-                "operation": "notEmpty"
+                "value1": "={{ !!$json.payload_b64 && !!$json.payload_sha256 && $json.payload_size_bytes !== null }}",
+                "operation": "true"
               }
             ]
           }
@@ -115,8 +111,10 @@
       {
         "parameters": {
           "respondWith": "json",
-          "responseCode": 200,
-          "responseBody": "={{ { status: 'ok', snapshot_type: $json.snapshot_type, protocol: $json.protocol, version: $json.version, encoding: $json.encoding, compression: $json.compression, payload_b64: $json.payload_b64, payload_sha256: $json.payload_sha256, payload_size_bytes: Number($json.payload_size_bytes), created_at_utc: $json.created_at_utc, created_by: $json.created_by, source_repo: $json.source_repo, source_ref: $json.source_ref } }}"
+          "responseBody": "={{ ($json.payload_b64 && $json.payload_sha256 && $json.payload_size_bytes !== null) ? { status: 'ok', snapshot_type: $json.snapshot_type, protocol: $json.protocol, version: $json.version, encoding: $json.encoding, compression: $json.compression, payload_b64: $json.payload_b64, payload_sha256: $json.payload_sha256, payload_size_bytes: Number($json.payload_size_bytes), created_at_utc: $json.created_at_utc, created_by: $json.created_by, source_repo: $json.source_repo, source_ref: $json.source_ref } : { status: 'not_found', error_code: 'SNAPSHOT_NOT_FOUND_OR_INVALID', message: 'no active snapshot with canonical UBIN payload for requested type' } }}",
+          "options": {
+            "responseCode": "={{ ($json.payload_b64 && $json.payload_sha256 && $json.payload_size_bytes !== null) ? 200 : 404 }}"
+          }
         },
         "id": "Respond_SnapshotLatestOk",
         "name": "Respond Snapshot Latest OK",
