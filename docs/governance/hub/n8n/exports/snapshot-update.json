@@ -156,6 +156,60 @@
           2010,
           420
         ]
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "SELECT\n  '{{$json.snapshot_type}}'::text AS snapshot_type,\n  '{{$json.payload_b64_sql}}'::text AS payload_b64_sql,\n  '{{$json.payload_sha256_sql}}'::text AS payload_sha256_sql,\n  {{Math.trunc($json.payload_size_bytes)}}::bigint AS payload_size_bytes,\n  '{{$json.payload_sha256}}'::text AS new_payload_sha256,\n  (\n    SELECT payload_sha256\n    FROM governance.hub_snapshots\n    WHERE snapshot_type = 'mission_runs_v1'\n      AND is_active = true\n    ORDER BY created_at_utc DESC\n    LIMIT 1\n  )::text AS current_payload_sha256;",
+          "options": {}
+        },
+        "id": "Postgres_SelectCurrentSnapshotHash",
+        "name": "Select Current Snapshot Hash",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.6,
+        "position": [
+          1740,
+          420
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "11111111-2222-4333-8444-555555555555",
+            "name": "GOVHUB_DB"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "hash-changed-cond",
+                "leftValue": "={{$json.new_payload_sha256}}",
+                "rightValue": "={{$json.current_payload_sha256 || ''}}",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEquals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "If_HashChanged",
+        "name": "Hash Changed?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          1960,
+          420
+        ]
       }
     ],
     "connections": {
@@ -236,7 +290,36 @@
         "main": [
           [
             {
+              "node": "Select Current Snapshot Hash",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Select Current Snapshot Hash": {
+        "main": [
+          [
+            {
+              "node": "Hash Changed?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Hash Changed?": {
+        "main": [
+          [
+            {
               "node": "Store Mission Runs Snapshot",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Respond Snapshot Update Success",
               "type": "main",
               "index": 0
             }
