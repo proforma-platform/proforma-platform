@@ -25,7 +25,7 @@
       {
         "parameters": {
           "mode": "runOnceForAllItems",
-          "jsCode": "const headers = $json.headers ?? {};\nconst tokenHeader = headers['x-govhub-token'] || headers['X-GOVHUB-TOKEN'];\nconst allowed = String($env.GOVHUB_TOKENS || '').split(',').map(v => v.trim()).filter(Boolean);\nif (!tokenHeader || !allowed.includes(String(tokenHeader).trim())) {\n  return [{ json: { route: 'error', statusCode: 401, status: 'unauthorized', error_code: 'AUTH_INVALID_TOKEN', message: 'invalid token' } }];\n}\nconst query = ($json.query && typeof $json.query === 'object') ? $json.query : {};\nconst snapshot_type = query.snapshot_type ? String(query.snapshot_type).trim() : '';\nif (!snapshot_type) {\n  return [{ json: { route: 'error', statusCode: 400, status: 'invalid_request', error_code: 'SNAPSHOT_TYPE_REQUIRED', message: 'snapshot_type is required' } }];\n}\nconst esc = (v) => String(v).replace(/'/g, \"''\");\nreturn [{ json: { route: 'valid', snapshot_type, snapshot_type_sql: esc(snapshot_type) } }];"
+          "jsCode": "const headers = $json.headers ?? {};\nconst tokenHeader = String(headers['x-govhub-token'] || headers['X-GOVHUB-TOKEN'] || '').trim();\nconst allowed = String($env.GOVHUB_TOKENS || '').split(',').map(v => v.trim()).filter(Boolean);\nif (!tokenHeader || !allowed.includes(tokenHeader)) {\n  return [{ json: { route: 'error', statusCode: 401, status: 'unauthorized', error_code: 'AUTH_INVALID_TOKEN', message: 'invalid token' } }];\n}\nlet tokenScopes = [];\nlet rawScopes = '';\ntry {\n  rawScopes = String($env.GOVHUB_TOKEN_SCOPES_JSON || '').trim();\n  if (rawScopes) {\n    const parsed = JSON.parse(rawScopes);\n    if (Array.isArray(parsed[tokenHeader])) tokenScopes = parsed[tokenHeader].map((s) => String(s).trim());\n  }\n} catch {}\nif (tokenScopes.length === 0 && rawScopes === '') {\n  tokenScopes = ['s:w'];\n}\nif (!(tokenScopes.includes('s:r') || tokenScopes.includes('snapshots:read') || tokenScopes.includes('s:w') || tokenScopes.includes('snapshots:write'))) {\n  return [{ json: { route: 'error', statusCode: 403, status: 'forbidden', error_code: 'AUTH_SCOPE_REQUIRED', message: 'token missing required read scope (s:r)' } }];\n}\nconst query = ($json.query && typeof $json.query === 'object') ? $json.query : {};\nconst snapshot_type = query.snapshot_type ? String(query.snapshot_type).trim() : '';\nif (!snapshot_type) {\n  return [{ json: { route: 'error', statusCode: 400, status: 'invalid_request', error_code: 'SNAPSHOT_TYPE_REQUIRED', message: 'snapshot_type is required' } }];\n}\nconst esc = (v) => String(v).replace(/'/g, \"''\");\nreturn [{ json: { route: 'valid', snapshot_type, snapshot_type_sql: esc(snapshot_type) } }];"
         },
         "id": "Code_ValidateSnapshotLatest",
         "name": "Validate Snapshot Latest",
@@ -93,7 +93,11 @@
           "conditions": {
             "string": [
               {
-                "value1": "={{$json.snapshot_type || \"\"}}",
+                "value1": "={{$json.payload_b64 || \"\"}}",
+                "operation": "notEmpty"
+              },
+              {
+                "value1": "={{$json.payload_sha256 || \"\"}}",
                 "operation": "notEmpty"
               }
             ]
@@ -126,7 +130,7 @@
       {
         "parameters": {
           "respondWith": "json",
-          "responseBody": "={{ { status: 'not_found', error_code: 'SNAPSHOT_NOT_FOUND', message: 'no active snapshot for requested type' } }}",
+          "responseBody": "={{ { status: 'not_found', error_code: 'SNAPSHOT_NOT_FOUND_OR_INVALID', message: 'no active snapshot with canonical UBIN payload for requested type' } }}",
           "options": {
             "responseCode": 404
           }
