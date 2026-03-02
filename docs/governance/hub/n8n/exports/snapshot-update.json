@@ -110,20 +110,6 @@
       },
       {
         "parameters": {
-          "mode": "runOnceForAllItems",
-          "jsCode": "const zlib = require('zlib');\nconst crypto = require('crypto');\nconst raw = $json.mission_runs ?? [];\nconst runs = Array.isArray(raw) ? raw : (typeof raw === 'string' ? JSON.parse(raw) : []);\nconst payloadObj = {\n  ccp_ver: '1.0',\n  type: 'mission_runs_v1',\n  generated_at_utc: new Date().toISOString(),\n  total_runs: runs.length,\n  runs\n};\nconst payloadJson = JSON.stringify(payloadObj);\nconst zipped = zlib.gzipSync(Buffer.from(payloadJson, 'utf8'));\nconst payload_b64 = zipped.toString('base64');\nconst payload_sha256 = crypto.createHash('sha256').update(zipped).digest('hex');\nconst payload_size_bytes = zipped.length;\nconst esc = (v) => String(v ?? '').replace(/'/g, \"''\");\nreturn [{ json: {\n  snapshot_type: 'mission_runs_v1',\n  protocol: 'UBIN',\n  version: '1.0',\n  encoding: 'json',\n  compression: 'gzip',\n  payload_b64,\n  payload_sha256,\n  payload_size_bytes,\n  created_by: 'snapshot-update',\n  source_repo: 'platform',\n  source_ref: '',\n  snapshot_type_sql: 'mission_runs_v1',\n  protocol_sql: 'UBIN',\n  version_sql: '1.0',\n  encoding_sql: 'json',\n  compression_sql: 'gzip',\n  payload_b64_sql: esc(payload_b64),\n  payload_sha256_sql: payload_sha256,\n  created_by_sql: 'snapshot-update',\n  source_repo_sql: 'platform',\n  source_ref_sql: ''\n} }];"
-        },
-        "id": "Code_BuildMissionRunsSnapshot",
-        "name": "Build Mission Runs Snapshot",
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          1520,
-          420
-        ]
-      },
-      {
-        "parameters": {
           "operation": "executeQuery",
           "query": "UPDATE governance.hub_snapshots\nSET is_active = false\nWHERE snapshot_type = 'mission_runs_v1'\n  AND is_active = true;\n\nINSERT INTO governance.hub_snapshots (\n  snapshot_type, protocol, version, encoding, compression, payload_b64, payload_sha256, payload_size_bytes, created_by, source_repo, source_ref, is_active\n) VALUES (\n  'mission_runs_v1',\n  'UBIN',\n  '1.0',\n  'json',\n  'gzip',\n  '{{$json.payload_b64_sql}}',\n  '{{$json.payload_sha256_sql}}',\n  {{Math.trunc($json.payload_size_bytes)}},\n  'snapshot-update',\n  'platform',\n  NULL,\n  true\n) RETURNING snapshot_id::text, payload_sha256, payload_size_bytes, snapshot_type;"
         },
@@ -214,18 +200,7 @@
         "main": [
           [
             {
-              "node": "Build Mission Runs Snapshot",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Build Mission Runs Snapshot": {
-        "main": [
-          [
-            {
-              "node": "Store Mission Runs Snapshot",
+              "node": "Respond Snapshot Update Success",
               "type": "main",
               "index": 0
             }
