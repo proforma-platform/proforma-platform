@@ -4,6 +4,7 @@ param(
   [Parameter(Mandatory = $true)][string]$ReportFile,
   [string]$AgentId = $env:GOVHUB_AGENT_ID,
   [string]$ReportIngestUrl = $env:GOVHUB_REPORT_INGEST_URL,
+  [string]$InternalBaseUrl = $env:GOVHUB_INTERNAL_BASE_URL,
   [string]$Token = $env:GOVHUB_TOKEN
 )
 
@@ -15,8 +16,11 @@ if ([string]::IsNullOrWhiteSpace($AgentId)) {
   throw "Missing agent_id. Use -AgentId or GOVHUB_AGENT_ID."
 }
 
-if ([string]::IsNullOrWhiteSpace($ReportIngestUrl)) {
-  throw "GOVHUB_REPORT_INGEST_URL is required."
+if (-not [string]::IsNullOrWhiteSpace($InternalBaseUrl)) {
+  $ReportIngestUrl = ($InternalBaseUrl.TrimEnd('/') + "/webhook/govhub/report-ingest")
+}
+elseif ([string]::IsNullOrWhiteSpace($ReportIngestUrl)) {
+  $ReportIngestUrl = "https://govhub.proforma.net.br/webhook/govhub/report-ingest"
 }
 
 if ([string]::IsNullOrWhiteSpace($Token)) {

@@ -76,5 +76,9 @@ CPP MUST follow these logging controls:
 - MUST NOT print response body on successful operations unless mission contract explicitly requires structured output fields.
 - SHOULD log only status, checksum, IDs, and non-sensitive metadata.
 
+## Language Rule (PT-BR for Human Labels)
+- Human-facing labels/messages in governance workflows SHOULD be PT-BR.
+- Protocol fields, endpoint paths, IDs, and schema names MUST remain stable and unchanged.
+
 ## Compliance
 Any deviation from this policy MUST be reported as governance non-conformity in mission output.

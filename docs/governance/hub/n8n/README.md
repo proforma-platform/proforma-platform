@@ -5,11 +5,18 @@ This folder versions the Governance Hub Phase 1 workflow exports for n8n.
 
 These workflows implement:
 - mission intake
+- mission owner approve/deny gate
+- mission auto-fix limited controller (2 rounds + pause for owner)
 - report ingest with idempotency and hashing
 - decision aggregation
 - snapshot update (mission run upsert + mission_runs_v1 snapshot publishing)
 
 The objective is auditable, reproducible governance execution that remains aligned with GOV-0070 and in-repo artifacts.
+
+## Naming convention (PT-BR)
+- Use PT-BR for visual workflow names and node titles.
+- Do not translate technical IDs/keys/paths that participate in contracts.
+- If a workflow depends on compatibility URLs, prefer pinning stable webhook IDs to avoid route drift when labels change.
 
 ## How to import workflows into n8n (Docker)
 1. Open n8n UI.
@@ -85,6 +92,30 @@ curl -X POST http://localhost:5678/webhook/govhub/snapshot-update \
     "total": 3,
     "last_event_ts": "2026-03-01T00:00:00Z",
     "udn_state": "!GOV-TEST|ACT|CPP|PF|main\n#μ:test\n#τ:[a]\n#σ:running"
+  }'
+```
+
+Mission owner ack (single human gate):
+```bash
+curl -X POST http://localhost:5678/webhook/govhub/missions/owner-ack \
+  -H "Content-Type: application/json" \
+  -H "X-GOVHUB-TOKEN: <token_with_mission_write_scope>" \
+  -d '{
+    "mission_id": "GOV-MANAGER-V1-FOUNDATION",
+    "decision": "approve",
+    "owner_id": "owner-user"
+  }'
+```
+
+Mission auto-fix limited:
+```bash
+curl -X POST http://localhost:5678/webhook/govhub/missions/autofix-limited \
+  -H "Content-Type: application/json" \
+  -H "X-GOVHUB-TOKEN: <token_with_mission_write_scope>" \
+  -d '{
+    "mission_id": "GOV-MANAGER-V1-FOUNDATION",
+    "error_code": "REPORT_INGEST_INCONSISTENT_STATE",
+    "error_excerpt": "runtime task progression mismatch"
   }'
 ```
 
