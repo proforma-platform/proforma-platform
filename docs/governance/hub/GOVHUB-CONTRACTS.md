@@ -57,6 +57,83 @@ Error responses:
 - `401` unauthorized (`X-GOVHUB-TOKEN` invalid)
 - `500` internal error
 
+## Webhook: mission-owner-ack
+Endpoint purpose:
+- apply the single human gate for mission start (`approve` or `deny`).
+
+Method:
+- `POST`
+
+Canonical endpoint:
+- `https://govhub.proforma.net.br/webhook/govhub/missions/owner-ack`
+
+Compatibility endpoint (current runtime):
+- `https://govhub.proforma.net.br/webhook/govhub-v7-missions-owner-ack/webhook%2520missao%2520owner%2520ack/govhub/missions/owner-ack`
+
+Required input:
+- `mission_id`
+- `decision` (`approve` or `deny`)
+- `owner_id`
+
+Optional input:
+- `note`
+
+Rules:
+- this is the only mandatory interactive confirmation in the mission lifecycle.
+- after `approve`, mission transitions to runnable state and proceeds automatically.
+- after `deny`, mission transitions to blocked state and automation does not continue.
+
+Success response (`200`):
+```json
+{
+  "status": "ok",
+  "mission_id": "GOV-MANAGER-V1-FOUNDATION",
+  "decision": "approve",
+  "transition": "awaiting_owner_ack->queued"
+}
+```
+
+Error responses:
+- `400` invalid payload
+- `401` unauthorized token
+- `404` mission not found
+- `409` mission already decided
+- `500` internal error
+
+## Webhook: missions-autofix-limited
+Endpoint purpose:
+- apply limited automatic correction rounds after runtime inconsistency.
+
+Method:
+- `POST`
+
+Canonical endpoint:
+- `https://govhub.proforma.net.br/webhook/govhub/missions/autofix-limited`
+
+Required input:
+- `mission_id`
+
+Optional input:
+- `error_code`
+- `error_excerpt` (truncated to 256)
+
+Behavior:
+- round 1: set `autofix_state=round_1`, increment attempts
+- round 2: set `autofix_state=round_2`, increment attempts
+- after limit: set `autofix_state=paused_waiting_owner` and `owner_call_required=true`
+
+Success response (`200`):
+```json
+{
+  "status": "ok",
+  "mission_id": "GOV-MANAGER-V1-FOUNDATION",
+  "autofix_attempts": 2,
+  "autofix_state": "round_2",
+  "owner_call_required": false,
+  "next_action": "retry_limited"
+}
+```
+
 ## Webhook: decision-publish (optional in Phase 1)
 Endpoint purpose:
 - publish mission decision payload and evidence publication metadata.
@@ -235,6 +312,26 @@ References:
 - `docs/governance/ccp/CCP-SPEC.md`
 - `docs/governance/ccp/KEYS.md`
 - `docs/governance/ccp/schema/`
+
+## Operational Aliases (`me/nm/mc`)
+The runtime contract supports short operational aliases to remove manual copy/paste handoffs:
+
+- `me` (`missao enviada`)
+  - staff sends mission to hub (`mission-intake` or `missions/register`)
+  - hub persists mission as `awaiting_owner_ack`
+- `nm` (`nova missao`)
+  - owner sends `approve` in `mission-owner-ack`
+  - hub moves mission to runnable state and cpp consumes automatically via `missions-next`
+- `mc` (`missao concluida`)
+  - cpp completes execution and sends final `snapshot-update` + `report-ingest`
+  - staff reads db/snapshot state and closes mission without manual payload relay
+
+## Localization Rule (PT-BR)
+- Operator-facing naming SHOULD be PT-BR (`missao`, `decisao`, `concluida`).
+- Transport contracts remain language-neutral and stable:
+  - keep keys like `mission_id`, `decision`, `status`
+  - keep canonical webhook paths unchanged when already standardized
+  - avoid breaking changes from label translation
 
 ## Snapshots (UBIN v1)
 

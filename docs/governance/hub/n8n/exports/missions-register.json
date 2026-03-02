@@ -41,7 +41,7 @@
       {
         "parameters": {
           "operation": "executeQuery",
-          "query": "INSERT INTO gov.missions (mission_id, udn_mission, tdv_version, created_by, integrity_hash) VALUES ('{{$json.mission_id_sql}}','{{$json.udn_mission_sql}}','{{$json.tdv_version_sql}}','{{$json.created_by_sql}}','{{$json.integrity_hash_sql}}') ON CONFLICT (mission_id) DO UPDATE SET udn_mission=EXCLUDED.udn_mission, tdv_version=EXCLUDED.tdv_version, created_by=EXCLUDED.created_by, integrity_hash=EXCLUDED.integrity_hash RETURNING mission_id, integrity_hash;"
+          "query": "INSERT INTO gov.missions (mission_id, udn_mission, tdv_version, created_by, integrity_hash, approval_state) VALUES ('{{$json.mission_id_sql}}','{{$json.udn_mission_sql}}','{{$json.tdv_version_sql}}','{{$json.created_by_sql}}','{{$json.integrity_hash_sql}}','awaiting_owner_ack') ON CONFLICT (mission_id) DO UPDATE SET udn_mission=EXCLUDED.udn_mission, tdv_version=EXCLUDED.tdv_version, created_by=EXCLUDED.created_by, integrity_hash=EXCLUDED.integrity_hash, approval_state='awaiting_owner_ack', approved_by=NULL, approved_at=NULL, approval_note=NULL RETURNING mission_id, integrity_hash, approval_state;"
         },
         "id": "Postgres_UpsertMissionV7",
         "name": "Upsert gov.missions",
@@ -53,7 +53,7 @@
       {
         "parameters": {
           "operation": "executeQuery",
-          "query": "INSERT INTO gov.mission_runs (run_id, mission_id, branch, agent_id, status, phase, nn, total, udn_state, integrity_hash, updated_at) VALUES ('{{$json.mission_id_sql}}-run-001','{{$json.mission_id_sql}}','{{$json.branch_sql}}','{{$json.agent_id_sql}}','queued','registered',0,1,'{{$json.udn_mission_sql}}','{{$json.integrity_hash_sql}}',now()) ON CONFLICT (run_id) DO UPDATE SET mission_id=EXCLUDED.mission_id, branch=EXCLUDED.branch, agent_id=EXCLUDED.agent_id, status='queued', phase='registered', nn=0, total=1, udn_state=EXCLUDED.udn_state, integrity_hash=EXCLUDED.integrity_hash, updated_at=now() RETURNING run_id, mission_id, status, phase;"
+          "query": "INSERT INTO gov.mission_runs (run_id, mission_id, branch, agent_id, status, phase, nn, total, udn_state, integrity_hash, updated_at) VALUES ('{{$json.mission_id_sql}}-run-001','{{$json.mission_id_sql}}','{{$json.branch_sql}}','{{$json.agent_id_sql}}','awaiting_owner_ack','registered',0,1,'{{$json.udn_mission_sql}}','{{$json.integrity_hash_sql}}',now()) ON CONFLICT (run_id) DO UPDATE SET mission_id=EXCLUDED.mission_id, branch=EXCLUDED.branch, agent_id=EXCLUDED.agent_id, status='awaiting_owner_ack', phase='registered', nn=0, total=1, udn_state=EXCLUDED.udn_state, integrity_hash=EXCLUDED.integrity_hash, updated_at=now() RETURNING run_id, mission_id, status, phase;"
         },
         "id": "Postgres_EnsureRunQueued",
         "name": "Ensure queued run",
@@ -66,7 +66,7 @@
         "parameters": {
           "respondWith": "json",
           "responseCode": 200,
-          "responseBody": "={{ { status:'ok', mission_id:$json[0]?.mission_id || $json.mission_id, run_id:$json[0]?.run_id || $json.run_id, queued:true } }}"
+          "responseBody": "={{ { status:'ok', mission_id:$json[0]?.mission_id || $json.mission_id, run_id:$json[0]?.run_id || $json.run_id, owner_ack_required:true, next_action:'POST /webhook/govhub/missions/owner-ack' } }}"
         },
         "id": "Respond_MissionsRegisterOk",
         "name": "Respond 200",

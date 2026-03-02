@@ -33,10 +33,10 @@ update_state() {
 }
 
 while true; do
-  RESP=$(curl -sS -G "${BASE_URL}/webhook/govhub/missions/next" \
+  RESP=$(curl -sS -X POST "${BASE_URL}/webhook/govhub/missions/next" \
+    -H "Content-Type: application/json" \
     -H "X-GOVHUB-TOKEN: ${TOKEN}" \
-    --data-urlencode "repo_key=${REPO_KEY}" \
-    --data-urlencode "agent_id=${AGENT_ID}" || true)
+    -d "{\"repo_key\":\"${REPO_KEY}\",\"agent_id\":\"${AGENT_ID}\"}" || true)
 
   STATUS=$(printf '%s' "$RESP" | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')
   if [[ "$STATUS" != "assigned" ]]; then
@@ -46,6 +46,14 @@ while true; do
 
   RUN_ID=$(printf '%s' "$RESP" | sed -n 's/.*"run_id":"\([^"]*\)".*/\1/p')
   MISSION_ID=$(printf '%s' "$RESP" | sed -n 's/.*"mission_id":"\([^"]*\)".*/\1/p')
+  MISSION_KEY=$(printf '%s' "$RESP" | sed -n 's/.*"mission_key":"\([^"]*\)".*/\1/p')
+
+  if [[ -z "$MISSION_ID" && -n "$MISSION_KEY" ]]; then
+    MISSION_ID="$MISSION_KEY"
+  fi
+  if [[ -z "$RUN_ID" && -n "$MISSION_ID" ]]; then
+    RUN_ID="${MISSION_ID}-run-001"
+  fi
   [[ -n "$RUN_ID" && -n "$MISSION_ID" ]] || { sleep "$SLEEP_SECS"; continue; }
 
   update_state "$RUN_ID" "$MISSION_ID" "running" "phase_1" 1 3 "!RUN|${RUN_ID}|${MISSION_ID}|running|phase_1|1/3;" ""

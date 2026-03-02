@@ -41,7 +41,7 @@
       {
         "parameters": {
           "operation": "executeQuery",
-          "query": "WITH next_run AS (SELECT run_id FROM gov.mission_runs WHERE status = 'queued' AND agent_id = '{{$json.agent_id_sql}}' ORDER BY created_at ASC LIMIT 1), upd AS (UPDATE gov.mission_runs r SET status='running', phase='pull_assigned', nn=0, updated_at=now() FROM next_run n WHERE r.run_id = n.run_id RETURNING r.run_id, r.mission_id, r.branch, r.agent_id, r.status, r.phase, r.nn, r.total, r.report_ref, r.updated_at) SELECT run_id, mission_id, branch, agent_id, status, phase, nn, total, report_ref, to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') as updated_at_utc FROM upd;"
+          "query": "WITH next_run AS (SELECT r.run_id FROM gov.mission_runs r JOIN gov.missions m ON m.mission_id = r.mission_id WHERE r.status = 'queued' AND r.agent_id = '{{$json.agent_id_sql}}' AND m.approval_state = 'approved' ORDER BY r.created_at ASC LIMIT 1), upd AS (UPDATE gov.mission_runs r SET status='running', phase='pull_assigned', nn=0, updated_at=now() FROM next_run n WHERE r.run_id = n.run_id RETURNING r.run_id, r.mission_id, r.branch, r.agent_id, r.status, r.phase, r.nn, r.total, r.report_ref, r.updated_at) SELECT run_id, mission_id, branch, agent_id, status, phase, nn, total, report_ref, to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') as updated_at_utc FROM upd;"
         },
         "id": "Postgres_AssignNextRun",
         "name": "Assign next queued run",

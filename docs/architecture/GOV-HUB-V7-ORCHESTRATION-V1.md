@@ -22,11 +22,18 @@ Integrity model:
 - Scope required: `s:w` or `snapshots:write`
 - Input: `mission_id`, `udn_mission`, `tdv_version`, `created_by`
 - Output: mission registered + queued run created/ensured
+- Output (current policy): mission registered + `awaiting_owner_ack` run created/ensured
+
+### POST `/webhook/govhub/missions/owner-ack`
+- Auth: `X-GOVHUB-TOKEN`
+- Scope required: `m:w` or `missions:write` (or write-equivalent runtime scope)
+- Input: `mission_id`, `decision` (`approve|deny`), `owner_id`, optional `note`
+- Behavior: single human gate; approve transitions mission to runnable, deny blocks mission
 
 ### GET `/webhook/govhub/missions/next?repo_key&agent_id`
 - Auth: `X-GOVHUB-TOKEN`
 - Scope required: `m:p` or `missions:pull`
-- Behavior: assign oldest queued run for agent
+- Behavior: assign oldest queued run for agent, only when owner gate is approved
 - Output: `assigned` or `no_work`
 
 ### POST `/webhook/govhub/snapshot-update`

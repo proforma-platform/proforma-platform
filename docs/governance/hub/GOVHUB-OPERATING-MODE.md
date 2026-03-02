@@ -103,6 +103,27 @@ Rules:
 - `ELEVATED_ALLOWED` permits privileged operations only for steps that cannot be completed safely without elevated rights.
 - Secret handling and logging safety rules remain mandatory in both modes.
 
+## Owner Confirmation Gate
+- GOVHUB mission execution MUST use a single human decision gate at start: `approve` or `deny`.
+- This gate is applied through `mission-owner-ack`.
+- After `approve`, mission flow MUST continue automatically (`missions-next` -> execution -> `snapshot-update` -> `report-ingest`) without manual payload relays.
+- Interactive confirmations during execution are prohibited unless operation is destructive or explicitly elevated.
+
+## Auto-Fix Limited
+- On operational inconsistency, Staff MAY trigger `AUTO_FIX_LIMITED`.
+- `AUTO_FIX_LIMITED` is capped to 2 rounds per mission.
+- If unresolved after round 2, mission MUST transition to `paused_waiting_owner`.
+- In paused state, Staff MUST call Owner with objective evidence and next options.
+
+## Language Policy (PT-BR)
+- Human-facing labels in GOVHUB workflows MUST use PT-BR by default.
+- This includes workflow titles, node labels, and operator-facing messages.
+- Technical identifiers MUST remain stable and in canonical format:
+  - webhook paths
+  - node IDs
+  - contract keys/field names
+  - database schema objects
+
 ## Versioning and Evidence Publication
 - Contracts MUST be versioned.
 - Mission evidence MUST reference fixed commit SHAs.
