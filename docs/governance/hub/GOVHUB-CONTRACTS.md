@@ -19,6 +19,35 @@ Endpoint purpose:
 Method:
 - `POST`
 
+## Webhook: missions-register
+Endpoint purpose:
+- register `gov.missions` + initial `gov.mission_runs` with UDN-first contract and per-mission autofix control.
+
+Method:
+- `POST`
+
+Canonical endpoint:
+- `https://govhub.proforma.net.br/webhook/govhub/missions/register`
+
+Required input:
+- `mission_id`
+- `udn_mission`
+- `tdv_version`
+- `created_by`
+
+Optional input:
+- `branch` (default: `main`)
+- `agent_id` (default: `CPP`)
+- `autofix_control`
+  - `enabled` (bool, default `true`)
+  - `max_rounds` (`1` or `2`, default `2`)
+  - `on_exhaust` (`pause_owner`, default `pause_owner`)
+
+Persistence rule:
+- the control is persisted inside `udn_mission` as:
+  - `#af:enabled=<bool>;max_rounds=<int>;on_exhaust=<value>`
+- any previous `#af:` line is replaced at register-time by canonical value.
+
 ## Webhook: missions-next
 Endpoint purpose:
 - deterministic pull of the next mission task for a repository agent.
@@ -38,7 +67,7 @@ Required input:
 
 Success responses:
 - `200` + `{ "status": "no_work" }` when no mission is available
-- `200` + assignment payload when lock succeeds:
+- `200` + assignment payload when lock succeeds and dispatch is sent to the worker selected by `agent_id` (`CPP` or `CPP-IA`):
 ```json
 {
   "status": "assigned",
@@ -47,8 +76,17 @@ Success responses:
   "agent_id": "cpp",
   "lock_ttl_seconds": 900,
   "lock_expires_at_utc": "2026-02-26T14:30:00Z",
-  "instructions": null,
-  "source": "govhub-n8n"
+  "source": "govhub-n8n",
+  "dispatch": "sent",
+  "worker_response": {
+    "status": "ok",
+    "worker_id": "CPP",
+    "mission_id": "AEI-0.6.2",
+    "task_id": "task-id",
+    "result": "accepted",
+    "udn_received": false,
+    "next_action": "report_ingest"
+  }
 }
 ```
 
@@ -118,9 +156,13 @@ Optional input:
 - `error_excerpt` (truncated to 256)
 
 Behavior:
-- round 1: set `autofix_state=round_1`, increment attempts
-- round 2: set `autofix_state=round_2`, increment attempts
-- after limit: set `autofix_state=paused_waiting_owner` and `owner_call_required=true`
+- control source: parsed from mission `udn_mission` `#af:` line
+- defaults when absent: `enabled=true`, `max_rounds=2`, `on_exhaust=pause_owner`
+- when `enabled=false`: state becomes `resolved`, `next_action=autofix_disabled`
+- when `enabled=true`:
+  - round 1: set `autofix_state=round_1`, increment attempts
+  - round 2 (if `max_rounds=2`): set `autofix_state=round_2`, increment attempts
+  - after configured limit: set `autofix_state=paused_waiting_owner` and `owner_call_required=true`
 
 Success response (`200`):
 ```json
@@ -130,7 +172,81 @@ Success response (`200`):
   "autofix_attempts": 2,
   "autofix_state": "round_2",
   "owner_call_required": false,
+  "control": {
+    "enabled": true,
+    "max_rounds": 2,
+    "on_exhaust": "pause_owner"
+  },
   "next_action": "retry_limited"
+}
+```
+
+## Webhook: workers-cppia-dispatch
+
+- `POST /webhook/govhub/workers/cppia/dispatch`
+- Auth: `X-GOVHUB-TOKEN` in `GOVHUB_TOKENS`
+- Purpose: dispatch an execution task to the self-hosted `CPP-IA` worker.
+- Regra operacional: `git_ops` e opcional; se ausente, o worker executa modo padrao (`accepted`).
+
+Request:
+```json
+{
+  "mission_id": "GOV-CPP-IA-TEST-01",
+  "task_id": "task-01",
+  "udn_block": "!MIS|GOV-CPP-IA-TEST-01|P1|RUN",
+  "git_ops": {
+    "repo_path": "/workspace/proforma-platform",
+    "branch": "feat/gov-123",
+    "base_branch": "main",
+    "remote": "origin",
+    "commit_message": "feat: ajuste GOV-123",
+    "fetch_remote": true,
+    "stage_all": true,
+    "push": true
+  }
+}
+```
+
+Success response:
+```json
+{
+  "status": "ok",
+  "dispatch": "sent",
+  "worker_response": {
+    "status": "ok",
+    "worker_id": "CPP-IA",
+    "mission_id": "GOV-CPP-IA-TEST-01",
+    "task_id": "task-01",
+    "result": "accepted",
+    "udn_received": true,
+    "git_ops": {
+      "status": "ok",
+      "branch": "feat/gov-123",
+      "head_sha": "abc123",
+      "commit_created": true
+    },
+    "next_action": "report_ingest"
+  }
+}
+```
+
+Failure response with automatic limited autofix:
+- if worker execution fails (for example HTTP 422 from worker), gateway returns `502` and triggers `missions-autofix-limited`.
+- when autofix limit is exceeded and mission moves to `paused_waiting_owner`, gateway returns `409`.
+
+Example failure payload:
+```json
+{
+  "status": "error",
+  "dispatch": "failed",
+  "error_code": "DISPATCH_WORKER_HTTP_FAILURE",
+  "autofix_response": {
+    "mission_id": "GOV-EXAMPLE-02",
+    "autofix_state": "paused_waiting_owner",
+    "owner_call_required": true,
+    "next_action": "pause_owner"
+  },
+  "next_action": "owner_ack_required"
 }
 ```
 

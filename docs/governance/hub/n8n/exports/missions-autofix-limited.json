@@ -17,41 +17,53 @@
         "type": "n8n-nodes-base.webhook",
         "typeVersion": 2,
         "webhookId": "3c8bf58b-0e7d-4f8f-8e11-6b6ca89f2e01",
-        "position": [220, 280]
+        "position": [
+          220,
+          280
+        ]
       },
       {
         "parameters": {
           "mode": "runOnceForAllItems",
-          "jsCode": "const headers = $json.headers ?? {};\nconst tokenHeader = String(headers['x-govhub-token'] || headers['X-GOVHUB-TOKEN'] || '').trim();\nconst allowed = String($env.GOVHUB_TOKENS || '').split(',').map(v => v.trim()).filter(Boolean);\nif (!tokenHeader || !allowed.includes(tokenHeader)) {\n  return [{ json: { ok: false, statusCode: 401, error_code: 'AUTH_INVALID_TOKEN', message: 'invalid token' } }];\n}\nlet scopes = [];\ntry {\n  const map = JSON.parse(String($env.GOVHUB_TOKEN_SCOPES_JSON || '{}'));\n  if (Array.isArray(map[tokenHeader])) scopes = map[tokenHeader].map((s) => String(s).trim());\n} catch {}\nif (!(scopes.includes('m:w') || scopes.includes('missions:write') || scopes.includes('s:w'))) {\n  return [{ json: { ok: false, statusCode: 403, error_code: 'AUTH_SCOPE_REQUIRED', message: 'missing mission write scope' } }];\n}\nlet body = $json.body ?? $json;\nif (typeof body === 'string') {\n  try { body = JSON.parse(body); } catch { body = {}; }\n}\nif (!body || typeof body !== 'object') body = {};\nconst mission_id = String(body.mission_id || '').trim();\nconst error_code = String(body.error_code || 'AUTO_FIX_TRIGGER').trim();\nconst error_excerpt = String(body.error_excerpt || '').trim().slice(0, 256);\nif (!mission_id) {\n  return [{ json: { ok: false, statusCode: 400, error_code: 'AUTOFIX_INVALID', message: 'mission_id is required' } }];\n}\nconst esc = (v) => String(v ?? '').replace(/'/g, \"''\");\nreturn [{ json: { ok: true, mission_id, mission_id_sql: esc(mission_id), error_code, error_code_sql: esc(error_code), error_excerpt, error_excerpt_sql: esc(error_excerpt) } }];"
+          "jsCode": "const headers = $json.headers ?? {};\nconst tokenHeader = String(headers['x-govhub-token'] || headers['X-GOVHUB-TOKEN'] || '').trim();\nconst allowed = String($env.GOVHUB_TOKENS || '').split(',').map(v => v.trim()).filter(Boolean);\nif (!tokenHeader || !allowed.includes(tokenHeader)) {\n  return [{ json: { ok: false, statusCode: 401, error_code: 'AUTH_INVALID_TOKEN', message: 'invalid token' } }];\n}\nlet scopes = [];\nlet scopeMapConfigured = false;\ntry {\n  const map = JSON.parse(String($env.GOVHUB_TOKEN_SCOPES_JSON || '{}'));\n  scopeMapConfigured = !!map && typeof map === 'object' && Object.keys(map).length > 0;\n  if (Array.isArray(map[tokenHeader])) scopes = map[tokenHeader].map((s) => String(s).trim());\n} catch {}\nif (scopeMapConfigured && !(scopes.includes('m:w') || scopes.includes('missions:write') || scopes.includes('s:w'))) {\n  return [{ json: { ok: false, statusCode: 403, error_code: 'AUTH_SCOPE_REQUIRED', message: 'missing mission write scope' } }];\n}\nconst asObj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});\nlet body = asObj($json.body);\nif (!Object.keys(body).length && typeof $json.body === 'string') {\n  try { body = asObj(JSON.parse($json.body)); } catch {}\n}\nif (!Object.keys(body).length) body = asObj($json);\nif (!Object.keys(body).length && typeof $json.rawBody === 'string') {\n  try { body = asObj(JSON.parse($json.rawBody)); } catch {}\n}\nconst dump = JSON.stringify($json || {});\nconst pick = (obj, key) => {\n  const direct = String((obj || {})[key] ?? '').trim();\n  if (direct) return direct;\n  const m = dump.match(new RegExp('\\\\\"' + key + '\\\\\"\\\\s*:\\\\s*\\\\\"([^\\\\\"]+)\\\\\"'));\n  return m ? String(m[1]).trim() : '';\n};\nconst mission_id = pick(body, 'mission_id');\nconst error_code = pick(body, 'error_code') || 'AUTO_FIX_TRIGGER';\nconst error_excerpt = (pick(body, 'error_excerpt') || '').slice(0, 256);\nif (!mission_id) {\n  return [{ json: { ok: false, statusCode: 400, error_code: 'AUTOFIX_INVALID', message: 'mission_id is required' } }];\n}\nconst esc = (v) => String(v ?? '').replace(/'/g, \"''\");\nreturn [{ json: { ok: true, mission_id, mission_id_sql: esc(mission_id), error_code, error_code_sql: esc(error_code), error_excerpt, error_excerpt_sql: esc(error_excerpt) } }];"
         },
         "id": "Code_ValidateAutofixLimited",
         "name": "Validar Autofix Limitado",
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
-        "position": [500, 280]
+        "position": [
+          500,
+          280
+        ]
       },
       {
         "parameters": {
-          "conditions": {
-            "boolean": [{ "value1": "={{$json.ok}}" }]
-          }
+          "mode": "expression",
+          "numberOutputs": 2,
+          "output": "={{$json.ok ? 0 : 1}}"
         },
-        "id": "If_AutofixValid",
-        "name": "Valido?",
-        "type": "n8n-nodes-base.if",
-        "typeVersion": 2,
-        "position": [740, 280]
+        "id": "Switch_AutofixValid",
+        "name": "Rota Valida",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
+        "position": [
+          740,
+          280
+        ]
       },
       {
         "parameters": {
           "operation": "executeQuery",
-          "query": "WITH target AS (\n  SELECT mission_id, autofix_attempts\n  FROM gov.missions\n  WHERE mission_id = '{{$json.mission_id_sql}}'\n), upd AS (\n  UPDATE gov.missions m\n  SET\n    autofix_attempts = CASE WHEN t.autofix_attempts < 2 THEN t.autofix_attempts + 1 ELSE t.autofix_attempts END,\n    autofix_state = CASE\n      WHEN t.autofix_attempts = 0 THEN 'round_1'\n      WHEN t.autofix_attempts = 1 THEN 'round_2'\n      ELSE 'paused_waiting_owner'\n    END,\n    autofix_last_error_code = '{{$json.error_code_sql}}',\n    autofix_last_error_excerpt_256 = LEFT('{{$json.error_excerpt_sql}}', 256),\n    owner_call_required = CASE WHEN t.autofix_attempts >= 2 THEN true ELSE false END,\n    paused_reason = CASE WHEN t.autofix_attempts >= 2 THEN 'AUTO_FIX_LIMIT_EXCEEDED' ELSE paused_reason END\n  FROM target t\n  WHERE m.mission_id = t.mission_id\n  RETURNING m.mission_id, m.autofix_attempts, m.autofix_state, m.owner_call_required\n)\nSELECT\n  CASE WHEN EXISTS(SELECT 1 FROM upd) THEN true ELSE false END AS found,\n  COALESCE((SELECT mission_id FROM upd), '') AS mission_id,\n  COALESCE((SELECT autofix_attempts FROM upd), -1) AS autofix_attempts,\n  COALESCE((SELECT autofix_state FROM upd), 'not_found') AS autofix_state,\n  COALESCE((SELECT owner_call_required FROM upd), false) AS owner_call_required,\n  CASE\n    WHEN EXISTS(SELECT 1 FROM upd) AND (SELECT autofix_state FROM upd) = 'paused_waiting_owner' THEN 'pause_owner'\n    WHEN EXISTS(SELECT 1 FROM upd) THEN 'retry_limited'\n    ELSE 'mission_not_found'\n  END AS next_action;"
+          "query": "={{`WITH target AS (\\n  SELECT\\n    mission_id,\\n    autofix_attempts,\\n    CASE WHEN lower(COALESCE((regexp_match(udn_mission, '#af:.*enabled=(true|false)'))[1], 'true')) = 'true' THEN true ELSE false END AS ctrl_enabled,\\n    GREATEST(1, LEAST(2, COALESCE(NULLIF((regexp_match(udn_mission, '#af:.*max_rounds=([0-9]+)'))[1], '')::int, 2))) AS ctrl_max_rounds,\\n    COALESCE(NULLIF((regexp_match(udn_mission, '#af:.*on_exhaust=([a-z_]+)'))[1], ''), 'pause_owner') AS ctrl_on_exhaust\\n  FROM gov.missions\\n  WHERE mission_id = '${$input.first().json.mission_id}'\\n), upd AS (\\n  UPDATE gov.missions m\\n  SET\\n    autofix_attempts = CASE\\n      WHEN NOT t.ctrl_enabled THEN m.autofix_attempts\\n      WHEN t.autofix_attempts < t.ctrl_max_rounds THEN t.autofix_attempts + 1\\n      ELSE t.autofix_attempts\\n    END,\\n    autofix_state = CASE\\n      WHEN NOT t.ctrl_enabled THEN 'resolved'\\n      WHEN t.autofix_attempts >= t.ctrl_max_rounds THEN 'paused_waiting_owner'\\n      WHEN t.autofix_attempts = 0 THEN 'round_1'\\n      WHEN t.autofix_attempts = 1 THEN 'round_2'\\n      ELSE 'paused_waiting_owner'\\n    END,\\n    autofix_last_error_code = '${$input.first().json.error_code}',\\n    autofix_last_error_excerpt_256 = LEFT('${$input.first().json.error_excerpt}', 256),\\n    owner_call_required = CASE\\n      WHEN NOT t.ctrl_enabled THEN false\\n      WHEN t.autofix_attempts >= t.ctrl_max_rounds THEN true\\n      ELSE false\\n    END,\\n    paused_reason = CASE\\n      WHEN NOT t.ctrl_enabled THEN NULL\\n      WHEN t.autofix_attempts >= t.ctrl_max_rounds THEN 'AUTO_FIX_LIMIT_EXCEEDED'\\n      ELSE paused_reason\\n    END\\n  FROM target t\\n  WHERE m.mission_id = t.mission_id\\n  RETURNING m.mission_id, m.autofix_attempts, m.autofix_state, m.owner_call_required, t.ctrl_enabled, t.ctrl_max_rounds, t.ctrl_on_exhaust\\n)\\nSELECT\\n  CASE WHEN EXISTS(SELECT 1 FROM upd) THEN true ELSE false END AS found,\\n  COALESCE((SELECT mission_id FROM upd), '') AS mission_id,\\n  COALESCE((SELECT autofix_attempts FROM upd), -1) AS autofix_attempts,\\n  COALESCE((SELECT autofix_state FROM upd), 'not_found') AS autofix_state,\\n  COALESCE((SELECT owner_call_required FROM upd), false) AS owner_call_required,\\n  COALESCE((SELECT ctrl_enabled FROM upd), true) AS control_enabled,\\n  COALESCE((SELECT ctrl_max_rounds FROM upd), 2) AS control_max_rounds,\\n  COALESCE((SELECT ctrl_on_exhaust FROM upd), 'pause_owner') AS control_on_exhaust,\\n  CASE\\n    WHEN EXISTS(SELECT 1 FROM upd) AND (SELECT ctrl_enabled FROM upd) = false THEN 'autofix_disabled'\\n    WHEN EXISTS(SELECT 1 FROM upd) AND (SELECT autofix_state FROM upd) = 'paused_waiting_owner' THEN 'pause_owner'\\n    WHEN EXISTS(SELECT 1 FROM upd) THEN 'retry_limited'\\n    ELSE 'mission_not_found'\\n  END AS next_action;`}}"
         },
         "id": "Postgres_ApplyAutofixLimited",
         "name": "Aplicar Autofix Limitado",
         "type": "n8n-nodes-base.postgres",
         "typeVersion": 2,
-        "position": [980, 180],
+        "position": [
+          980,
+          180
+        ],
         "credentials": {
           "postgres": {
             "id": "11111111-2222-4333-8444-555555555555",
@@ -62,26 +74,36 @@
       {
         "parameters": {
           "conditions": {
-            "boolean": [{ "value1": "={{$json.next_action !== 'mission_not_found'}}" }]
+            "boolean": [
+              {
+                "value1": "={{$json.next_action !== 'mission_not_found'}}"
+              }
+            ]
           }
         },
         "id": "If_AutofixMissionFound",
         "name": "Missao Encontrada?",
         "type": "n8n-nodes-base.if",
         "typeVersion": 2,
-        "position": [1220, 180]
+        "position": [
+          1220,
+          180
+        ]
       },
       {
         "parameters": {
           "respondWith": "json",
           "responseCode": 200,
-          "responseBody": "={{ { status: 'ok', mission_id: $json.mission_id, req_mission_id: $node['Validar Autofix Limitado'].json.mission_id, autofix_attempts: Number($json.autofix_attempts || 0), autofix_state: $json.autofix_state, owner_call_required: !!$json.owner_call_required, next_action: $json.next_action } }}"
+          "responseBody": "={{ { status: 'ok', mission_id: $json.mission_id, autofix_attempts: Number($json.autofix_attempts || 0), autofix_state: $json.autofix_state, owner_call_required: !!$json.owner_call_required, control: { enabled: !!$json.control_enabled, max_rounds: Number($json.control_max_rounds || 2), on_exhaust: $json.control_on_exhaust || 'pause_owner' }, next_action: $json.next_action } }}"
         },
         "id": "Respond_AutofixOk",
         "name": "Responder Autofix OK",
         "type": "n8n-nodes-base.respondToWebhook",
         "typeVersion": 1,
-        "position": [1460, 120]
+        "position": [
+          1460,
+          120
+        ]
       },
       {
         "parameters": {
@@ -93,7 +115,10 @@
         "name": "Responder Missao Nao Encontrada",
         "type": "n8n-nodes-base.respondToWebhook",
         "typeVersion": 1,
-        "position": [1460, 260]
+        "position": [
+          1460,
+          260
+        ]
       },
       {
         "parameters": {
@@ -105,15 +130,82 @@
         "name": "Responder Erro Autofix",
         "type": "n8n-nodes-base.respondToWebhook",
         "typeVersion": 1,
-        "position": [980, 420]
+        "position": [
+          980,
+          420
+        ]
       }
     ],
     "connections": {
-      "Webhook Missao Autofix Limitado": { "main": [[{ "node": "Validar Autofix Limitado", "type": "main", "index": 0 }]] },
-      "Validar Autofix Limitado": { "main": [[{ "node": "Valido?", "type": "main", "index": 0 }]] },
-      "Valido?": { "main": [[{ "node": "Aplicar Autofix Limitado", "type": "main", "index": 0 }],[{ "node": "Responder Erro Autofix", "type": "main", "index": 0 }]] },
-      "Aplicar Autofix Limitado": { "main": [[{ "node": "Missao Encontrada?", "type": "main", "index": 0 }]] },
-      "Missao Encontrada?": { "main": [[{ "node": "Responder Autofix OK", "type": "main", "index": 0 }],[{ "node": "Responder Missao Nao Encontrada", "type": "main", "index": 0 }]] }
+      "Webhook Missao Autofix Limitado": {
+        "main": [
+          [
+            {
+              "node": "Validar Autofix Limitado",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Validar Autofix Limitado": {
+        "main": [
+          [
+            {
+              "node": "Rota Valida",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Rota Valida": {
+        "main": [
+          [
+            {
+              "node": "Aplicar Autofix Limitado",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Responder Erro Autofix",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Aplicar Autofix Limitado": {
+        "main": [
+          [
+            {
+              "node": "Missao Encontrada?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Missao Encontrada?": {
+        "main": [
+          [
+            {
+              "node": "Responder Autofix OK",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Responder Missao Nao Encontrada",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
     },
     "settings": {}
   }

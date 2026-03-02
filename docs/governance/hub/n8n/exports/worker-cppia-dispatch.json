@@ -1,0 +1,238 @@
+[
+  {
+    "id": "govhub-v7-worker-cppia-dispatch",
+    "name": "govhub-v7-worker-cppia-dispatch",
+    "active": false,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "path": "govhub/workers/cppia/dispatch",
+          "httpMethod": "POST",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "Webhook_Dispatch",
+        "name": "Webhook Dispatch CPP-IA",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "webhookId": "0f8f21ac-3d77-4c74-ae1c-45f429a6d4e2",
+        "position": [220, 260]
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const headers = $json.headers ?? {};\nconst tokenHeader = String(headers['x-govhub-token'] || headers['X-GOVHUB-TOKEN'] || '').trim();\nconst allowed = String($env.GOVHUB_TOKENS || '').split(',').map(v => v.trim()).filter(Boolean);\nif (!tokenHeader || !allowed.includes(tokenHeader)) {\n  return [{ json: { ok: false, statusCode: 401, error_code: 'AUTH_INVALID_TOKEN', message: 'invalid token' } }];\n}\nconst asObj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});\nlet body = asObj($json.body);\nif (!Object.keys(body).length && typeof $json.body === 'string') {\n  try { body = asObj(JSON.parse($json.body)); } catch {}\n}\nif (!Object.keys(body).length) body = asObj($json);\nconst mission_id = String(body.mission_id || '').trim();\nconst task_id = String(body.task_id || '').trim();\nconst udn_block = String(body.udn_block || '').trim();\nconst git_ops = asObj(body.git_ops);\nif (!mission_id) {\n  return [{ json: { ok: false, statusCode: 400, error_code: 'DISPATCH_INVALID', message: 'mission_id is required' } }];\n}\nreturn [{ json: { ok: true, mission_id, task_id, udn_block, ...(Object.keys(git_ops).length ? { git_ops } : {}) } }];"
+        },
+        "id": "Code_Validate",
+        "name": "Validar Payload",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [480, 260]
+      },
+      {
+        "parameters": {
+          "mode": "expression",
+          "numberOutputs": 2,
+          "output": "={{$json.ok ? 0 : 1}}"
+        },
+        "id": "Switch_Valid",
+        "name": "Rota Valida",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
+        "position": [700, 260]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://govhub-cpp-ia-worker:8080/run",
+          "sendBody": true,
+          "specifyBody": "json",
+          "contentType": "json",
+          "jsonBody": "={{ { mission_id: $json.mission_id, task_id: $json.task_id, udn_block: $json.udn_block, ...($json.git_ops ? { git_ops: $json.git_ops } : {}) } }}",
+          "options": {
+            "ignoreResponseCode": true,
+            "response": {
+              "response": {
+                "fullResponse": true
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "id": "Http_CallWorker",
+        "name": "Chamar Worker CPP-IA",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "continueOnFail": true,
+        "position": [940, 180]
+      },
+      {
+        "parameters": {
+          "mode": "expression",
+          "numberOutputs": 2,
+          "output": "={{ ($json.error || ($json.statusCode && Number($json.statusCode) >= 400)) ? 0 : 1 }}"
+        },
+        "id": "Switch_WorkerResult",
+        "name": "Rota resultado worker",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
+        "position": [1120, 180]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://127.0.0.1:5678/webhook/govhub/missions/autofix-limited",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "x-govhub-token",
+                "value": "={{String($env.GOVHUB_TOKENS || '').split(',')[0]?.trim() || ''}}"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "contentType": "json",
+          "jsonBody": "={{ { mission_id: $node['Validar Payload'].json.mission_id, error_code: 'DISPATCH_WORKER_HTTP_FAILURE', error_excerpt: String($json?.error?.message || $json?.body?.message || $json?.message || 'worker request failed').slice(0, 256) } }}",
+          "options": {
+            "ignoreResponseCode": true,
+            "response": {
+              "response": {
+                "fullResponse": false
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "id": "Http_AutofixLimited",
+        "name": "Chamar autofix-limited",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [1330, 100]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseCode": 200,
+          "responseBody": "={{ { status: 'ok', dispatch: 'sent', worker_http_status: Number($json.statusCode || 200), worker_response: ($json.body || $json) } }}"
+        },
+        "id": "Respond_Ok",
+        "name": "Responder 200",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [1530, 230]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { status: 'error', dispatch: 'failed', error_code: 'DISPATCH_WORKER_HTTP_FAILURE', message: 'worker request failed; autofix-limited triggered', worker_error: ($node['Chamar Worker CPP-IA'].json.error || $node['Chamar Worker CPP-IA'].json), autofix_response: $json, next_action: (($json?.autofix_state === 'paused_waiting_owner' || $json?.owner_call_required === true) ? 'owner_ack_required' : 'retry_limited') } }}",
+          "options": {
+            "responseCode": "={{ (($json?.autofix_state === 'paused_waiting_owner' || $json?.owner_call_required === true) ? 409 : 502) }}"
+          }
+        },
+        "id": "Respond_FailedAutofix",
+        "name": "Responder falha+autofix",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [1530, 100]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseCode": "={{$json.statusCode || 400}}",
+          "responseBody": "={{ { status: 'error', error_code: $json.error_code || 'DISPATCH_ERROR', message: $json.message || 'invalid request' } }}"
+        },
+        "id": "Respond_Error",
+        "name": "Responder Erro",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [940, 340]
+      }
+    ],
+    "connections": {
+      "Webhook Dispatch CPP-IA": {
+        "main": [
+          [
+            {
+              "node": "Validar Payload",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Validar Payload": {
+        "main": [
+          [
+            {
+              "node": "Rota Valida",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Rota Valida": {
+        "main": [
+          [
+            {
+              "node": "Chamar Worker CPP-IA",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Responder Erro",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Chamar Worker CPP-IA": {
+        "main": [
+          [
+            {
+              "node": "Rota resultado worker",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Rota resultado worker": {
+        "main": [
+          [
+            {
+              "node": "Chamar autofix-limited",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Responder 200",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Chamar autofix-limited": {
+        "main": [
+          [
+            {
+              "node": "Responder falha+autofix",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {}
+  }
+]

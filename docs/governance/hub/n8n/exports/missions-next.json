@@ -54,7 +54,7 @@
       {
         "parameters": {
           "operation": "executeQuery",
-          "query": "WITH candidate AS (\n  SELECT\n    mt.id AS mission_task_id,\n    m.mission_key\n  FROM governance.mission_tasks mt\n  JOIN governance.missions m ON m.id = mt.mission_id\n  JOIN governance.repositories r ON r.id = mt.repo_id\n  WHERE r.repo_key = '{{$json.repo_key_sql}}'\n    AND (\n      mt.status = 'pending'\n      OR (mt.status = 'in_progress' AND mt.started_at < now() - interval '15 minutes')\n    )\n  ORDER BY mt.created_at ASC\n  LIMIT 1\n  FOR UPDATE SKIP LOCKED\n), locked AS (\n  UPDATE governance.mission_tasks mt\n  SET\n    status = 'in_progress',\n    assigned_agent = '{{$json.agent_id_sql}}',\n    started_at = now()\n  FROM candidate c\n  WHERE mt.id = c.mission_task_id\n    AND (\n      mt.status = 'pending'\n      OR (mt.status = 'in_progress' AND mt.started_at < now() - interval '15 minutes')\n    )\n  RETURNING mt.id, mt.repo_id, c.mission_key\n)\nSELECT\n  CASE WHEN EXISTS (SELECT 1 FROM locked) THEN 'assigned' ELSE 'no_work' END AS status,\n  (SELECT mission_key FROM locked LIMIT 1) AS mission_key,\n  '{{$json.repo_key_sql}}' AS repo_key,\n  '{{$json.agent_id_sql}}' AS agent_id,\n  900 AS lock_ttl_seconds,\n  to_char((now() + interval '15 minutes') AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS lock_expires_at_utc,\n  NULL::text AS instructions,\n  'govhub-n8n'::text AS source;"
+          "query": "WITH candidate AS (\n  SELECT\n    mt.id AS mission_task_id,\n    m.mission_key\n  FROM governance.mission_tasks mt\n  JOIN governance.missions m ON m.id = mt.mission_id\n  JOIN governance.repositories r ON r.id = mt.repo_id\n  WHERE r.repo_key = '{{$json.repo_key_sql}}'\n    AND (\n      mt.status = 'pending'\n      OR (mt.status = 'in_progress' AND mt.started_at < now() - interval '15 minutes')\n    )\n  ORDER BY mt.created_at ASC\n  LIMIT 1\n  FOR UPDATE SKIP LOCKED\n), locked AS (\n  UPDATE governance.mission_tasks mt\n  SET\n    status = 'in_progress',\n    assigned_agent = '{{$json.agent_id_sql}}',\n    started_at = now()\n  FROM candidate c\n  WHERE mt.id = c.mission_task_id\n    AND (\n      mt.status = 'pending'\n      OR (mt.status = 'in_progress' AND mt.started_at < now() - interval '15 minutes')\n    )\n  RETURNING mt.id, mt.repo_id, c.mission_key\n)\nSELECT\n  CASE WHEN EXISTS (SELECT 1 FROM locked) THEN 'assigned' ELSE 'no_work' END AS status,\n  (SELECT id::text FROM locked LIMIT 1) AS mission_task_id,\n  (SELECT mission_key FROM locked LIMIT 1) AS mission_key,\n  '{{$json.repo_key_sql}}' AS repo_key,\n  '{{$json.agent_id_sql}}' AS agent_id,\n  900 AS lock_ttl_seconds,\n  to_char((now() + interval '15 minutes') AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS lock_expires_at_utc,\n  NULL::text AS instructions,\n  'govhub-n8n'::text AS source;"
         },
         "id": "Postgres_SelectAndLockMission",
         "name": "Select + Lock Mission",
@@ -100,6 +100,211 @@
         "typeVersion": 1,
         "position": [
           1180,
+          180
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "string": [
+              {
+                "value1": "={{$json.status || ''}}",
+                "operation": "equal",
+                "value2": "assigned"
+              }
+            ]
+          }
+        },
+        "id": "If_Assigned",
+        "name": "Trabalho atribuido?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          1160,
+          180
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "expression",
+          "numberOutputs": 3,
+          "output": "={{$json.agent_id === 'CPP-IA' ? 0 : ($json.agent_id === 'CPP' ? 1 : 2)}}"
+        },
+        "id": "Switch_AgentRoute",
+        "name": "Rota por agente",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
+        "position": [
+          1360,
+          120
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://govhub-cpp-ia-worker:8080/run",
+          "sendBody": true,
+          "specifyBody": "json",
+          "contentType": "json",
+          "jsonBody": "={{ { mission_id: $json.mission_key, task_id: String($json.mission_task_id || ''), udn_block: String($json.instructions || '') } }}",
+          "options": {
+            "response": {
+              "response": {
+                "fullResponse": false
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "id": "Http_CallCppIa",
+        "name": "Despachar CPP-IA",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "continueOnFail": true,
+        "position": [
+          1580,
+          40
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://govhub-cpp-worker:8080/run",
+          "sendBody": true,
+          "specifyBody": "json",
+          "contentType": "json",
+          "jsonBody": "={{ { mission_id: $json.mission_key, task_id: String($json.mission_task_id || ''), udn_block: String($json.instructions || '') } }}",
+          "options": {
+            "response": {
+              "response": {
+                "fullResponse": false
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "id": "Http_CallCpp",
+        "name": "Despachar CPP",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "continueOnFail": true,
+        "position": [
+          1580,
+          140
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "expression",
+          "numberOutputs": 2,
+          "output": "={{$json.error ? 0 : 1}}"
+        },
+        "id": "Switch_DispatchResult",
+        "name": "Rota resultado dispatch",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
+        "position": [
+          1700,
+          100
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "return [{json:{status:'error',statusCode:400,error_code:'AGENT_NOT_SUPPORTED',message:`agent_id not supported: ${$json.agent_id || ''}`}}];"
+        },
+        "id": "Code_UnsupportedAgent",
+        "name": "Erro agente nao suportado",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1580,
+          240
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://127.0.0.1:5678/webhook/govhub/missions/autofix-limited",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "x-govhub-token",
+                "value": "={{String($env.GOVHUB_TOKENS || '').split(',')[0]?.trim() || ''}}"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "contentType": "json",
+          "jsonBody": "={{ { mission_id: $node['Select + Lock Mission'].json.mission_key, error_code: 'DISPATCH_FAILED', error_excerpt: String($json?.error?.message || $json?.message || 'dispatch failed').slice(0, 256) } }}",
+          "options": {
+            "ignoreResponseCode": true,
+            "response": {
+              "response": {
+                "fullResponse": false
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "id": "Http_AutofixLimited",
+        "name": "Chamar autofix-limited",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1810,
+          40
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseCode": 200,
+          "responseBody": "={{ { status:'assigned', mission_key:$node['Select + Lock Mission'].json.mission_key || null, repo_key:$node['Select + Lock Mission'].json.repo_key || null, agent_id:$node['Select + Lock Mission'].json.agent_id || null, lock_ttl_seconds:Number($node['Select + Lock Mission'].json.lock_ttl_seconds || 900), lock_expires_at_utc:$node['Select + Lock Mission'].json.lock_expires_at_utc || null, source:'govhub-n8n', dispatch:($json?.autofix_state ? 'autofix_triggered' : 'sent'), report_ingest_response:($json?.autofix_state ? null : $json), autofix_response:($json?.autofix_state ? $json : null) } }}"
+        },
+        "id": "Respond_Dispatched",
+        "name": "Responder Atribuido+Dispatch",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [
+          1810,
+          90
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://127.0.0.1:5678/webhook/govhub/report-ingest",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "x-govhub-token",
+                "value": "={{String($env.GOVHUB_TOKENS || '').split(',')[0]?.trim() || ''}}"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "contentType": "json",
+          "jsonBody": "={{ { mission_key: $node['Select + Lock Mission'].json.mission_key, repo_key: $node['Select + Lock Mission'].json.repo_key, agent_id: $node['Select + Lock Mission'].json.agent_id, branch: 'main', head_sha: String($node['Select + Lock Mission'].json.mission_task_id || '').replace(/-/g,'').slice(0,40) || 'autohead', report_md: `AUTO_REPORT\\nmission_key=${$node['Select + Lock Mission'].json.mission_key}\\nagent_id=${$node['Select + Lock Mission'].json.agent_id}\\nsource=missions-next-auto` } }}",
+          "options": {
+            "response": {
+              "response": {
+                "fullResponse": false
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "id": "Http_AutoReportIngest",
+        "name": "Auto report-ingest",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1810,
           180
         ]
       }
@@ -149,7 +354,123 @@
         "main": [
           [
             {
+              "node": "Trabalho atribuido?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Trabalho atribuido?": {
+        "main": [
+          [
+            {
+              "node": "Rota por agente",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
               "node": "Respond Dispatch",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Rota por agente": {
+        "main": [
+          [
+            {
+              "node": "Despachar CPP-IA",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Despachar CPP",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Erro agente nao suportado",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Despachar CPP-IA": {
+        "main": [
+          [
+            {
+              "node": "Rota resultado dispatch",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Despachar CPP": {
+        "main": [
+          [
+            {
+              "node": "Rota resultado dispatch",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Rota resultado dispatch": {
+        "main": [
+          [
+            {
+              "node": "Chamar autofix-limited",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Auto report-ingest",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Chamar autofix-limited": {
+        "main": [
+          [
+            {
+              "node": "Responder Atribuido+Dispatch",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Erro agente nao suportado": {
+        "main": [
+          [
+            {
+              "node": "Respond Error",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Auto report-ingest": {
+        "main": [
+          [
+            {
+              "node": "Responder Atribuido+Dispatch",
               "type": "main",
               "index": 0
             }
