@@ -1,0 +1,47 @@
+{
+  "contract_id": "gov-manager-v1-udn-ccp-contract",
+  "version": "1.0.0",
+  "mode": "GOVERNANCE_ACTIVE|CCP_STRICT",
+  "envelope": {
+    "required": true,
+    "type": "execution_payload",
+    "fields": [
+      "ccp_ver",
+      "type",
+      "mission_id",
+      "mode",
+      "udn_block",
+      "constraints"
+    ]
+  },
+  "udn": {
+    "primary_semantics": true,
+    "required_prefix": "!MIS|",
+    "required_segments": [
+      "#σ",
+      "#τ",
+      "!OUT"
+    ],
+    "parse_policy": "FAIL_CLOSED_ON_PARSE_AMBIGUITY"
+  },
+  "safety_rules": [
+    "NO_TOKEN_LOG",
+    "NO_SCHEMA_CHANGE",
+    "NO_AUTH_SCOPE_CHANGE",
+    "CCP_ENVELOPE_MANDATORY"
+  ],
+  "response_contract": {
+    "type": "phase_complete",
+    "required_fields": [
+      "mission_id",
+      "phase",
+      "status",
+      "snapshot_update_http",
+      "latest_http",
+      "payload_sha256",
+      "baseline_artifacts_ref",
+      "contract_artifacts_ref",
+      "constraints_compliance"
+    ]
+  }
+}
