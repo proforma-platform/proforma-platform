@@ -110,6 +110,20 @@
       },
       {
         "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const crypto = require('crypto');\n\nconst esc = (v) => String(v ?? '').replace(/'/g, \"''\");\n\nlet missionRuns = $json.mission_runs ?? [];\nif (typeof missionRuns === 'string') {\n  try { missionRuns = JSON.parse(missionRuns); } catch { missionRuns = []; }\n}\nif (!Array.isArray(missionRuns)) missionRuns = [];\n\nconst udnLines = missionRuns\n  .map((r) => String(r?.udn_state ?? '').replace(/\\r\\n/g, '\\n').trim())\n  .filter((v) => v.length > 0);\n\nconst udnBlock = (udnLines.length > 0 ? udnLines.join('\\n') : '!RUNS|NONE;') + '\\n';\nconst payloadBytes = Buffer.from(udnBlock, 'utf8');\n\nfunction crc32(bytes) {\n  let crc = 0 ^ (-1);\n  for (let i = 0; i < bytes.length; i++) {\n    crc ^= bytes[i];\n    for (let j = 0; j < 8; j++) {\n      crc = (crc >>> 1) ^ (0xEDB88320 & (-(crc & 1)));\n    }\n  }\n  return (crc ^ (-1)) >>> 0;\n}\n\nfunction gzipStored(bytes) {\n  const header = Buffer.from([0x1f, 0x8b, 0x08, 0x00, 0, 0, 0, 0, 0x00, 0xff]);\n  const blocks = [];\n  let offset = 0;\n  while (offset < bytes.length) {\n    const remaining = bytes.length - offset;\n    const len = Math.min(65535, remaining);\n    const isFinal = (offset + len) >= bytes.length ? 1 : 0;\n    const block = Buffer.alloc(1 + 2 + 2 + len);\n    block[0] = isFinal;\n    block.writeUInt16LE(len, 1);\n    block.writeUInt16LE((~len) & 0xffff, 3);\n    bytes.copy(block, 5, offset, offset + len);\n    blocks.push(block);\n    offset += len;\n  }\n\n  const trailer = Buffer.alloc(8);\n  trailer.writeUInt32LE(crc32(bytes), 0);\n  trailer.writeUInt32LE(bytes.length >>> 0, 4);\n\n  return Buffer.concat([header, ...blocks, trailer]);\n}\n\nconst gzipBytes = gzipStored(payloadBytes);\nconst payloadSha256 = crypto.createHash('sha256').update(gzipBytes).digest('hex');\nconst payloadB64 = gzipBytes.toString('base64');\n\nreturn [{ json: {\n  ...$json,\n  snapshot_type: 'mission_runs_v1',\n  protocol: 'UBIN',\n  version: '1.0',\n  encoding: 'json',\n  compression: 'gzip',\n  payload_text: udnBlock,\n  payload_size_bytes: gzipBytes.length,\n  payload_sha256: payloadSha256,\n  payload_b64: payloadB64,\n  payload_b64_sql: esc(payloadB64),\n  payload_sha256_sql: esc(payloadSha256)\n} }];\n"
+        },
+        "id": "Code_BuildMissionRunsSnapshot",
+        "name": "Build Mission Runs Snapshot",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1520,
+          420
+        ]
+      },
+      {
+        "parameters": {
           "operation": "executeQuery",
           "query": "UPDATE governance.hub_snapshots\nSET is_active = false\nWHERE snapshot_type = 'mission_runs_v1'\n  AND is_active = true;\n\nINSERT INTO governance.hub_snapshots (\n  snapshot_type, protocol, version, encoding, compression, payload_b64, payload_sha256, payload_size_bytes, created_by, source_repo, source_ref, is_active\n) VALUES (\n  'mission_runs_v1',\n  'UBIN',\n  '1.0',\n  'json',\n  'gzip',\n  '{{$json.payload_b64_sql}}',\n  '{{$json.payload_sha256_sql}}',\n  {{Math.trunc($json.payload_size_bytes)}},\n  'snapshot-update',\n  'platform',\n  NULL,\n  true\n) RETURNING snapshot_id::text, payload_sha256, payload_size_bytes, snapshot_type;"
         },
@@ -200,7 +214,7 @@
         "main": [
           [
             {
-              "node": "Respond Snapshot Update Success",
+              "node": "Build Mission Runs Snapshot",
               "type": "main",
               "index": 0
             }
@@ -212,6 +226,17 @@
           [
             {
               "node": "Respond Snapshot Update Success",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build Mission Runs Snapshot": {
+        "main": [
+          [
+            {
+              "node": "Store Mission Runs Snapshot",
               "type": "main",
               "index": 0
             }
