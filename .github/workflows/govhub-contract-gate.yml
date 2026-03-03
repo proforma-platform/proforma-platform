@@ -2,14 +2,6 @@ name: GOVHUB Contract Gate
 
 on:
   pull_request:
-    paths:
-      - "docs/governance/hub/n8n/exports/missions-next.json"
-      - "docs/governance/hub/n8n/exports/report-ingest.json"
-      - "docs/governance/hub/n8n/exports/missions-autofix-limited.json"
-      - "docs/governance/hub/n8n/exports/missions-owner-ack.json"
-      - "docs/governance/hub/n8n/exports/worker-cppia-dispatch.json"
-      - "docs/governance/hub/n8n/tests/*.sh"
-      - ".github/workflows/govhub-contract-gate.yml"
   push:
     branches: [main]
     paths:
