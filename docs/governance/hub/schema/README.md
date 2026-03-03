@@ -28,6 +28,7 @@ Migration numbering is append-only:
 - `0005_owner_approval_gate.sql`
 - `0006_autofix_limited.sql`
 - `0007_timelines_governanca_real.sql`
+- `0008_mission_parts_partitioning.sql`
 
 Rules:
 - Existing migrations MUST NOT be edited after merge.

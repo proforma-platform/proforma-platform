@@ -38,7 +38,7 @@ export default function LoginPage() {
     <main className="auth-shell">
       <form className="auth-card" onSubmit={onSubmit}>
         <div className="auth-logo">
-          <span className="logo-dot" />
+          <img className="auth-seal" src="/selo-govhub.png" alt="Selo Gov-Hub" />
           <strong>gov-manager</strong>
         </div>
         <h1>Entrar</h1>
@@ -76,4 +76,3 @@ export default function LoginPage() {
     </main>
   );
 }
-

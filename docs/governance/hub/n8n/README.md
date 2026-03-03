@@ -54,6 +54,12 @@ Autofix mission control:
 - `GOVHUB_DB_URL` (or equivalent DB host/user/db config)
   - Database connection for Governance Hub Postgres schema.
 
+Mission partitioning (staff-first triage):
+- `missions/register` accepts optional `parts` array.
+- If `parts` is absent, workflow attempts fallback parse from UDN `#part:` lines.
+- Normalized partitions are persisted in `gov.mission_parts`.
+- Initial `gov.mission_runs.total` is derived from number of parts (minimum `1`).
+
 Optional:
 - `N8N_LOG_LEVEL=info`
 - `N8N_ENCRYPTION_KEY` (recommended for credential protection)
