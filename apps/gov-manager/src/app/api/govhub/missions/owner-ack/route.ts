@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { hasSessionCookie } from "../../../../../auth/session";
 
 function resolveGovhubConfig() {
   const baseUrl = String(process.env.GOVHUB_BASE_URL || "").trim();
@@ -12,6 +13,10 @@ function resolveGovhubConfig() {
 }
 
 export async function POST(request: Request) {
+  if (!hasSessionCookie(request)) {
+    return NextResponse.json({ status: "unauthorized", error_code: "AUTH_REQUIRED" }, { status: 401 });
+  }
+
   const { baseUrl, token, endpointPath, compatEndpointPath } = resolveGovhubConfig();
   if (!baseUrl || !token) {
     return NextResponse.json(

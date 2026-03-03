@@ -1,11 +1,25 @@
 import { NextResponse } from "next/server";
 import { resolveAuthContext } from "../../../auth";
+import { hasSessionCookie } from "../../../auth/session";
 import { validateMissionRequest } from "../../../contracts/mission-validator";
 import { adaptLegacyMissionEnvelope, normalizeMissionResponse } from "../../../contracts/adapter-v7";
 import { validateTDVSignal } from "../../../tdv";
 import { commitMissionToLedger } from "../../../infra/ledger";
 
 export async function POST(request: Request) {
+  if (!hasSessionCookie(request)) {
+    return NextResponse.json(
+      {
+        status: "unauthorized",
+        mission_id: "",
+        ledger_ref: "",
+        contract_version: "v7-baseline",
+        errors: ["AUTH_REQUIRED"]
+      },
+      { status: 401 }
+    );
+  }
+
   const auth = resolveAuthContext(request.headers);
 
   let body: unknown;
