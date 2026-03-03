@@ -134,10 +134,10 @@ jobs:
             core.info('All criteria met. PR eligible for auto-approval.');
 
       - name: Approve PR
-        if: steps.evaluate.outputs.approve == 'true'
+        if: steps.evaluate.outputs.approve == 'true' && secrets.GOVHUB_APPROVER_TOKEN != ''
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GOVHUB_APPROVER_TOKEN }}
           script: |
             const { owner, repo } = context.repo;
             const pull_number = context.payload.pull_request.number;
@@ -148,6 +148,11 @@ jobs:
               event: 'APPROVE',
               body: 'Auto-approved by governance-bot under GOVHUB policy criteria.'
             });
+
+      - name: Approver token missing notice
+        if: steps.evaluate.outputs.approve == 'true' && secrets.GOVHUB_APPROVER_TOKEN == ''
+        run: |
+          echo "GOVHUB_APPROVER_TOKEN ausente. Sem bot aprovador dedicado, o requisito de review continuara manual."
 
       - name: Enable auto-merge (squash) with retry x3
         id: automerge
