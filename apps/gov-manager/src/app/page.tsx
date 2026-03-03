@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 type Theme = "dark" | "light";
-type Section = "visao" | "missoes" | "orquestracao" | "execucoes" | "pendencias" | "prompts" | "governanca";
+type Section = "visao" | "missoes" | "orquestracao" | "chat" | "execucoes" | "pendencias" | "prompts" | "governanca";
 type PartExecutor = "STAFF" | "CPP" | "CPP-IA";
 type PartPriority = "P0" | "P1" | "P2";
 
@@ -73,6 +73,18 @@ interface QueueRow {
   assignee?: string;
   status?: string;
   updated_at_utc?: string;
+}
+
+interface ChatRow {
+  message_id?: string;
+  mission_id?: string;
+  actor?: string;
+  target?: string;
+  action?: string;
+  message?: string;
+  delivery_status?: string;
+  dispatch_http?: number | null;
+  created_at_utc?: string;
 }
 
 const defaultPolicy: TokenPolicy = {
@@ -203,6 +215,13 @@ export default function GovManagerPage() {
   const [queueUpdatedAt, setQueueUpdatedAt] = useState("");
   const [queueRefreshSec, setQueueRefreshSec] = useState(30);
   const [queueRefreshNonce, setQueueRefreshNonce] = useState(0);
+  const [chatText, setChatText] = useState("");
+  const [chatUpdatedAt, setChatUpdatedAt] = useState("");
+  const [chatRefreshSec, setChatRefreshSec] = useState(30);
+  const [chatRefreshNonce, setChatRefreshNonce] = useState(0);
+  const [chatAction, setChatAction] = useState("STATUS");
+  const [chatTarget, setChatTarget] = useState("CPP");
+  const [chatMessage, setChatMessage] = useState("");
   const [projectMissionCount, setProjectMissionCount] = useState(8);
 
   const selectedPrompt = useMemo(
@@ -304,6 +323,34 @@ export default function GovManagerPage() {
       window.clearInterval(interval);
     };
   }, [queueRefreshNonce, queueRefreshSec]);
+
+  useEffect(() => {
+    let active = true;
+    const pullChat = async () => {
+      try {
+        const missionId = mission.id.trim();
+        const qs = missionId ? `?mission_id=${encodeURIComponent(missionId)}` : "";
+        const response = await fetch(`/api/govhub/operations/chat${qs}`, { cache: "no-store" });
+        const payload = await response.json();
+        if (active) {
+          setChatText(JSON.stringify(payload, null, 2));
+          setChatUpdatedAt(new Date().toISOString());
+        }
+      } catch {
+        if (active) {
+          setChatText(JSON.stringify({ status: "error", error_code: "CHAT_FETCH_FAILED" }, null, 2));
+          setChatUpdatedAt(new Date().toISOString());
+        }
+      }
+    };
+
+    pullChat();
+    const interval = window.setInterval(pullChat, Math.max(15, chatRefreshSec) * 1000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [chatRefreshNonce, chatRefreshSec, mission.id]);
 
   async function loadPrompts() {
     try {
@@ -526,6 +573,33 @@ export default function GovManagerPage() {
     }
   }
 
+  async function sendOpsCommand() {
+    setStatus("chat_dispatch");
+    try {
+      const missionId = mission.id.trim() || `mission-${Date.now()}`;
+      const response = await fetch("/api/govhub/operations/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          mission_id: missionId,
+          actor: createdBy,
+          target: chatTarget,
+          action: chatAction,
+          message: chatMessage
+        })
+      });
+      const payload = await response.json();
+      setResponseText(JSON.stringify(payload, null, 2));
+      setStatus(response.ok ? "success" : "error");
+      if (response.ok) setChatMessage("");
+      setChatRefreshNonce((prev) => prev + 1);
+      setSection("chat");
+    } catch {
+      setStatus("error");
+      setResponseText(JSON.stringify({ status: "error", error_code: "CHAT_DISPATCH_FAILED" }, null, 2));
+    }
+  }
+
   async function estimateCost() {
     setStatus("token_preview");
     try {
@@ -642,6 +716,7 @@ export default function GovManagerPage() {
   const pageTitle = useMemo(() => {
     if (section === "missoes") return "Missões";
     if (section === "orquestracao") return "Orquestração";
+    if (section === "chat") return "Chat HUB";
     if (section === "execucoes") return "Execuções";
     if (section === "pendencias") return "Pendências";
     if (section === "prompts") return "Biblioteca de Prompts";
@@ -652,6 +727,7 @@ export default function GovManagerPage() {
   const pageSubtitle = useMemo(() => {
     if (section === "missoes") return "Cadastro de missão, particionamento e envio ao HUB.";
     if (section === "orquestracao") return "Fila priorizada e distribuição de execução entre Staff, CPP e CPP-IA.";
+    if (section === "chat") return "Comando rápido remoto: envio de ação pré-definida via webhook n8n/worker.";
     if (section === "execucoes") return "Monitoramento operacional e retorno de execução.";
     if (section === "pendencias") return "Itens que exigem ação para manter fluxo contínuo.";
     if (section === "prompts") return "Reuso por referência para reduzir custo de tokens.";
@@ -664,6 +740,7 @@ export default function GovManagerPage() {
   const usagePayload = useMemo(() => safeJsonParse(usageText), [usageText]);
   const botStatusPayload = useMemo(() => safeJsonParse(botStatusText), [botStatusText]);
   const queuePayload = useMemo(() => safeJsonParse(queueText), [queueText]);
+  const chatPayload = useMemo(() => safeJsonParse(chatText), [chatText]);
 
   const previewData = useMemo(() => {
     const preview = previewPayload?.preview;
@@ -745,6 +822,24 @@ export default function GovManagerPage() {
     return {};
   }, [queuePayload]);
 
+  const chatRows = useMemo(() => {
+    const rows = chatPayload?.rows;
+    return Array.isArray(rows) ? (rows as ChatRow[]) : [];
+  }, [chatPayload]);
+
+  const chatSummary = useMemo(() => {
+    let queued = 0;
+    let dispatched = 0;
+    let failed = 0;
+    for (const row of chatRows) {
+      const status = String(row.delivery_status || "").toLowerCase();
+      if (status === "dispatched") dispatched += 1;
+      else if (status === "failed") failed += 1;
+      else queued += 1;
+    }
+    return { total: chatRows.length, queued, dispatched, failed };
+  }, [chatRows]);
+
   const topMissionUsage = useMemo(() => {
     const map = new Map<string, { mission_id: string; usd: number; tokens: number; count: number; last_at: string }>();
     for (const row of usageRows) {
@@ -803,6 +898,7 @@ export default function GovManagerPage() {
           <button className={section === "visao" ? "active" : ""} onClick={() => setSection("visao")}>Visão geral</button>
           <button className={section === "missoes" ? "active" : ""} onClick={() => setSection("missoes")}>Missões</button>
           <button className={section === "orquestracao" ? "active" : ""} onClick={() => setSection("orquestracao")}>Orquestração</button>
+          <button className={section === "chat" ? "active" : ""} onClick={() => setSection("chat")}>Chat HUB</button>
           <button className={section === "execucoes" ? "active" : ""} onClick={() => setSection("execucoes")}>Execuções</button>
           <button className={section === "pendencias" ? "active" : ""} onClick={() => setSection("pendencias")}>Pendências</button>
           <button className={section === "prompts" ? "active" : ""} onClick={() => setSection("prompts")}>Prompts</button>
@@ -1128,6 +1224,103 @@ export default function GovManagerPage() {
             <details className="gm-debug">
               <summary>Fila detalhada (diagnóstico)</summary>
               <pre>{queueText || "Sem dados de fila no momento..."}</pre>
+            </details>
+          </section>
+        ) : null}
+
+        {section === "chat" ? (
+          <section className="gm-card">
+            <h2>Chat Operacional HUB</h2>
+            <div className="gm-row">
+              <label>
+                Mission ID
+                <input value={mission.id} onChange={(e) => setMission({ ...mission, id: e.target.value })} placeholder="ex.: GOV-MANAGER-V1-FOUNDATION" />
+              </label>
+              <label>
+                Destino
+                <select value={chatTarget} onChange={(e) => setChatTarget(e.target.value)}>
+                  <option value="STAFF">STAFF</option>
+                  <option value="CPP">CPP</option>
+                  <option value="CPP-IA">CPP-IA</option>
+                </select>
+              </label>
+            </div>
+            <div className="gm-row">
+              <label>
+                Ação
+                <select value={chatAction} onChange={(e) => setChatAction(e.target.value)}>
+                  <option value="STATUS">STATUS</option>
+                  <option value="OK">OK</option>
+                  <option value="PAUSAR">PAUSAR</option>
+                  <option value="NEGAR">NEGAR</option>
+                  <option value="OWNER_CALL">OWNER_CALL</option>
+                  <option value="NOVA_MISSAO">NOVA_MISSAO</option>
+                </select>
+              </label>
+              <label>
+                Atualização chat (seg)
+                <select value={chatRefreshSec} onChange={(e) => setChatRefreshSec(Number(e.target.value || 30))}>
+                  <option value={15}>15s</option>
+                  <option value={30}>30s</option>
+                  <option value={45}>45s</option>
+                  <option value={60}>60s</option>
+                  <option value={120}>120s</option>
+                </select>
+              </label>
+            </div>
+            <label>
+              Mensagem
+              <textarea rows={4} value={chatMessage} onChange={(e) => setChatMessage(e.target.value)} placeholder="Comando curto para operação remota no HUB..." />
+            </label>
+            <div className="gm-row">
+              <button onClick={sendOpsCommand}>Enviar comando</button>
+              <button type="button" onClick={() => setChatRefreshNonce((prev) => prev + 1)}>
+                Atualizar agora
+              </button>
+            </div>
+            <div className="gm-row">
+              <button onClick={() => { setChatAction("OK"); setChatMessage("OK. Prosseguir com a execução."); }}>Preset: OK</button>
+              <button onClick={() => { setChatAction("PAUSAR"); setChatMessage("Pausar execução e aguardar owner."); }}>Preset: PAUSAR</button>
+            </div>
+            <div className="gm-mini-metrics">
+              <article>
+                <span>Total</span>
+                <strong>{chatSummary.total}</strong>
+              </article>
+              <article>
+                <span>Dispatched</span>
+                <strong>{chatSummary.dispatched}</strong>
+              </article>
+              <article>
+                <span>Queued</span>
+                <strong>{chatSummary.queued}</strong>
+              </article>
+              <article>
+                <span>Failed</span>
+                <strong>{chatSummary.failed}</strong>
+              </article>
+            </div>
+            <p className="gm-meta">Última sincronização UTC: {formatDateTime(chatUpdatedAt)}</p>
+            <div className="gm-queue-list">
+              {chatRows.length === 0 ? (
+                <p className="gm-empty">Sem mensagens no chat operacional.</p>
+              ) : (
+                chatRows.slice(0, 20).map((row) => (
+                  <article key={row.message_id || `${row.mission_id}-${row.created_at_utc}`}>
+                    <strong>{row.action || "ACTION"}</strong>
+                    <span>Missão: {row.mission_id || "-"}</span>
+                    <span>Destino: {row.target || "-"}</span>
+                    <span>Status: {row.delivery_status || "-"}</span>
+                    <span>HTTP: {row.dispatch_http ?? "-"}</span>
+                    <small>UTC: {formatDateTime(String(row.created_at_utc || ""))}</small>
+                    <small>{row.message || "-"}</small>
+                  </article>
+                ))
+              )}
+            </div>
+            <details className="gm-debug">
+              <summary>Chat detalhado (diagnóstico)</summary>
+              <pre>{chatText || "Sem dados do chat no momento..."}</pre>
             </details>
           </section>
         ) : null}

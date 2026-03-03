@@ -71,6 +71,19 @@
   - implementação/runtime/deploy -> `CPP`
   - triagem/coordenação -> `STAFF`
 
+## Chat HUB Operacional (comandos pré-definidos)
+- Snapshot dedicado: `gov_manager_ops_chat_v1` (configurável por `GOVHUB_CHAT_SNAPSHOT_TYPE`).
+- Endpoints:
+  - `GET /api/govhub/operations/chat`
+  - `POST /api/govhub/operations/chat`
+- Ações aceitas:
+  - `OK`, `PAUSAR`, `NEGAR`, `OWNER_CALL`, `NOVA_MISSAO`, `STATUS`
+- Dispatch remoto:
+  - Webhook n8n configurável por `GOVHUB_CHAT_DISPATCH_PATH`
+  - Ativação por `GOVHUB_CHAT_DISPATCH_ENABLED`
+- Objetivo:
+  - operar o fluxo remoto (Owner/Staff/Executores) sem dependência de terminal local.
+
 ## Fluxo Owner Ack
 - Quando o retorno indicar `owner_ack_required` (ou `paused_waiting_owner`), a UI abre painel de decisao.
 - O Owner pode executar:
