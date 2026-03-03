@@ -59,6 +59,18 @@
   - `GOVHUB Auto PR` -> bot `govhublab-pr`
   - `GOVHUB Auto Approve` -> bot `govhub-approve-br`
 
+## Orquestração de Fila (Staff/CPP/CPP-IA)
+- Snapshot dedicado: `gov_manager_execution_queue_v1` (configurável por `GOVHUB_EXECUTION_QUEUE_SNAPSHOT_TYPE`).
+- Endpoint:
+  - `GET /api/govhub/operations/queue` (filtros: `status`, `assignee`, `mission_id`).
+  - `POST /api/govhub/operations/queue` com:
+    - `action=create_item` para item único.
+    - `action=create_plan` para gerar plano completo da missão.
+- Regras de distribuição automática:
+  - análise/especificação/risco -> `CPP-IA`
+  - implementação/runtime/deploy -> `CPP`
+  - triagem/coordenação -> `STAFF`
+
 ## Fluxo Owner Ack
 - Quando o retorno indicar `owner_ack_required` (ou `paused_waiting_owner`), a UI abre painel de decisao.
 - O Owner pode executar:

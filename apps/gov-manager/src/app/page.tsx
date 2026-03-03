@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 type Theme = "dark" | "light";
-type Section = "visao" | "missoes" | "execucoes" | "pendencias" | "prompts" | "governanca";
+type Section = "visao" | "missoes" | "orquestracao" | "execucoes" | "pendencias" | "prompts" | "governanca";
 type PartExecutor = "STAFF" | "CPP" | "CPP-IA";
 type PartPriority = "P0" | "P1" | "P2";
 
@@ -60,6 +60,18 @@ interface BotStatusRow {
   run_id?: string;
   run_url?: string;
   actor?: string;
+  updated_at_utc?: string;
+}
+
+interface QueueRow {
+  queue_id?: string;
+  mission_id?: string;
+  title?: string;
+  description?: string;
+  kind?: string;
+  priority?: string;
+  assignee?: string;
+  status?: string;
   updated_at_utc?: string;
 }
 
@@ -187,6 +199,10 @@ export default function GovManagerPage() {
   const [monitorUpdatedAt, setMonitorUpdatedAt] = useState("");
   const [botStatusText, setBotStatusText] = useState("");
   const [botStatusUpdatedAt, setBotStatusUpdatedAt] = useState("");
+  const [queueText, setQueueText] = useState("");
+  const [queueUpdatedAt, setQueueUpdatedAt] = useState("");
+  const [queueRefreshSec, setQueueRefreshSec] = useState(30);
+  const [queueRefreshNonce, setQueueRefreshNonce] = useState(0);
   const [projectMissionCount, setProjectMissionCount] = useState(8);
 
   const selectedPrompt = useMemo(
@@ -262,6 +278,32 @@ export default function GovManagerPage() {
       window.clearInterval(interval);
     };
   }, [botStatusRefreshNonce, botStatusRefreshSec]);
+
+  useEffect(() => {
+    let active = true;
+    const pullQueue = async () => {
+      try {
+        const response = await fetch("/api/govhub/operations/queue?status=open", { cache: "no-store" });
+        const payload = await response.json();
+        if (active) {
+          setQueueText(JSON.stringify(payload, null, 2));
+          setQueueUpdatedAt(new Date().toISOString());
+        }
+      } catch {
+        if (active) {
+          setQueueText(JSON.stringify({ status: "error", error_code: "QUEUE_FETCH_FAILED" }, null, 2));
+          setQueueUpdatedAt(new Date().toISOString());
+        }
+      }
+    };
+
+    pullQueue();
+    const interval = window.setInterval(pullQueue, Math.max(15, queueRefreshSec) * 1000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [queueRefreshNonce, queueRefreshSec]);
 
   async function loadPrompts() {
     try {
@@ -455,6 +497,35 @@ export default function GovManagerPage() {
     }
   }
 
+  async function createExecutionPlan() {
+    setStatus("queue_planning");
+    try {
+      const response = await fetch("/api/govhub/operations/queue", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "create_plan",
+          actor: createdBy,
+          mission_id: mission.id || `mission-${Date.now()}`,
+          tasks: parts.map((part, index) => ({
+            title: part.goal || `Parte ${index + 1}`,
+            description: part.goal || "Execução definida pelo staff",
+            kind: part.executor,
+            priority: part.priority
+          }))
+        })
+      });
+      const payload = await response.json();
+      setResponseText(JSON.stringify(payload, null, 2));
+      setStatus(response.ok ? "success" : "error");
+      setQueueRefreshNonce((prev) => prev + 1);
+      setSection("orquestracao");
+    } catch {
+      setStatus("error");
+      setResponseText(JSON.stringify({ status: "error", error_code: "QUEUE_PLAN_FAILED" }, null, 2));
+    }
+  }
+
   async function estimateCost() {
     setStatus("token_preview");
     try {
@@ -570,6 +641,7 @@ export default function GovManagerPage() {
 
   const pageTitle = useMemo(() => {
     if (section === "missoes") return "Missões";
+    if (section === "orquestracao") return "Orquestração";
     if (section === "execucoes") return "Execuções";
     if (section === "pendencias") return "Pendências";
     if (section === "prompts") return "Biblioteca de Prompts";
@@ -579,6 +651,7 @@ export default function GovManagerPage() {
 
   const pageSubtitle = useMemo(() => {
     if (section === "missoes") return "Cadastro de missão, particionamento e envio ao HUB.";
+    if (section === "orquestracao") return "Fila priorizada e distribuição de execução entre Staff, CPP e CPP-IA.";
     if (section === "execucoes") return "Monitoramento operacional e retorno de execução.";
     if (section === "pendencias") return "Itens que exigem ação para manter fluxo contínuo.";
     if (section === "prompts") return "Reuso por referência para reduzir custo de tokens.";
@@ -590,6 +663,7 @@ export default function GovManagerPage() {
   const realtimePayload = useMemo(() => safeJsonParse(tokenRealtime), [tokenRealtime]);
   const usagePayload = useMemo(() => safeJsonParse(usageText), [usageText]);
   const botStatusPayload = useMemo(() => safeJsonParse(botStatusText), [botStatusText]);
+  const queuePayload = useMemo(() => safeJsonParse(queueText), [queueText]);
 
   const previewData = useMemo(() => {
     const preview = previewPayload?.preview;
@@ -660,6 +734,17 @@ export default function GovManagerPage() {
     return { total, ok, error, blocked };
   }, [botRows]);
 
+  const queueRows = useMemo(() => {
+    const rows = queuePayload?.rows;
+    return Array.isArray(rows) ? (rows as QueueRow[]) : [];
+  }, [queuePayload]);
+
+  const queueSummary = useMemo(() => {
+    const fromApi = queuePayload?.summary;
+    if (fromApi && typeof fromApi === "object") return fromApi as Record<string, unknown>;
+    return {};
+  }, [queuePayload]);
+
   const topMissionUsage = useMemo(() => {
     const map = new Map<string, { mission_id: string; usd: number; tokens: number; count: number; last_at: string }>();
     for (const row of usageRows) {
@@ -717,6 +802,7 @@ export default function GovManagerPage() {
         <nav>
           <button className={section === "visao" ? "active" : ""} onClick={() => setSection("visao")}>Visão geral</button>
           <button className={section === "missoes" ? "active" : ""} onClick={() => setSection("missoes")}>Missões</button>
+          <button className={section === "orquestracao" ? "active" : ""} onClick={() => setSection("orquestracao")}>Orquestração</button>
           <button className={section === "execucoes" ? "active" : ""} onClick={() => setSection("execucoes")}>Execuções</button>
           <button className={section === "pendencias" ? "active" : ""} onClick={() => setSection("pendencias")}>Pendências</button>
           <button className={section === "prompts" ? "active" : ""} onClick={() => setSection("prompts")}>Prompts</button>
@@ -758,6 +844,7 @@ export default function GovManagerPage() {
                 <p>Prompt por referência: <strong>{selectedPrompt ? selectedPrompt.prompt_id : "nenhum"}</strong></p>
               </div>
               <button onClick={() => setSection("missoes")}>Ir para Missões</button>
+              <button onClick={createExecutionPlan}>Gerar Fila Automatizada</button>
             </section>
 
             <section className="gm-card">
@@ -978,6 +1065,70 @@ export default function GovManagerPage() {
               <button onClick={estimateCost}>Prospecção de Custo</button>
               <button className="gm-primary" onClick={registerMission} disabled={!udn}>Registrar no HUB</button>
             </div>
+            <div className="gm-row">
+              <button onClick={createExecutionPlan}>Gerar Fila Staff/CPP/CPP-IA</button>
+              <button onClick={() => setSection("orquestracao")}>Abrir Orquestração</button>
+            </div>
+          </section>
+        ) : null}
+
+        {section === "orquestracao" ? (
+          <section className="gm-card">
+            <h2>Fila de Execução Priorizada</h2>
+            <div className="gm-row">
+              <label>
+                Atualização fila (seg)
+                <select value={queueRefreshSec} onChange={(e) => setQueueRefreshSec(Number(e.target.value || 30))}>
+                  <option value={15}>15s</option>
+                  <option value={30}>30s</option>
+                  <option value={45}>45s</option>
+                  <option value={60}>60s</option>
+                  <option value={120}>120s</option>
+                </select>
+              </label>
+              <button type="button" onClick={() => setQueueRefreshNonce((prev) => prev + 1)}>
+                Atualizar agora
+              </button>
+            </div>
+            <div className="gm-mini-metrics">
+              <article>
+                <span>Total aberto</span>
+                <strong>{Math.round(readNumber(queueSummary.total)).toLocaleString("pt-BR")}</strong>
+              </article>
+              <article>
+                <span>Staff</span>
+                <strong>{Math.round(readNumber((queueSummary.by_assignee as Record<string, unknown> | undefined)?.STAFF)).toLocaleString("pt-BR")}</strong>
+              </article>
+              <article>
+                <span>CPP</span>
+                <strong>{Math.round(readNumber((queueSummary.by_assignee as Record<string, unknown> | undefined)?.CPP)).toLocaleString("pt-BR")}</strong>
+              </article>
+              <article>
+                <span>CPP-IA</span>
+                <strong>{Math.round(readNumber((queueSummary.by_assignee as Record<string, unknown> | undefined)?.["CPP-IA"])).toLocaleString("pt-BR")}</strong>
+              </article>
+            </div>
+            <p className="gm-meta">Última sincronização UTC: {formatDateTime(queueUpdatedAt)}</p>
+            <div className="gm-queue-list">
+              {queueRows.length === 0 ? (
+                <p className="gm-empty">Sem itens em aberto na fila.</p>
+              ) : (
+                queueRows.map((row) => (
+                  <article key={row.queue_id || `${row.mission_id}-${row.title}`}>
+                    <strong>{row.title || "Sem título"}</strong>
+                    <span>Missão: {row.mission_id || "-"}</span>
+                    <span>Executor: {row.assignee || "-"}</span>
+                    <span>Prioridade: {row.priority || "-"}</span>
+                    <span>Status: {row.status || "-"}</span>
+                    <small>Atualizado: {formatDateTime(String(row.updated_at_utc || ""))}</small>
+                  </article>
+                ))
+              )}
+            </div>
+            <details className="gm-debug">
+              <summary>Fila detalhada (diagnóstico)</summary>
+              <pre>{queueText || "Sem dados de fila no momento..."}</pre>
+            </details>
           </section>
         ) : null}
 

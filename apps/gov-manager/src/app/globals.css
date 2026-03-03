@@ -366,6 +366,25 @@ body {
   gap: 4px;
 }
 
+.gm-queue-list {
+  display: grid;
+  gap: 8px;
+}
+
+.gm-queue-list article {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--panel-2);
+  display: grid;
+  gap: 4px;
+}
+
+.gm-queue-list span,
+.gm-queue-list small {
+  color: var(--text-soft);
+}
+
 .gm-bot-list {
   display: grid;
   gap: 8px;
