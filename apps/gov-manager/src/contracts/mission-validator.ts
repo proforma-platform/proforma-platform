@@ -58,6 +58,63 @@ export function validateMissionRequest(input: unknown): { valid: boolean; errors
       validatePositiveNumber(tc.max_output_tokens, "token_control.max_output_tokens", errors, true);
     }
   }
+  if (obj.parts !== undefined) {
+    if (!Array.isArray(obj.parts) || obj.parts.length === 0) {
+      errors.push("parts must be a non-empty array");
+    } else {
+      (obj.parts as unknown[]).forEach((part, index) => {
+        if (!part || typeof part !== "object") {
+          errors.push(`parts[${index}] must be an object`);
+          return;
+        }
+        const p = part as Record<string, unknown>;
+        if (!p.part_id || typeof p.part_id !== "string") {
+          errors.push(`parts[${index}].part_id is required`);
+        }
+        if (!p.goal || typeof p.goal !== "string") {
+          errors.push(`parts[${index}].goal is required`);
+        }
+        if (!p.executor || typeof p.executor !== "string" || !["STAFF", "CPP", "CPP-IA"].includes(p.executor)) {
+          errors.push(`parts[${index}].executor must be STAFF|CPP|CPP-IA`);
+        }
+        if (!p.priority || typeof p.priority !== "string" || !["P0", "P1", "P2"].includes(p.priority)) {
+          errors.push(`parts[${index}].priority must be P0|P1|P2`);
+        }
+      });
+    }
+  }
+  if (obj.prompt_ref !== undefined) {
+    if (!obj.prompt_ref || typeof obj.prompt_ref !== "object") {
+      errors.push("prompt_ref must be an object");
+    } else {
+      const pr = obj.prompt_ref;
+      if (!pr.prompt_id || typeof pr.prompt_id !== "string") {
+        errors.push("prompt_ref.prompt_id is required");
+      }
+      if (pr.prompt_hash !== undefined && typeof pr.prompt_hash !== "string") {
+        errors.push("prompt_ref.prompt_hash must be string");
+      }
+      if (pr.inject_mode !== undefined && pr.inject_mode !== "append_ref" && pr.inject_mode !== "replace_udn") {
+        errors.push("prompt_ref.inject_mode must be append_ref|replace_udn");
+      }
+      if (pr.variables !== undefined) {
+        if (!pr.variables || typeof pr.variables !== "object" || Array.isArray(pr.variables)) {
+          errors.push("prompt_ref.variables must be an object");
+        } else {
+          for (const [k, v] of Object.entries(pr.variables)) {
+            if (typeof k !== "string" || k.trim() === "") {
+              errors.push("prompt_ref.variables key must be non-empty string");
+              break;
+            }
+            if (typeof v !== "string") {
+              errors.push("prompt_ref.variables values must be string");
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
 
   if (errors.length > 0) {
     return { valid: false, errors };
@@ -77,7 +134,46 @@ export function validateMissionRequest(input: unknown): { valid: boolean; errors
       },
       ...(typeof obj.created_by === "string" ? { created_by: obj.created_by } : {}),
       ...(obj.autofix_control ? { autofix_control: obj.autofix_control } : {}),
-      ...(obj.token_control ? { token_control: obj.token_control } : {})
+      ...(obj.token_control ? { token_control: obj.token_control } : {}),
+      ...(Array.isArray(obj.parts)
+        ? {
+            parts: (obj.parts as unknown[]).map((part) => ({
+              part_id: String((part as Record<string, unknown>).part_id),
+              goal: String((part as Record<string, unknown>).goal),
+              executor: String((part as Record<string, unknown>).executor) as "STAFF" | "CPP" | "CPP-IA",
+              priority: String((part as Record<string, unknown>).priority) as "P0" | "P1" | "P2"
+            }))
+          }
+        : {})
+      ,
+      ...(obj.prompt_ref && typeof obj.prompt_ref === "object"
+        ? {
+            prompt_ref: {
+              prompt_id: String(obj.prompt_ref.prompt_id),
+              ...(typeof obj.prompt_ref.prompt_hash === "string"
+                ? { prompt_hash: obj.prompt_ref.prompt_hash }
+                : {}),
+              ...(typeof obj.prompt_ref.inject_mode === "string"
+                ? {
+                    inject_mode: obj.prompt_ref.inject_mode as
+                      | "append_ref"
+                      | "replace_udn"
+                  }
+                : {}),
+              ...(obj.prompt_ref.variables &&
+              typeof obj.prompt_ref.variables === "object" &&
+              !Array.isArray(obj.prompt_ref.variables)
+                ? {
+                    variables: Object.fromEntries(
+                      Object.entries(obj.prompt_ref.variables as Record<string, unknown>).map(
+                        ([k, v]) => [k, String(v)]
+                      )
+                    )
+                  }
+                : {})
+            }
+          }
+        : {})
     }
   };
 }

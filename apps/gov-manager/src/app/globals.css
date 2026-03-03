@@ -41,7 +41,7 @@ body {
     radial-gradient(circle at 90% 100%, rgba(0, 160, 255, 0.08), transparent 35%),
     var(--bg);
   color: var(--text);
-  font-family: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-family: "Space Grotesk", "IBM Plex Sans", "Segoe UI", sans-serif;
 }
 
 .auth-shell {
@@ -78,6 +78,16 @@ body {
   border-radius: 999px;
   background: var(--accent);
   box-shadow: 0 0 16px rgba(255, 109, 90, 0.8);
+}
+
+.auth-seal {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  padding: 2px;
 }
 
 .auth-card h1 {
@@ -122,13 +132,14 @@ body {
 .gm-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: clamp(220px, 24vw, 280px) minmax(0, 1fr);
 }
 
 .gm-sidebar {
+  min-width: 0;
   border-right: 1px solid var(--line);
   background: var(--panel);
-  padding: 18px 14px;
+  padding: 18px 12px;
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -137,16 +148,42 @@ body {
 .gm-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel-2);
   font-weight: 700;
-  color: var(--text-soft);
+  color: var(--text);
 }
 
-.gm-logo-dot {
-  width: 12px;
-  height: 12px;
+.gm-brand-seal {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
   border-radius: 999px;
-  background: var(--accent);
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  padding: 2px;
+}
+
+.gm-brand-copy {
+  display: grid;
+  min-width: 0;
+}
+
+.gm-brand-title {
+  font-size: 15px;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+}
+
+.gm-brand-subtitle {
+  color: var(--text-soft);
+  font-size: 11px;
+  line-height: 1.1;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .gm-sidebar nav {
@@ -162,6 +199,11 @@ body {
   padding: 10px 12px;
   border-radius: 10px;
   cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .gm-sidebar button.active {
@@ -217,7 +259,7 @@ body {
 
 .gm-metrics {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 10px;
 }
 
@@ -260,6 +302,12 @@ body {
   font-size: 18px;
 }
 
+.gm-card h3 {
+  margin: 2px 0 0;
+  font-size: 14px;
+  color: var(--text-soft);
+}
+
 .gm-card label {
   display: grid;
   gap: 6px;
@@ -277,6 +325,87 @@ body {
   color: var(--text);
   padding: 10px 11px;
   font: inherit;
+}
+
+.gm-card button:not(.gm-primary) {
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  padding: 10px 11px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.gm-part-list {
+  display: grid;
+  gap: 10px;
+}
+
+.gm-part-item {
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  border-radius: 10px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.gm-list {
+  display: grid;
+  gap: 8px;
+}
+
+.gm-list p {
+  margin: 0;
+  color: var(--text-soft);
+}
+
+.gm-pending-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+  color: var(--text-soft);
+}
+
+.gm-prompt-list {
+  display: grid;
+  gap: 10px;
+  max-height: 620px;
+  overflow: auto;
+}
+
+.gm-prompt-item {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-2);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.gm-prompt-item.active {
+  border-color: var(--accent);
+}
+
+.gm-prompt-item small {
+  color: var(--text-soft);
+}
+
+.gm-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.gm-tag-list span {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11px;
+  color: var(--text-soft);
+  background: var(--panel);
 }
 
 .gm-card pre {
@@ -330,6 +459,10 @@ body {
   }
 
   .gm-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .gm-row {
     grid-template-columns: 1fr;
   }
 }

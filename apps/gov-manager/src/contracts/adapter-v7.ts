@@ -13,6 +13,8 @@ export interface LegacyMissionEnvelope {
   created_by?: unknown;
   autofix_control?: unknown;
   token_control?: unknown;
+  parts?: unknown;
+  prompt_ref?: unknown;
 }
 
 export function adaptLegacyMissionEnvelope(input: unknown): MissionRequest | null {
@@ -45,6 +47,10 @@ export function adaptLegacyMissionEnvelope(input: unknown): MissionRequest | nul
       : {}),
     ...(body.token_control && typeof body.token_control === "object"
       ? { token_control: body.token_control as NonNullable<MissionRequest["token_control"]> }
+      : {}),
+    ...(Array.isArray(body.parts) ? { parts: body.parts as NonNullable<MissionRequest["parts"]> } : {}),
+    ...(body.prompt_ref && typeof body.prompt_ref === "object"
+      ? { prompt_ref: body.prompt_ref as NonNullable<MissionRequest["prompt_ref"]> }
       : {})
   };
 
@@ -70,7 +76,15 @@ export function contractAdapterHash(): string {
       "token_control.budget_brl",
       "token_control.max_input_tokens",
       "token_control.max_output_tokens",
-      "token_control.hard_stop"
+      "token_control.hard_stop",
+      "prompt_ref.prompt_id",
+      "prompt_ref.prompt_hash",
+      "prompt_ref.inject_mode",
+      "prompt_ref.variables",
+      "parts[].part_id",
+      "parts[].goal",
+      "parts[].executor",
+      "parts[].priority"
     ]
   };
   return sha256Hex(stableJsonStringify(fingerprint));
