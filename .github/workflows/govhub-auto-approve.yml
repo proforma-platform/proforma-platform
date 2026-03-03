@@ -133,8 +133,19 @@ jobs:
             core.setOutput('approve', 'true');
             core.info('All criteria met. PR eligible for auto-approval.');
 
+      - name: Resolve approver token state
+        id: approver_token_state
+        env:
+          GOVHUB_APPROVER_TOKEN: ${{ secrets.GOVHUB_APPROVER_TOKEN }}
+        run: |
+          if [ -n "${GOVHUB_APPROVER_TOKEN:-}" ]; then
+            echo "has_token=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Approve PR
-        if: steps.evaluate.outputs.approve == 'true' && secrets.GOVHUB_APPROVER_TOKEN != ''
+        if: steps.evaluate.outputs.approve == 'true' && steps.approver_token_state.outputs.has_token == 'true'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GOVHUB_APPROVER_TOKEN }}
@@ -150,7 +161,7 @@ jobs:
             });
 
       - name: Approver token missing notice
-        if: steps.evaluate.outputs.approve == 'true' && secrets.GOVHUB_APPROVER_TOKEN == ''
+        if: steps.evaluate.outputs.approve == 'true' && steps.approver_token_state.outputs.has_token != 'true'
         run: |
           echo "GOVHUB_APPROVER_TOKEN ausente. Sem bot aprovador dedicado, o requisito de review continuara manual."
 
