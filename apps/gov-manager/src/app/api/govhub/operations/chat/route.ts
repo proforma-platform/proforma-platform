@@ -1,96 +1,20 @@
 import { NextResponse } from "next/server";
 import { hasSessionCookie } from "../../../../../auth/session";
 import { loadSnapshotPayload, resolveGovhubSnapshotConfig, saveSnapshotPayload } from "../../../../../core/govhub-snapshots";
-
-type ChatAction = "OK" | "PAUSAR" | "NEGAR" | "OWNER_CALL" | "NOVA_MISSAO" | "STATUS";
-type DeliveryStatus = "queued" | "dispatched" | "failed";
-
-interface ChatMessage {
-  message_id: string;
-  mission_id: string;
-  actor: string;
-  target: string;
-  action: ChatAction;
-  message: string;
-  udn_block: string;
-  delivery_status: DeliveryStatus;
-  dispatch_http: number | null;
-  dispatch_error_code: string;
-  created_at_utc: string;
-}
-
-interface ChatState {
-  version: "1.0";
-  updated_at_utc: string;
-  rows: ChatMessage[];
-}
+import {
+  ALLOWED_CHAT_ACTIONS,
+  clampChatText,
+  nowUtc,
+  sanitizeChatState,
+  toOpsUdn,
+  type ChatAction,
+  type ChatMessage,
+  type DeliveryStatus
+} from "../../../../../core/operations-chat";
 
 const CHAT_SNAPSHOT_TYPE = String(process.env.GOVHUB_CHAT_SNAPSHOT_TYPE || "gov_manager_ops_chat_v1").trim();
 const CHAT_DISPATCH_PATH = String(process.env.GOVHUB_CHAT_DISPATCH_PATH || "/webhook/govhub/operations/chat-dispatch").trim();
 const CHAT_DISPATCH_ENABLED = String(process.env.GOVHUB_CHAT_DISPATCH_ENABLED || "true").trim().toLowerCase() !== "false";
-const ALLOWED_ACTIONS = new Set<ChatAction>(["OK", "PAUSAR", "NEGAR", "OWNER_CALL", "NOVA_MISSAO", "STATUS"]);
-
-function nowUtc(): string {
-  return new Date().toISOString();
-}
-
-function clampText(value: unknown, max: number): string {
-  return String(value || "").trim().slice(0, max);
-}
-
-function sanitizeState(input: unknown): ChatState {
-  if (!input || typeof input !== "object") {
-    return { version: "1.0", updated_at_utc: nowUtc(), rows: [] };
-  }
-  const obj = input as Record<string, unknown>;
-  const rows = Array.isArray(obj.rows) ? obj.rows : [];
-  const out = rows
-    .map((row) => {
-      if (!row || typeof row !== "object") return null;
-      const r = row as Record<string, unknown>;
-      const messageId = clampText(r.message_id, 120);
-      const missionId = clampText(r.mission_id, 120);
-      const action = clampText(r.action, 20) as ChatAction;
-      if (!messageId || !missionId || !ALLOWED_ACTIONS.has(action)) return null;
-      const created = new Date(clampText(r.created_at_utc, 64));
-      const createdAt = Number.isNaN(created.getTime()) ? nowUtc() : created.toISOString();
-      const delivery = clampText(r.delivery_status, 20).toLowerCase();
-      const delivery_status: DeliveryStatus = delivery === "dispatched" || delivery === "failed" ? (delivery as DeliveryStatus) : "queued";
-      return {
-        message_id: messageId,
-        mission_id: missionId,
-        actor: clampText(r.actor, 80),
-        target: clampText(r.target, 80),
-        action,
-        message: clampText(r.message, 2000),
-        udn_block: clampText(r.udn_block, 3000),
-        delivery_status,
-        dispatch_http: Number.isFinite(Number(r.dispatch_http)) ? Number(r.dispatch_http) : null,
-        dispatch_error_code: clampText(r.dispatch_error_code, 80),
-        created_at_utc: createdAt
-      } satisfies ChatMessage;
-    })
-    .filter((row): row is ChatMessage => Boolean(row))
-    .sort((a, b) => b.created_at_utc.localeCompare(a.created_at_utc))
-    .slice(0, 500);
-
-  return {
-    version: "1.0",
-    updated_at_utc: nowUtc(),
-    rows: out
-  };
-}
-
-function toUdn(input: { missionId: string; action: ChatAction; actor: string; target: string; message: string }): string {
-  const safe = (text: string) => text.replace(/\r?\n/g, " ").replace(/[;|]/g, ",").trim();
-  return [
-    `!OPS|${safe(input.missionId)}|${input.action}|CHAT_CMD`,
-    `#actor:${safe(input.actor)};target=${safe(input.target)}`,
-    `#msg:${safe(input.message)}`,
-    "#tau:dispatch_to_worker;update_queue;persist_audit",
-    "!OUT:JSON_ONLY.NO_MD.NO_TXT."
-  ].join("\n");
-}
 
 async function dispatchToWebhook(
   config: ReturnType<typeof resolveGovhubSnapshotConfig>,
@@ -131,9 +55,9 @@ export async function GET(request: Request) {
   }
 
   const loaded = await loadSnapshotPayload(config, CHAT_SNAPSHOT_TYPE);
-  const state = loaded.found && loaded.payload ? sanitizeState(loaded.payload) : sanitizeState(null);
+  const state = loaded.found && loaded.payload ? sanitizeChatState(loaded.payload) : sanitizeChatState(null);
   const url = new URL(request.url);
-  const missionFilter = clampText(url.searchParams.get("mission_id"), 120);
+  const missionFilter = clampChatText(url.searchParams.get("mission_id"), 120);
   const rows = missionFilter ? state.rows.filter((row) => row.mission_id === missionFilter) : state.rows;
 
   return NextResponse.json(
@@ -169,25 +93,26 @@ export async function POST(request: Request) {
   }
 
   const data = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
-  const missionId = clampText(data.mission_id, 120);
-  const action = clampText(data.action, 20).toUpperCase() as ChatAction;
-  const actor = clampText(data.actor, 80) || "staff@gov-manager";
-  const target = clampText(data.target, 80) || "CPP";
-  const message = clampText(data.message, 2000);
+  const missionId = clampChatText(data.mission_id, 120);
+  const action = clampChatText(data.action, 20).toUpperCase() as ChatAction;
+  const actor = clampChatText(data.actor, 80) || "staff@gov-manager";
+  const target = clampChatText(data.target, 80) || "CPP";
+  const message = clampChatText(data.message, 2000);
 
-  if (!missionId || !ALLOWED_ACTIONS.has(action)) {
+  if (!missionId || !ALLOWED_CHAT_ACTIONS.has(action)) {
     return NextResponse.json(
       { status: "invalid_request", error_code: "MISSION_ID_AND_ACTION_REQUIRED" },
       { status: 400 }
     );
   }
 
-  const udnBlock = toUdn({ missionId, action, actor, target, message });
+  const udnBlock = toOpsUdn({ missionId, action, actor, target, message });
   const loaded = await loadSnapshotPayload(config, CHAT_SNAPSHOT_TYPE);
-  const state = loaded.found && loaded.payload ? sanitizeState(loaded.payload) : sanitizeState(null);
+  const state = loaded.found && loaded.payload ? sanitizeChatState(loaded.payload) : sanitizeChatState(null);
   const messageId = `${missionId}-${Date.now()}`;
 
   const dispatch = await dispatchToWebhook(config, {
+    message_id: messageId,
     mission_id: missionId,
     actor,
     target,
@@ -204,13 +129,16 @@ export async function POST(request: Request) {
     action,
     message,
     udn_block: udnBlock,
+    direction: "outbound",
+    in_reply_to: "",
+    source: "staff-ui",
     delivery_status: dispatch.status,
     dispatch_http: dispatch.http,
     dispatch_error_code: dispatch.error_code,
     created_at_utc: nowUtc()
   };
 
-  const next: ChatState = {
+  const next = {
     version: "1.0",
     updated_at_utc: nowUtc(),
     rows: [row, ...state.rows].slice(0, 500)

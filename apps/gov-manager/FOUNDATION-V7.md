@@ -45,6 +45,15 @@
 - O app envia o registro de missão server-side com header `X-GOVHUB-TOKEN`
 - O app envia a decisao do Owner (`approve|deny`) server-side para `missions/owner-ack`
 
+## Gestão de Usuários (Gov-Manager)
+- Snapshot dedicado: `gov_manager_users_v1` (configurável por `GOVHUB_USERS_SNAPSHOT_TYPE`).
+- Endpoints:
+  - `GET /api/auth/users` (sessão ativa)
+  - `POST /api/auth/users` (sessão ativa)
+- Login:
+  - Primeiro valida credenciais no snapshot de usuários.
+  - Mantém fallback do usuário técnico de bootstrap (`GOV_MANAGER_LOGIN_USER` / `GOV_MANAGER_LOGIN_PASSWORD`).
+
 ## Registro de Status dos Bots
 - Snapshot dedicado: `gov_manager_bot_status_v1` (configurável por `GOVHUB_BOT_STATUS_SNAPSHOT_TYPE`).
 - Endpoint do app:

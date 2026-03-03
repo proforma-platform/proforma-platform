@@ -82,9 +82,20 @@ interface ChatRow {
   target?: string;
   action?: string;
   message?: string;
+  direction?: string;
+  in_reply_to?: string;
+  source?: string;
   delivery_status?: string;
   dispatch_http?: number | null;
   created_at_utc?: string;
+}
+
+interface GovUserRow {
+  username?: string;
+  role?: string;
+  active?: boolean;
+  created_at_utc?: string;
+  updated_at_utc?: string;
 }
 
 const defaultPolicy: TokenPolicy = {
@@ -217,12 +228,17 @@ export default function GovManagerPage() {
   const [queueRefreshNonce, setQueueRefreshNonce] = useState(0);
   const [chatText, setChatText] = useState("");
   const [chatUpdatedAt, setChatUpdatedAt] = useState("");
-  const [chatRefreshSec, setChatRefreshSec] = useState(30);
+  const [chatRefreshSec, setChatRefreshSec] = useState(5);
   const [chatRefreshNonce, setChatRefreshNonce] = useState(0);
   const [chatAction, setChatAction] = useState("STATUS");
   const [chatTarget, setChatTarget] = useState("CPP");
   const [chatMessage, setChatMessage] = useState("");
   const [projectMissionCount, setProjectMissionCount] = useState(8);
+  const [usersOpen, setUsersOpen] = useState(false);
+  const [usersText, setUsersText] = useState("");
+  const [usersUpdatedAt, setUsersUpdatedAt] = useState("");
+  const [userForm, setUserForm] = useState({ username: "", password: "", role: "engineer" });
+  const [userStatus, setUserStatus] = useState("");
 
   const selectedPrompt = useMemo(
     () => promptLibrary.find((prompt) => prompt.prompt_id === selectedPromptId) || null,
@@ -345,7 +361,7 @@ export default function GovManagerPage() {
     };
 
     pullChat();
-    const interval = window.setInterval(pullChat, Math.max(15, chatRefreshSec) * 1000);
+    const interval = window.setInterval(pullChat, Math.max(2, chatRefreshSec) * 1000);
     return () => {
       active = false;
       window.clearInterval(interval);
@@ -458,6 +474,52 @@ export default function GovManagerPage() {
   async function logout() {
     await fetch("/api/auth/session", { method: "DELETE" });
     window.location.href = "/login";
+  }
+
+  async function loadUsers() {
+    try {
+      const response = await fetch("/api/auth/users", { cache: "no-store" });
+      const payload = await response.json();
+      setUsersText(JSON.stringify(payload, null, 2));
+      setUsersUpdatedAt(new Date().toISOString());
+    } catch {
+      setUsersText(JSON.stringify({ status: "error", error_code: "USERS_FETCH_FAILED" }, null, 2));
+      setUsersUpdatedAt(new Date().toISOString());
+    }
+  }
+
+  async function openUsersModal() {
+    setUsersOpen(true);
+    setUserStatus("");
+    await loadUsers();
+  }
+
+  async function createUser() {
+    setUserStatus("salvando");
+    try {
+      const response = await fetch("/api/auth/users", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          username: userForm.username,
+          password: userForm.password,
+          role: userForm.role,
+          active: true,
+          actor: createdBy
+        })
+      });
+      const payload = await response.json();
+      setResponseText(JSON.stringify(payload, null, 2));
+      if (!response.ok) {
+        setUserStatus(`erro: ${String(payload?.error_code || "USER_CREATE_FAILED")}`);
+        return;
+      }
+      setUserStatus("ok");
+      setUserForm({ username: "", password: "", role: "engineer" });
+      await loadUsers();
+    } catch {
+      setUserStatus("erro: USER_CREATE_NETWORK_FAILED");
+    }
   }
 
   function compileUdn() {
@@ -831,14 +893,25 @@ export default function GovManagerPage() {
     let queued = 0;
     let dispatched = 0;
     let failed = 0;
+    let inbound = 0;
+    let outbound = 0;
     for (const row of chatRows) {
       const status = String(row.delivery_status || "").toLowerCase();
+      const direction = String(row.direction || "").toLowerCase();
+      if (direction === "inbound") inbound += 1;
+      else outbound += 1;
       if (status === "dispatched") dispatched += 1;
       else if (status === "failed") failed += 1;
       else queued += 1;
     }
-    return { total: chatRows.length, queued, dispatched, failed };
+    return { total: chatRows.length, queued, dispatched, failed, inbound, outbound };
   }, [chatRows]);
+
+  const usersPayload = useMemo(() => safeJsonParse(usersText), [usersText]);
+  const usersRows = useMemo(() => {
+    const rows = usersPayload?.rows;
+    return Array.isArray(rows) ? (rows as GovUserRow[]) : [];
+  }, [usersPayload]);
 
   const topMissionUsage = useMemo(() => {
     const map = new Map<string, { mission_id: string; usd: number; tokens: number; count: number; last_at: string }>();
@@ -906,6 +979,7 @@ export default function GovManagerPage() {
         </nav>
 
         <div className="gm-sidebar-bottom">
+          <button onClick={openUsersModal}>⚙ Usuários</button>
           <button onClick={() => updateTheme(theme === "dark" ? "light" : "dark")}>Tema: {theme === "dark" ? "Escuro" : "Claro"}</button>
           <button onClick={logout}>Sair</button>
         </div>
@@ -1260,6 +1334,9 @@ export default function GovManagerPage() {
               <label>
                 Atualização chat (seg)
                 <select value={chatRefreshSec} onChange={(e) => setChatRefreshSec(Number(e.target.value || 30))}>
+                  <option value={3}>3s</option>
+                  <option value={5}>5s</option>
+                  <option value={10}>10s</option>
                   <option value={15}>15s</option>
                   <option value={30}>30s</option>
                   <option value={45}>45s</option>
@@ -1292,12 +1369,12 @@ export default function GovManagerPage() {
                 <strong>{chatSummary.dispatched}</strong>
               </article>
               <article>
-                <span>Queued</span>
-                <strong>{chatSummary.queued}</strong>
+                <span>Inbound</span>
+                <strong>{chatSummary.inbound}</strong>
               </article>
               <article>
-                <span>Failed</span>
-                <strong>{chatSummary.failed}</strong>
+                <span>Queued/Failed</span>
+                <strong>{chatSummary.queued + chatSummary.failed}</strong>
               </article>
             </div>
             <p className="gm-meta">Última sincronização UTC: {formatDateTime(chatUpdatedAt)}</p>
@@ -1309,9 +1386,12 @@ export default function GovManagerPage() {
                   <article key={row.message_id || `${row.mission_id}-${row.created_at_utc}`}>
                     <strong>{row.action || "ACTION"}</strong>
                     <span>Missão: {row.mission_id || "-"}</span>
+                    <span>Direção: {row.direction || "outbound"}</span>
+                    <span>Ator: {row.actor || "-"}</span>
                     <span>Destino: {row.target || "-"}</span>
                     <span>Status: {row.delivery_status || "-"}</span>
                     <span>HTTP: {row.dispatch_http ?? "-"}</span>
+                    <span>Fonte: {row.source || "-"}</span>
                     <small>UTC: {formatDateTime(String(row.created_at_utc || ""))}</small>
                     <small>{row.message || "-"}</small>
                   </article>
@@ -1626,6 +1706,64 @@ export default function GovManagerPage() {
           </div>
         ) : null}
       </section>
+
+      {usersOpen ? (
+        <div className="gm-modal-backdrop" onClick={() => setUsersOpen(false)}>
+          <section className="gm-modal" onClick={(event) => event.stopPropagation()}>
+            <header>
+              <h2>Cadastro de Usuários</h2>
+              <button type="button" onClick={() => setUsersOpen(false)}>Fechar</button>
+            </header>
+            <div className="gm-row">
+              <label>
+                Usuário
+                <input
+                  value={userForm.username}
+                  onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
+                  placeholder="engenheiro.01"
+                />
+              </label>
+              <label>
+                Perfil
+                <select value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}>
+                  <option value="admin">admin</option>
+                  <option value="engineer">engineer</option>
+                  <option value="viewer">viewer</option>
+                </select>
+              </label>
+            </div>
+            <label>
+              Senha
+              <input
+                type="password"
+                value={userForm.password}
+                onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+                placeholder="mínimo 8 caracteres"
+              />
+            </label>
+            <div className="gm-row">
+              <button className="gm-primary" type="button" onClick={createUser}>Cadastrar usuário</button>
+              <button type="button" onClick={loadUsers}>Atualizar lista</button>
+            </div>
+            <p className="gm-meta">Última sincronização UTC: {formatDateTime(usersUpdatedAt)}</p>
+            <p className="gm-meta">Status: {userStatus || "idle"}</p>
+            <div className="gm-queue-list">
+              {usersRows.length === 0 ? (
+                <p className="gm-empty">Sem usuários cadastrados.</p>
+              ) : (
+                usersRows.map((row) => (
+                  <article key={`${row.username || "user"}-${row.updated_at_utc || ""}`}>
+                    <strong>{row.username || "-"}</strong>
+                    <span>Perfil: {row.role || "-"}</span>
+                    <span>Ativo: {row.active === false ? "não" : "sim"}</span>
+                    <small>Atualizado: {formatDateTime(String(row.updated_at_utc || ""))}</small>
+                  </article>
+                ))
+              )}
+            </div>
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 }
