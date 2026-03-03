@@ -23,7 +23,7 @@
       {
         "parameters": {
           "mode": "runOnceForAllItems",
-          "jsCode": "const crypto = require('crypto');\nconst headers = $json.headers ?? {};\nconst tokenHeader = String(headers['x-govhub-token'] || headers['X-GOVHUB-TOKEN'] || '').trim();\nconst allowed = String($env.GOVHUB_TOKENS || '').split(',').map(v => v.trim()).filter(Boolean);\nif (!tokenHeader || !allowed.includes(tokenHeader)) { return [{json:{ok:false,statusCode:401,error_code:'AUTH_INVALID_TOKEN',message:'invalid token'}}]; }\nlet scopes = [];\nlet scopeMapConfigured = false;\ntry {\n  const m = JSON.parse(String($env.GOVHUB_TOKEN_SCOPES_JSON || '{}'));\n  scopeMapConfigured = !!m && typeof m === 'object' && Object.keys(m).length > 0;\n  if (Array.isArray(m[tokenHeader])) scopes = m[tokenHeader].map((s) => String(s).trim());\n} catch {}\nif (scopeMapConfigured && !(scopes.includes('s:w') || scopes.includes('snapshots:write'))) { return [{json:{ok:false,statusCode:403,error_code:'AUTH_SCOPE_REQUIRED',message:'missing write scope'}}]; }\nlet body = $json.body ?? {};\nif (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }\nconst required = ['mission_id','udn_mission','tdv_version','created_by'];\nfor (const k of required) { if (!body[k] || String(body[k]).trim() === '') { return [{json:{ok:false,statusCode:400,error_code:'MISSIONS_REGISTER_INVALID',message:'missing field: '+k}}]; } }\nconst controlIn = (body.autofix_control && typeof body.autofix_control === 'object') ? body.autofix_control : {};\nconst enabled = controlIn.enabled === undefined ? true : !!controlIn.enabled;\nconst max_rounds_raw = Number(controlIn.max_rounds === undefined ? 2 : controlIn.max_rounds);\nconst max_rounds = Number.isFinite(max_rounds_raw) ? Math.max(1, Math.min(2, Math.trunc(max_rounds_raw))) : 2;\nconst on_exhaust = String(controlIn.on_exhaust || 'pause_owner').trim() || 'pause_owner';\nif (!['pause_owner'].includes(on_exhaust)) { return [{json:{ok:false,statusCode:400,error_code:'AUTOFIX_CONTROL_INVALID',message:'on_exhaust must be pause_owner'}}]; }\nlet canonical = String(body.udn_mission).split('\\r\\n').join('\\n').split('\\n').map(x => x.trim()).filter(Boolean).join('\\n');\nif (!canonical) { return [{json:{ok:false,statusCode:400,error_code:'UDN_INVALID',message:'udn_mission empty after canonicalization'}}]; }\ncanonical = canonical.split('\\n').filter((line) => !line.startsWith('#af:')).join('\\n');\nconst af_line = '#af:enabled=' + String(enabled) + ';max_rounds=' + String(max_rounds) + ';on_exhaust=' + on_exhaust;\ncanonical = [canonical, af_line].filter(Boolean).join('\\n');\nconst integrity_hash = crypto.createHash('sha256').update(Buffer.from(canonical,'utf8')).digest('hex');\nconst esc = (v) => String(v ?? '').replace(/'/g, \"''\");\nreturn [{json:{ok:true, mission_id:String(body.mission_id), mission_id_sql:esc(body.mission_id), udn_mission:canonical, udn_mission_sql:esc(canonical), tdv_version:String(body.tdv_version), tdv_version_sql:esc(body.tdv_version), created_by:String(body.created_by), created_by_sql:esc(body.created_by), integrity_hash, integrity_hash_sql:esc(integrity_hash), branch:String(body.branch || 'main'), branch_sql:esc(body.branch || 'main'), agent_id:String(body.agent_id || 'CPP'), agent_id_sql:esc(body.agent_id || 'CPP'), autofix_control:{enabled,max_rounds,on_exhaust}}}];"
+          "jsCode": "const crypto = require('crypto');\nconst headers = $json.headers ?? {};\nconst tokenHeader = String(headers['x-govhub-token'] || headers['X-GOVHUB-TOKEN'] || '').trim();\nconst allowed = String($env.GOVHUB_TOKENS || '').split(',').map(v => v.trim()).filter(Boolean);\nif (!tokenHeader || !allowed.includes(tokenHeader)) { return [{json:{ok:false,statusCode:401,error_code:'AUTH_INVALID_TOKEN',message:'invalid token'}}]; }\nlet scopes = [];\nlet scopeMapConfigured = false;\ntry {\n  const m = JSON.parse(String($env.GOVHUB_TOKEN_SCOPES_JSON || '{}'));\n  scopeMapConfigured = !!m && typeof m === 'object' && Object.keys(m).length > 0;\n  if (Array.isArray(m[tokenHeader])) scopes = m[tokenHeader].map((s) => String(s).trim());\n} catch {}\nif (scopeMapConfigured && !(scopes.includes('s:w') || scopes.includes('snapshots:write'))) { return [{json:{ok:false,statusCode:403,error_code:'AUTH_SCOPE_REQUIRED',message:'missing write scope'}}]; }\nlet body = $json.body ?? {};\nif (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }\nconst required = ['mission_id','udn_mission','tdv_version','created_by'];\nfor (const k of required) { if (!body[k] || String(body[k]).trim() === '') { return [{json:{ok:false,statusCode:400,error_code:'MISSIONS_REGISTER_INVALID',message:'missing field: '+k}}]; } }\nconst controlIn = (body.autofix_control && typeof body.autofix_control === 'object') ? body.autofix_control : {};\nconst enabled = controlIn.enabled === undefined ? true : !!controlIn.enabled;\nconst max_rounds_raw = Number(controlIn.max_rounds === undefined ? 2 : controlIn.max_rounds);\nconst max_rounds = Number.isFinite(max_rounds_raw) ? Math.max(1, Math.min(2, Math.trunc(max_rounds_raw))) : 2;\nconst on_exhaust = String(controlIn.on_exhaust || 'pause_owner').trim() || 'pause_owner';\nif (!['pause_owner'].includes(on_exhaust)) { return [{json:{ok:false,statusCode:400,error_code:'AUTOFIX_CONTROL_INVALID',message:'on_exhaust must be pause_owner'}}]; }\nlet canonical = String(body.udn_mission).split('\\r\\n').join('\\n').split('\\n').map(x => x.trim()).filter(Boolean).join('\\n');\nif (!canonical) { return [{json:{ok:false,statusCode:400,error_code:'UDN_INVALID',message:'udn_mission empty after canonicalization'}}]; }\ncanonical = canonical.split('\\n').filter((line) => !line.startsWith('#af:')).join('\\n');\nconst af_line = '#af:enabled=' + String(enabled) + ';max_rounds=' + String(max_rounds) + ';on_exhaust=' + on_exhaust;\ncanonical = [canonical, af_line].filter(Boolean).join('\\n');\n\nconst normalizePart = (part, index) => {\n  const part_id = String(part?.part_id || ('P' + (index + 1))).replace(/\\s+/g, '_').slice(0, 40);\n  const goal = String(part?.goal || '').trim().slice(0, 500);\n  const rawExec = String(part?.executor || part?.executor_id || 'CPP').trim().toUpperCase();\n  const rawPrio = String(part?.priority || 'P1').trim().toUpperCase();\n  const executor_id = ['STAFF','CPP','CPP-IA'].includes(rawExec) ? rawExec : 'CPP';\n  const priority = ['P0','P1','P2'].includes(rawPrio) ? rawPrio : 'P1';\n  return { part_id, goal: goal || 'definir entrega', executor_id, priority, order_index: index + 1 };\n};\n\nlet parts = [];\nif (Array.isArray(body.parts) && body.parts.length > 0) {\n  parts = body.parts.map((p, i) => normalizePart(p, i));\n}\nif (parts.length === 0) {\n  const udnLines = canonical.split('\\n').map((l) => l.trim()).filter(Boolean);\n  const partLines = udnLines.filter((line) => line.toLowerCase().startsWith('#part:'));\n  for (let i = 0; i < partLines.length; i++) {\n    const line = partLines[i].slice(6);\n    const chunks = line.split(';').map((x) => x.trim()).filter(Boolean);\n    const partRaw = chunks[0] || ('P' + (i + 1));\n    const map = {};\n    for (let c = 1; c < chunks.length; c++) {\n      const pair = chunks[c].split('=');\n      const k = String(pair[0] || '').trim().toLowerCase();\n      const v = String(pair.slice(1).join('=') || '').trim();\n      if (k) map[k] = v;\n    }\n    parts.push(normalizePart({\n      part_id: partRaw,\n      goal: map.goal || map.objetivo || '',\n      executor: map.exec || map.executor || map.executor_id || 'CPP',\n      priority: map.prio || map.priority || 'P1'\n    }, i));\n  }\n}\nif (parts.length === 0) {\n  parts = [normalizePart({ part_id: 'P1', goal: String(body.mission_target || body.mission_id || 'definir entrega') }, 0)];\n}\n\nconst integrity_hash = crypto.createHash('sha256').update(Buffer.from(canonical,'utf8')).digest('hex');\nconst esc = (v) => String(v ?? '').replace(/'/g, \"''\");\nconst parts_json = JSON.stringify(parts);\nreturn [{json:{ok:true, mission_id:String(body.mission_id), mission_id_sql:esc(body.mission_id), udn_mission:canonical, udn_mission_sql:esc(canonical), tdv_version:String(body.tdv_version), tdv_version_sql:esc(body.tdv_version), created_by:String(body.created_by), created_by_sql:esc(body.created_by), integrity_hash, integrity_hash_sql:esc(integrity_hash), branch:String(body.branch || 'main'), branch_sql:esc(body.branch || 'main'), agent_id:String(body.agent_id || 'CPP'), agent_id_sql:esc(body.agent_id || 'CPP'), autofix_control:{enabled,max_rounds,on_exhaust}, parts_count: parts.length, parts_json_sql: esc(parts_json) }}];"
         },
         "id": "Code_ValidateMissionsRegister",
         "name": "Validate + Canonicalize Mission",
@@ -37,9 +37,11 @@
       {
         "parameters": {
           "conditions": {
-            "boolean": [
+            "string": [
               {
-                "value1": "={{$json.ok}}"
+                "value1": "={{ String($json.ok === true) }}",
+                "operation": "equal",
+                "value2": "true"
               }
             ]
           }
@@ -76,7 +78,7 @@
       {
         "parameters": {
           "operation": "executeQuery",
-          "query": "INSERT INTO gov.mission_runs (run_id, mission_id, branch, agent_id, status, phase, nn, total, udn_state, integrity_hash, updated_at) VALUES ('{{$json.mission_id_sql}}-run-001','{{$json.mission_id_sql}}','{{$json.branch_sql}}','{{$json.agent_id_sql}}','awaiting_owner_ack','registered',0,1,'{{$json.udn_mission_sql}}','{{$json.integrity_hash_sql}}',now()) ON CONFLICT (run_id) DO UPDATE SET mission_id=EXCLUDED.mission_id, branch=EXCLUDED.branch, agent_id=EXCLUDED.agent_id, status='awaiting_owner_ack', phase='registered', nn=0, total=1, udn_state=EXCLUDED.udn_state, integrity_hash=EXCLUDED.integrity_hash, updated_at=now() RETURNING run_id, mission_id, status, phase;"
+          "query": "INSERT INTO gov.mission_runs (run_id, mission_id, branch, agent_id, status, phase, nn, total, udn_state, integrity_hash, updated_at) VALUES ('{{$node['Validate + Canonicalize Mission'].json.mission_id_sql}}-run-001','{{$node['Validate + Canonicalize Mission'].json.mission_id_sql}}','{{$node['Validate + Canonicalize Mission'].json.branch_sql}}','{{$node['Validate + Canonicalize Mission'].json.agent_id_sql}}','awaiting_owner_ack','registered',0,GREATEST((SELECT COUNT(*) FROM gov.mission_parts WHERE mission_id='{{$node['Validate + Canonicalize Mission'].json.mission_id_sql}}'),1),'{{$node['Validate + Canonicalize Mission'].json.udn_mission_sql}}','{{$node['Validate + Canonicalize Mission'].json.integrity_hash_sql}}',now()) ON CONFLICT (run_id) DO UPDATE SET mission_id=EXCLUDED.mission_id, branch=EXCLUDED.branch, agent_id=EXCLUDED.agent_id, status='awaiting_owner_ack', phase='registered', nn=0, total=GREATEST((SELECT COUNT(*) FROM gov.mission_parts WHERE mission_id='{{$node['Validate + Canonicalize Mission'].json.mission_id_sql}}'),1), udn_state=EXCLUDED.udn_state, integrity_hash=EXCLUDED.integrity_hash, updated_at=now() RETURNING run_id, mission_id, status, phase, total;"
         },
         "id": "Postgres_EnsureRunQueued",
         "name": "Ensure queued run",
@@ -97,7 +99,7 @@
         "parameters": {
           "respondWith": "json",
           "responseCode": 200,
-          "responseBody": "={{ { status:'ok', mission_id:$json[0]?.mission_id || $json.mission_id, run_id:$json[0]?.run_id || $json.run_id, owner_ack_required:true, autofix_control:$node['Validate + Canonicalize Mission'].json.autofix_control, next_action:'POST /webhook/govhub/missions/owner-ack' } }}"
+          "responseBody": "={{ { status:'ok', mission_id:$json[0]?.mission_id || $json.mission_id, run_id:$json[0]?.run_id || $json.run_id, parts_count:Number($json[0]?.total || $json.total || 1), owner_ack_required:true, autofix_control:$node['Validate + Canonicalize Mission'].json.autofix_control, next_action:'POST /webhook/govhub/missions/owner-ack' } }}"
         },
         "id": "Respond_MissionsRegisterOk",
         "name": "Respond 200",
@@ -122,6 +124,26 @@
           980,
           420
         ]
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "WITH payload AS (\n  SELECT\n    '{{$node['Validate + Canonicalize Mission'].json.mission_id_sql}}'::text AS mission_id,\n    '{{$node['Validate + Canonicalize Mission'].json.created_by_sql}}'::text AS created_by,\n    '{{$node['Validate + Canonicalize Mission'].json.parts_json_sql}}'::jsonb AS parts\n), wipe AS (\n  DELETE FROM gov.mission_parts\n  WHERE mission_id = (SELECT mission_id FROM payload)\n), ins AS (\n  INSERT INTO gov.mission_parts (mission_id, part_id, goal, executor_id, priority, order_index, status, created_by)\n  SELECT\n    p.mission_id,\n    LEFT(COALESCE(NULLIF(item.value->>'part_id',''), 'P' || item.ord::text), 40) AS part_id,\n    LEFT(COALESCE(NULLIF(item.value->>'goal',''), 'definir entrega'), 500) AS goal,\n    CASE WHEN upper(COALESCE(item.value->>'executor_id','CPP')) IN ('STAFF','CPP','CPP-IA') THEN upper(item.value->>'executor_id') ELSE 'CPP' END AS executor_id,\n    CASE WHEN upper(COALESCE(item.value->>'priority','P1')) IN ('P0','P1','P2') THEN upper(item.value->>'priority') ELSE 'P1' END AS priority,\n    item.ord::int AS order_index,\n    'pending'::text AS status,\n    p.created_by\n  FROM payload p, jsonb_array_elements(p.parts) WITH ORDINALITY AS item(value, ord)\n  RETURNING mission_id\n)\nSELECT COUNT(*)::int AS parts_count FROM ins;"
+        },
+        "id": "Postgres_UpsertMissionParts",
+        "name": "Upsert mission parts",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2,
+        "position": [
+          1220,
+          300
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "11111111-2222-4333-8444-555555555555",
+            "name": "GOVHUB_DB"
+          }
+        }
       }
     ],
     "connections": {
@@ -169,7 +191,7 @@
         "main": [
           [
             {
-              "node": "Ensure queued run",
+              "node": "Upsert mission parts",
               "type": "main",
               "index": 0
             }
@@ -181,6 +203,17 @@
           [
             {
               "node": "Respond 200",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Upsert mission parts": {
+        "main": [
+          [
+            {
+              "node": "Ensure queued run",
               "type": "main",
               "index": 0
             }
