@@ -74,7 +74,7 @@
       {
         "parameters": {
           "respondWith": "json",
-          "responseBody": "={{ { status: $json.status || 'internal_error', error_code: $json.error_code || 'MISSIONS_NEXT_INTERNAL_ERROR', message: $json.message || 'internal error' } }}",
+          "responseBody": "={{ { status:'error', error_code:$json.error_code || 'MISSIONS_NEXT_INTERNAL_ERROR', next_action:'fix_request_or_check_db' } }}",
           "options": {
             "responseCode": "={{$json.statusCode || 500}}"
           }
@@ -92,7 +92,7 @@
         "parameters": {
           "respondWith": "json",
           "responseCode": 200,
-          "responseBody": "={{ { status: $json.status || 'no_work', mission_key: $json.mission_key || null, repo_key: $json.repo_key || null, agent_id: $json.agent_id || null, lock_ttl_seconds: Number($json.lock_ttl_seconds || 900), lock_expires_at_utc: $json.lock_expires_at_utc || null, instructions: $json.instructions ?? null, source: $json.source || 'govhub-n8n' } }}"
+          "responseBody": "={{ (() => { const hasIdentity = !!(String($json.mission_key || '').trim() && String($json.mission_task_id || '').trim()); const status = hasIdentity ? 'assigned' : 'no_work'; return { status, mission_id: hasIdentity ? ($json.mission_key || null) : null, mission_task_id: hasIdentity ? (String($json.mission_task_id || '') || null) : null, next_action: hasIdentity ? 'execute_mission' : 'wait' }; })() }}"
         },
         "id": "Respond_Dispatch",
         "name": "Respond Dispatch",
@@ -262,7 +262,7 @@
         "parameters": {
           "respondWith": "json",
           "responseCode": 200,
-          "responseBody": "={{ { status:'assigned', mission_key:$node['Select + Lock Mission'].json.mission_key || null, repo_key:$node['Select + Lock Mission'].json.repo_key || null, agent_id:$node['Select + Lock Mission'].json.agent_id || null, lock_ttl_seconds:Number($node['Select + Lock Mission'].json.lock_ttl_seconds || 900), lock_expires_at_utc:$node['Select + Lock Mission'].json.lock_expires_at_utc || null, source:'govhub-n8n', dispatch:($json?.autofix_state ? 'autofix_triggered' : 'sent'), report_ingest_response:($json?.autofix_state ? null : $json), autofix_response:($json?.autofix_state ? $json : null) } }}"
+          "responseBody": "={{ (() => { const base = $node['Normalizar Atribuicao'].json || {}; const hasIdentity = !!(String(base.mission_key || '').trim() && String(base.mission_task_id || '').trim()); const status = hasIdentity ? 'assigned' : 'no_work'; return { status, mission_id: hasIdentity ? (base.mission_key || null) : null, mission_task_id: hasIdentity ? (String(base.mission_task_id || '') || null) : null, next_action: hasIdentity ? (($json?.autofix_state === 'paused_waiting_owner' || $json?.owner_call_required === true) ? 'owner_ack_required' : 'report_ingest') : 'wait' }; })() }}"
         },
         "id": "Respond_Dispatched",
         "name": "Responder Atribuido+Dispatch",
@@ -305,6 +305,58 @@
         "typeVersion": 4.2,
         "position": [
           1810,
+          180
+        ],
+        "continueOnFail": true
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://127.0.0.1:5678/webhook/govhub/timelines/write",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "x-govhub-token",
+                "value": "={{String($env.GOVHUB_TOKENS || '').split(',')[0]?.trim() || ''}}"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "contentType": "json",
+          "jsonBody": "={{ { timeline_type: 'evl', mission_id: String($node['Select + Lock Mission'].json.mission_key || ''), run_id: String($node['Select + Lock Mission'].json.mission_task_id || ''), executor_id: String($node['Select + Lock Mission'].json.agent_id || 'unknown'), performed_by: 'govhub-phase1-missions-next', occurred_at: new Date().toISOString(), udn_line: `!EVL|DISPATCH|MISSION_ASSIGNED|MISSIONS_NEXT|artifact://mission_task/${String($node['Select + Lock Mission'].json.mission_task_id || '')};`, context_summary: `Missao atribuida automaticamente para ${String($node['Select + Lock Mission'].json.agent_id || 'unknown')}`, context_payload: { repo_key: $node['Select + Lock Mission'].json.repo_key, lock_ttl_seconds: $node['Select + Lock Mission'].json.lock_ttl_seconds, lock_expires_at_utc: $node['Select + Lock Mission'].json.lock_expires_at_utc }, artifact_ref: `governance.mission_tasks/${String($node['Select + Lock Mission'].json.mission_task_id || '')}`, source: 'missions-next-auto' } }}",
+          "options": {
+            "ignoreResponseCode": true,
+            "response": {
+              "response": {
+                "fullResponse": false
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "id": "Http_TimelineAssigned",
+        "name": "Registrar Timeline Atribuicao",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          930,
+          510
+        ],
+        "continueOnFail": true
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const row = $json || {};\nconst status = String(row.status || '').trim();\nconst mission_key = String(row.mission_key || '').trim();\nconst mission_task_id = String(row.mission_task_id || '').trim();\nif (status === 'assigned' && (!mission_key || !mission_task_id)) {\n  return [{ json: { ...row, status: 'no_work', mission_key: null, mission_task_id: null, source: row.source || 'govhub-n8n', normalization_note: 'assigned_without_identity_downgraded_to_no_work' } }];\n}\nreturn [{ json: row }];"
+        },
+        "id": "Code_NormalizeAssignment",
+        "name": "Normalizar Atribuicao",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1080,
           180
         ]
       }
@@ -354,7 +406,7 @@
         "main": [
           [
             {
-              "node": "Trabalho atribuido?",
+              "node": "Normalizar Atribuicao",
               "type": "main",
               "index": 0
             }
@@ -366,6 +418,11 @@
           [
             {
               "node": "Rota por agente",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Registrar Timeline Atribuicao",
               "type": "main",
               "index": 0
             }
@@ -471,6 +528,17 @@
           [
             {
               "node": "Responder Atribuido+Dispatch",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Normalizar Atribuicao": {
+        "main": [
+          [
+            {
+              "node": "Trabalho atribuido?",
               "type": "main",
               "index": 0
             }

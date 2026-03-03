@@ -14,7 +14,10 @@
         "name": "Webhook Missao Owner Ack",
         "type": "n8n-nodes-base.webhook",
         "typeVersion": 2,
-        "position": [220, 280]
+        "position": [
+          220,
+          280
+        ]
       },
       {
         "parameters": {
@@ -25,19 +28,29 @@
         "name": "Validar Ack do Owner",
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
-        "position": [500, 280]
+        "position": [
+          500,
+          280
+        ]
       },
       {
         "parameters": {
           "conditions": {
-            "boolean": [{ "value1": "={{$json.ok}}" }]
+            "boolean": [
+              {
+                "value1": "={{$json.ok}}"
+              }
+            ]
           }
         },
         "id": "If_OwnerAckValid",
         "name": "Valido?",
         "type": "n8n-nodes-base.if",
         "typeVersion": 2,
-        "position": [740, 280]
+        "position": [
+          740,
+          280
+        ]
       },
       {
         "parameters": {
@@ -49,7 +62,10 @@
         "name": "Rota de Decisao",
         "type": "n8n-nodes-base.switch",
         "typeVersion": 3.4,
-        "position": [980, 200]
+        "position": [
+          980,
+          200
+        ]
       },
       {
         "parameters": {
@@ -60,20 +76,36 @@
         "name": "Aprovar missao",
         "type": "n8n-nodes-base.postgres",
         "typeVersion": 2,
-        "position": [1220, 120],
-        "credentials": { "postgres": { "id": "11111111-2222-4333-8444-555555555555", "name": "GOVHUB_DB" } }
+        "position": [
+          1220,
+          120
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "11111111-2222-4333-8444-555555555555",
+            "name": "GOVHUB_DB"
+          }
+        }
       },
       {
         "parameters": {
           "operation": "executeQuery",
-          "query": "UPDATE gov.mission_runs SET status='queued', phase='owner_approved', updated_at=now(), last_error_code=NULL, last_error_excerpt_256=NULL WHERE mission_id='{{$node['Validate Owner Ack'].json.mission_id_sql}}' AND status IN ('awaiting_owner_ack','queued','blocked') RETURNING run_id, mission_id, status, phase;"
+          "query": "UPDATE gov.mission_runs SET status='queued', phase='owner_approved', updated_at=now(), last_error_code=NULL, last_error_excerpt_256=NULL WHERE mission_id='{{$node['Validar Ack do Owner'].json.mission_id_sql}}' AND status IN ('awaiting_owner_ack','queued','blocked') RETURNING run_id, mission_id, status, phase;"
         },
         "id": "Postgres_QueueRun",
         "name": "Enfileirar run apos aprovacao",
         "type": "n8n-nodes-base.postgres",
         "typeVersion": 2,
-        "position": [1460, 120],
-        "credentials": { "postgres": { "id": "11111111-2222-4333-8444-555555555555", "name": "GOVHUB_DB" } }
+        "position": [
+          1460,
+          120
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "11111111-2222-4333-8444-555555555555",
+            "name": "GOVHUB_DB"
+          }
+        }
       },
       {
         "parameters": {
@@ -84,55 +116,171 @@
         "name": "Negar missao",
         "type": "n8n-nodes-base.postgres",
         "typeVersion": 2,
-        "position": [1220, 280],
-        "credentials": { "postgres": { "id": "11111111-2222-4333-8444-555555555555", "name": "GOVHUB_DB" } }
+        "position": [
+          1220,
+          280
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "11111111-2222-4333-8444-555555555555",
+            "name": "GOVHUB_DB"
+          }
+        }
       },
       {
         "parameters": {
           "operation": "executeQuery",
-          "query": "UPDATE gov.mission_runs SET status='blocked', phase='owner_denied', updated_at=now(), last_error_code='OWNER_DENIED', last_error_excerpt_256=LEFT('mission denied by owner', 256) WHERE mission_id='{{$node['Validate Owner Ack'].json.mission_id_sql}}' AND status IN ('awaiting_owner_ack','queued','running') RETURNING run_id, mission_id, status, phase;"
+          "query": "UPDATE gov.mission_runs SET status='blocked', phase='owner_denied', updated_at=now(), last_error_code='OWNER_DENIED', last_error_excerpt_256=LEFT('mission denied by owner', 256) WHERE mission_id='{{$node['Validar Ack do Owner'].json.mission_id_sql}}' AND status IN ('awaiting_owner_ack','queued','running') RETURNING run_id, mission_id, status, phase;"
         },
         "id": "Postgres_BlockRun",
         "name": "Bloquear run apos negacao",
         "type": "n8n-nodes-base.postgres",
         "typeVersion": 2,
-        "position": [1460, 280],
-        "credentials": { "postgres": { "id": "11111111-2222-4333-8444-555555555555", "name": "GOVHUB_DB" } }
+        "position": [
+          1460,
+          280
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "11111111-2222-4333-8444-555555555555",
+            "name": "GOVHUB_DB"
+          }
+        }
       },
       {
         "parameters": {
           "respondWith": "json",
           "responseCode": 200,
-          "responseBody": "={{ { status:'ok', mission_id:$node['Validate Owner Ack'].json.mission_id, decision:$node['Validate Owner Ack'].json.decision, transition:$node['Validate Owner Ack'].json.transition } }}"
+          "responseBody": "={{ { status:'ok', mission_id:($node['Validar Ack do Owner'].json.mission_id || null), next_action: ($node['Validar Ack do Owner'].json.decision === 'approve' ? 'dispatch_auto' : 'mission_blocked') } }}"
         },
         "id": "Respond_OwnerAckOk",
         "name": "Responder 200",
         "type": "n8n-nodes-base.respondToWebhook",
         "typeVersion": 1,
-        "position": [1700, 200]
+        "position": [
+          1700,
+          200
+        ]
       },
       {
         "parameters": {
           "respondWith": "json",
           "responseCode": "={{$json.statusCode || 400}}",
-          "responseBody": "={{ { status:'error', error_code:$json.error_code || 'OWNER_ACK_ERROR', message:$json.message || 'invalid request' } }}"
+          "responseBody": "={{ { status:'error', error_code:$json.error_code || 'OWNER_ACK_ERROR', next_action:'fix_owner_ack_payload' } }}"
         },
         "id": "Respond_OwnerAckError",
         "name": "Responder Erro",
         "type": "n8n-nodes-base.respondToWebhook",
         "typeVersion": 1,
-        "position": [980, 420]
+        "position": [
+          980,
+          420
+        ]
       }
     ],
     "connections": {
-      "Webhook Missao Owner Ack": { "main": [[{ "node": "Validar Ack do Owner", "type": "main", "index": 0 }]] },
-      "Validar Ack do Owner": { "main": [[{ "node": "Valido?", "type": "main", "index": 0 }]] },
-      "Valido?": { "main": [[{ "node": "Rota de Decisao", "type": "main", "index": 0 }],[{ "node": "Responder Erro", "type": "main", "index": 0 }]] },
-      "Rota de Decisao": { "main": [[{ "node": "Aprovar missao", "type": "main", "index": 0 }],[{ "node": "Negar missao", "type": "main", "index": 0 }]] },
-      "Aprovar missao": { "main": [[{ "node": "Enfileirar run apos aprovacao", "type": "main", "index": 0 }]] },
-      "Enfileirar run apos aprovacao": { "main": [[{ "node": "Responder 200", "type": "main", "index": 0 }]] },
-      "Negar missao": { "main": [[{ "node": "Bloquear run apos negacao", "type": "main", "index": 0 }]] },
-      "Bloquear run apos negacao": { "main": [[{ "node": "Responder 200", "type": "main", "index": 0 }]] }
+      "Webhook Missao Owner Ack": {
+        "main": [
+          [
+            {
+              "node": "Validar Ack do Owner",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Validar Ack do Owner": {
+        "main": [
+          [
+            {
+              "node": "Valido?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Valido?": {
+        "main": [
+          [
+            {
+              "node": "Rota de Decisao",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Responder Erro",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Rota de Decisao": {
+        "main": [
+          [
+            {
+              "node": "Aprovar missao",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Negar missao",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Aprovar missao": {
+        "main": [
+          [
+            {
+              "node": "Enfileirar run apos aprovacao",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Enfileirar run apos aprovacao": {
+        "main": [
+          [
+            {
+              "node": "Responder 200",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Negar missao": {
+        "main": [
+          [
+            {
+              "node": "Bloquear run apos negacao",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Bloquear run apos negacao": {
+        "main": [
+          [
+            {
+              "node": "Responder 200",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
     },
     "active": false,
     "settings": {}

@@ -94,7 +94,7 @@
         "parameters": {
           "respondWith": "json",
           "responseCode": 200,
-          "responseBody": "={{ { status: 'ok', mission_id: $json.mission_id, autofix_attempts: Number($json.autofix_attempts || 0), autofix_state: $json.autofix_state, owner_call_required: !!$json.owner_call_required, control: { enabled: !!$json.control_enabled, max_rounds: Number($json.control_max_rounds || 2), on_exhaust: $json.control_on_exhaust || 'pause_owner' }, next_action: $json.next_action } }}"
+          "responseBody": "={{ { status:'ok', mission_id:$json.mission_id, autofix_state:$json.autofix_state, next_action:$json.next_action } }}"
         },
         "id": "Respond_AutofixOk",
         "name": "Responder Autofix OK",
@@ -109,7 +109,7 @@
         "parameters": {
           "respondWith": "json",
           "responseCode": 404,
-          "responseBody": "={{ { status: 'error', error_code: 'MISSION_NOT_FOUND', message: 'mission_id not found' } }}"
+          "responseBody": "={{ { status:'error', error_code:'MISSION_NOT_FOUND', next_action:'register_mission' } }}"
         },
         "id": "Respond_AutofixNotFound",
         "name": "Responder Missao Nao Encontrada",
@@ -124,7 +124,7 @@
         "parameters": {
           "respondWith": "json",
           "responseCode": "={{$json.statusCode || 400}}",
-          "responseBody": "={{ { status:'error', error_code:$json.error_code || 'AUTOFIX_ERROR', message:$json.message || 'invalid request' } }}"
+          "responseBody": "={{ { status:'error', error_code:$json.error_code || 'AUTOFIX_ERROR', next_action:'fix_payload' } }}"
         },
         "id": "Respond_AutofixError",
         "name": "Responder Erro Autofix",

@@ -27,6 +27,7 @@ Migration numbering is append-only:
 - `0004_govhub_v7_orchestration.sql`
 - `0005_owner_approval_gate.sql`
 - `0006_autofix_limited.sql`
+- `0007_timelines_governanca_real.sql`
 
 Rules:
 - Existing migrations MUST NOT be edited after merge.

@@ -160,7 +160,7 @@
       {
         "parameters": {
           "respondWith": "json",
-          "responseBody": "={{ { status: 'ok', mission_key: $node['Validar + Autenticacao + Hash'].json.mission_key, repo_key: $node['Validar + Autenticacao + Hash'].json.repo_key, head_sha: $node['Validar + Autenticacao + Hash'].json.head_sha, content_hash: $node['Validar + Autenticacao + Hash'].json.content_hash, duplicate_ignored: $node['Inserir Relatorio (Idempotente)'].json[0]?.duplicate_ignored ?? false } }}",
+          "responseBody": "={{ { status:'ok', mission_id:$node['Validar + Autenticacao + Hash'].json.mission_key, event_hash:$node['Validar + Autenticacao + Hash'].json.content_hash, next_action:'snapshot_update' } }}",
           "options": {}
         },
         "id": "Respond_ReportOk",
@@ -175,7 +175,7 @@
       {
         "parameters": {
           "respondWith": "json",
-          "responseBody": "={{ { status: 'error', error_code: $json.error_code || 'REPORT_INGEST_VALIDATION_ERROR', message: $json.message || 'invalid request' } }}",
+          "responseBody": "={{ { status:'error', error_code:$json.error_code || 'REPORT_INGEST_VALIDATION_ERROR', next_action:'fix_payload' } }}",
           "options": {}
         },
         "id": "Respond_ReportError",

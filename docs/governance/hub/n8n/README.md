@@ -153,6 +153,23 @@ Operational result:
   - duplicates are no-op by design
   - manually re-run decision-aggregate when needed
 
+## Teste de contrato automatico (missions-next)
+Script:
+- `docs/governance/hub/n8n/tests/validate_missions_next_contract.sh`
+
+Objetivo:
+- validar invariante de contrato do endpoint `missions-next`:
+  - se `status=assigned`, `mission_key` e `mission_task_id` devem estar preenchidos.
+  - caso contrario, o fluxo deve responder `status=no_work`.
+
+Uso:
+```bash
+GOVHUB_TOKEN=<token> \
+GOVHUB_BASE_URL=http://127.0.0.1:15678 \
+CALLS=3 \
+docs/governance/hub/n8n/tests/validate_missions_next_contract.sh
+```
+
 ## Data safety and audit posture
 - Report and decision artifacts are hash-addressed.
 - Hashes are persisted in Postgres (governance schema).
