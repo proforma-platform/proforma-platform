@@ -66,6 +66,7 @@ body {
   display: flex;
   gap: 10px;
   align-items: center;
+  justify-content: center;
   color: var(--text-soft);
   font-size: 13px;
   text-transform: uppercase;
@@ -81,13 +82,22 @@ body {
 }
 
 .auth-seal {
-  width: 22px;
-  height: 22px;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
+  object-position: center;
+  display: block;
+}
+
+.auth-seal-wrap {
+  width: 132px;
+  height: 132px;
   border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--panel-2);
-  padding: 2px;
+  padding: 6px;
+  overflow: hidden;
+  flex: 0 0 132px;
 }
 
 .auth-card h1 {
@@ -148,23 +158,32 @@ body {
 .gm-brand {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--panel-2);
+  justify-content: center;
+  padding: 8px 0 14px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
   font-weight: 700;
   color: var(--text);
 }
 
 .gm-brand-seal {
-  width: 34px;
-  height: 34px;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
+  object-position: center;
+  display: block;
+}
+
+.gm-brand-seal-wrap {
+  width: 126px;
+  height: 126px;
   border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--panel-2);
-  padding: 2px;
+  padding: 6px;
+  overflow: hidden;
+  flex: 0 0 126px;
 }
 
 .gm-brand-copy {
@@ -590,6 +609,18 @@ body {
   .gm-sidebar {
     border-right: none;
     border-bottom: 1px solid var(--line);
+  }
+
+  .gm-brand-seal-wrap {
+    width: 96px;
+    height: 96px;
+    flex: 0 0 96px;
+  }
+
+  .auth-seal-wrap {
+    width: 104px;
+    height: 104px;
+    flex: 0 0 104px;
   }
 
   .gm-metrics {

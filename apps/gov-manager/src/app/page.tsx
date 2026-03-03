@@ -709,10 +709,8 @@ export default function GovManagerPage() {
     <main className="gm-shell">
       <aside className="gm-sidebar">
         <div className="gm-brand">
-          <img className="gm-brand-seal" src="/selo-govhub.png" alt="Selo Gov-Hub" />
-          <div className="gm-brand-copy">
-            <strong className="gm-brand-title">Gov-Hub</strong>
-            <span className="gm-brand-subtitle">Manager Oficial</span>
+          <div className="gm-brand-seal-wrap">
+            <img className="gm-brand-seal" src="/selo-govhub.png" alt="Selo Gov-Hub" />
           </div>
         </div>
 
