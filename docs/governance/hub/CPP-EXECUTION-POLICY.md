@@ -76,6 +76,15 @@ CPP MUST follow these logging controls:
 - MUST NOT print response body on successful operations unless mission contract explicitly requires structured output fields.
 - SHOULD log only status, checksum, IDs, and non-sensitive metadata.
 
+## Token Containment Rule
+- CPP and CPP-IA MUST use compact outputs as default in governance runs.
+- Intermediate progress narration SHOULD be suppressed when not required by mission contract.
+- Final operator response SHOULD contain only:
+  - implementation status
+  - final result
+  - single recommended next step
+- In webhook-facing paths, output must prioritize `status`, `error_code`, `next_action` and minimal IDs only.
+
 ## Language Rule (PT-BR for Human Labels)
 - Human-facing labels/messages in governance workflows SHOULD be PT-BR.
 - Protocol fields, endpoint paths, IDs, and schema names MUST remain stable and unchanged.

@@ -28,6 +28,11 @@ rules = {
         "forbid": ["decision:", "transition:", "message:"],
         "max_len": 450,
     },
+    "worker-cppia-dispatch.json": {
+        "nodes": ["Responder 200", "Responder falha+autofix", "Responder Erro"],
+        "forbid": ["worker_response", "worker_error", "autofix_response", "message:"],
+        "max_len": 520,
+    },
 }
 
 for file_name, cfg in rules.items():
@@ -48,4 +53,3 @@ for file_name, cfg in rules.items():
 
 print("COMPACT_OUTPUT_OK")
 PY
-

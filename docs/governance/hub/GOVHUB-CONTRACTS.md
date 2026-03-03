@@ -504,6 +504,7 @@ References:
 - `docs/governance/ccp/CCP-SPEC.md`
 - `docs/governance/ccp/KEYS.md`
 - `docs/governance/ccp/schema/`
+- `docs/governance/hub/GOVHUB-TOKEN-CONTAINMENT-POLICY.md`
 
 ## Operational Aliases (`me/nm/mc`)
 The runtime contract supports short operational aliases to remove manual copy/paste handoffs:
