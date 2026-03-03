@@ -4,11 +4,15 @@ function resolveGovhubConfig() {
   const baseUrl = String(process.env.GOVHUB_BASE_URL || "").trim();
   const token = String(process.env.GOVHUB_TOKEN || "").trim();
   const endpointPath = String(process.env.GOVHUB_MISSIONS_OWNER_ACK_PATH || "/webhook/govhub/missions/owner-ack").trim();
-  return { baseUrl, token, endpointPath };
+  const compatEndpointPath = String(
+    process.env.GOVHUB_MISSIONS_OWNER_ACK_COMPAT_PATH ||
+      "/webhook/govhub-v7-missions-owner-ack/webhook%20missao%20owner%20ack/govhub/missions/owner-ack"
+  ).trim();
+  return { baseUrl, token, endpointPath, compatEndpointPath };
 }
 
 export async function POST(request: Request) {
-  const { baseUrl, token, endpointPath } = resolveGovhubConfig();
+  const { baseUrl, token, endpointPath, compatEndpointPath } = resolveGovhubConfig();
   if (!baseUrl || !token) {
     return NextResponse.json(
       {
@@ -47,19 +51,32 @@ export async function POST(request: Request) {
     );
   }
 
-  const endpoint = `${baseUrl.replace(/\/+$/, "")}${endpointPath.startsWith("/") ? endpointPath : `/${endpointPath}`}`;
+  const canonicalEndpoint = `${baseUrl.replace(/\/+$/, "")}${endpointPath.startsWith("/") ? endpointPath : `/${endpointPath}`}`;
+  const compatEndpoint = `${baseUrl.replace(/\/+$/, "")}${compatEndpointPath.startsWith("/") ? compatEndpointPath : `/${compatEndpointPath}`}`;
+  const reqBody = JSON.stringify({ mission_id, decision, owner_id, ...(note ? { note } : {}) });
 
   let upstreamResponse: Response;
   try {
-    upstreamResponse = await fetch(endpoint, {
+    upstreamResponse = await fetch(canonicalEndpoint, {
       method: "POST",
       headers: {
         "content-type": "application/json",
         "x-govhub-token": token
       },
-      body: JSON.stringify({ mission_id, decision, owner_id, ...(note ? { note } : {}) }),
+      body: reqBody,
       cache: "no-store"
     });
+    if (upstreamResponse.status === 404) {
+      upstreamResponse = await fetch(compatEndpoint, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-govhub-token": token
+        },
+        body: reqBody,
+        cache: "no-store"
+      });
+    }
   } catch {
     return NextResponse.json(
       { status: "upstream_unreachable", error_code: "GOVHUB_FETCH_FAILED" },
