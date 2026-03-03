@@ -42,11 +42,25 @@ Optional input:
   - `enabled` (bool, default `true`)
   - `max_rounds` (`1` or `2`, default `2`)
   - `on_exhaust` (`pause_owner`, default `pause_owner`)
+- `parts` (mission partitioning by staff)
+  - non-empty array
+  - item fields:
+    - `part_id`
+    - `goal`
+    - `executor` (`STAFF` | `CPP` | `CPP-IA`)
+    - `priority` (`P0` | `P1` | `P2`)
+- `prompt_ref` (referencia de prompt para compactacao)
+  - `prompt_id` (required)
+  - `prompt_hash` (optional, fail-closed on mismatch)
+  - `inject_mode` (`append_ref` | `replace_udn`)
+  - `variables` (map string->string)
 
 Persistence rule:
 - the control is persisted inside `udn_mission` as:
   - `#af:enabled=<bool>;max_rounds=<int>;on_exhaust=<value>`
 - any previous `#af:` line is replaced at register-time by canonical value.
+- partitioning is persisted in `gov.mission_parts` and mission run `total` reflects the current number of parts.
+- `prompt_ref` e politicas de token podem bloquear registro em estado `paused_waiting_owner` antes do dispatch.
 
 ## Webhook: missions-next
 Endpoint purpose:

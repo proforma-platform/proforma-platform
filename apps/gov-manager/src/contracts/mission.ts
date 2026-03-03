@@ -13,6 +13,20 @@ export interface TokenControl {
   hard_stop?: boolean;
 }
 
+export interface MissionPart {
+  part_id: string;
+  goal: string;
+  executor: "STAFF" | "CPP" | "CPP-IA";
+  priority: "P0" | "P1" | "P2";
+}
+
+export interface PromptReference {
+  prompt_id: string;
+  prompt_hash?: string;
+  inject_mode?: "append_ref" | "replace_udn";
+  variables?: Record<string, string>;
+}
+
 export interface MissionRequest {
   udn: string;
   mission: {
@@ -25,6 +39,8 @@ export interface MissionRequest {
   created_by?: string;
   autofix_control?: AutofixControl;
   token_control?: TokenControl;
+  parts?: MissionPart[];
+  prompt_ref?: PromptReference;
 }
 
 export interface MissionResponse {
