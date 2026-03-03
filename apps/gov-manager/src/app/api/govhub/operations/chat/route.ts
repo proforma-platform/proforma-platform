@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { hasSessionCookie } from "../../../../../auth/session";
+import { hasSessionCookie, readSessionFromRequest } from "../../../../../auth/session";
 import { loadSnapshotPayload, resolveGovhubSnapshotConfig, saveSnapshotPayload } from "../../../../../core/govhub-snapshots";
 import {
   ALLOWED_CHAT_ACTIONS,
@@ -73,7 +73,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (!hasSessionCookie(request)) {
+  const session = readSessionFromRequest(request);
+  if (!session) {
     return NextResponse.json({ status: "unauthorized", error_code: "AUTH_REQUIRED" }, { status: 401 });
   }
 
@@ -95,7 +96,7 @@ export async function POST(request: Request) {
   const data = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
   const missionId = clampChatText(data.mission_id, 120);
   const action = clampChatText(data.action, 20).toUpperCase() as ChatAction;
-  const actor = clampChatText(data.actor, 80) || "staff@gov-manager";
+  const actor = session.username;
   const target = clampChatText(data.target, 80) || "CPP";
   const message = clampChatText(data.message, 2000);
 
@@ -103,6 +104,12 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { status: "invalid_request", error_code: "MISSION_ID_AND_ACTION_REQUIRED" },
       { status: 400 }
+    );
+  }
+  if (session.role !== "admin" && action !== "STATUS") {
+    return NextResponse.json(
+      { status: "forbidden", error_code: "ADMIN_REQUIRED_FOR_COMMAND" },
+      { status: 403 }
     );
   }
 

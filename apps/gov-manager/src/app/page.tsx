@@ -98,6 +98,11 @@ interface GovUserRow {
   updated_at_utc?: string;
 }
 
+interface SessionInfo {
+  actor?: string;
+  role?: string;
+}
+
 const defaultPolicy: TokenPolicy = {
   daily_token_limit: 60000,
   daily_usd_limit: 12,
@@ -179,6 +184,7 @@ export default function GovManagerPage() {
 
   const [mission, setMission] = useState({ id: "", target: "", branch: "main", agent_id: "CPP" });
   const [createdBy, setCreatedBy] = useState("staff@gov-manager");
+  const [currentRole, setCurrentRole] = useState("admin");
   const [udn, setUdn] = useState("");
   const [status, setStatus] = useState("idle");
   const [responseText, setResponseText] = useState("");
@@ -253,8 +259,10 @@ export default function GovManagerPage() {
   }, []);
 
   useEffect(() => {
+    loadSessionInfo();
     loadPrompts();
     loadPolicy();
+    loadUsers();
   }, []);
 
   useEffect(() => {
@@ -373,6 +381,21 @@ export default function GovManagerPage() {
       const response = await fetch("/api/govhub/prompts", { cache: "no-store" });
       const payload = await response.json();
       if (Array.isArray(payload.prompts)) setPromptLibrary(payload.prompts);
+    } catch {
+      // no-op
+    }
+  }
+
+  async function loadSessionInfo() {
+    try {
+      const response = await fetch("/api/auth/session", { cache: "no-store" });
+      const payload = (await response.json()) as SessionInfo;
+      if (response.ok) {
+        const actor = String(payload.actor || "").trim();
+        const role = String(payload.role || "").trim().toLowerCase();
+        if (actor) setCreatedBy(actor);
+        setCurrentRole(role === "viewer" || role === "engineer" ? role : "admin");
+      }
     } catch {
       // no-op
     }
@@ -636,6 +659,11 @@ export default function GovManagerPage() {
   }
 
   async function sendOpsCommand() {
+    if (currentRole !== "admin" && chatAction !== "STATUS") {
+      setStatus("error");
+      setResponseText(JSON.stringify({ status: "forbidden", error_code: "ADMIN_REQUIRED_FOR_COMMAND" }, null, 2));
+      return;
+    }
     setStatus("chat_dispatch");
     try {
       const missionId = mission.id.trim() || `mission-${Date.now()}`;
@@ -913,6 +941,15 @@ export default function GovManagerPage() {
     return Array.isArray(rows) ? (rows as GovUserRow[]) : [];
   }, [usersPayload]);
 
+  const chatTargetOptions = useMemo(() => {
+    const set = new Set<string>(["STAFF", "CPP", "CPP-IA"]);
+    for (const row of usersRows) {
+      const username = String(row.username || "").trim();
+      if (username) set.add(username);
+    }
+    return Array.from(set);
+  }, [usersRows]);
+
   const topMissionUsage = useMemo(() => {
     const map = new Map<string, { mission_id: string; usd: number; tokens: number; count: number; last_at: string }>();
     for (const row of usageRows) {
@@ -979,7 +1016,7 @@ export default function GovManagerPage() {
         </nav>
 
         <div className="gm-sidebar-bottom">
-          <button onClick={openUsersModal}>⚙ Usuários</button>
+          {currentRole === "admin" ? <button onClick={openUsersModal}>⚙ Usuários</button> : null}
           <button onClick={() => updateTheme(theme === "dark" ? "light" : "dark")}>Tema: {theme === "dark" ? "Escuro" : "Claro"}</button>
           <button onClick={logout}>Sair</button>
         </div>
@@ -1313,9 +1350,9 @@ export default function GovManagerPage() {
               <label>
                 Destino
                 <select value={chatTarget} onChange={(e) => setChatTarget(e.target.value)}>
-                  <option value="STAFF">STAFF</option>
-                  <option value="CPP">CPP</option>
-                  <option value="CPP-IA">CPP-IA</option>
+                  {chatTargetOptions.map((target) => (
+                    <option key={target} value={target}>{target}</option>
+                  ))}
                 </select>
               </label>
             </div>
@@ -1324,11 +1361,15 @@ export default function GovManagerPage() {
                 Ação
                 <select value={chatAction} onChange={(e) => setChatAction(e.target.value)}>
                   <option value="STATUS">STATUS</option>
-                  <option value="OK">OK</option>
-                  <option value="PAUSAR">PAUSAR</option>
-                  <option value="NEGAR">NEGAR</option>
-                  <option value="OWNER_CALL">OWNER_CALL</option>
-                  <option value="NOVA_MISSAO">NOVA_MISSAO</option>
+                  {currentRole === "admin" ? (
+                    <>
+                      <option value="OK">OK</option>
+                      <option value="PAUSAR">PAUSAR</option>
+                      <option value="NEGAR">NEGAR</option>
+                      <option value="OWNER_CALL">OWNER_CALL</option>
+                      <option value="NOVA_MISSAO">NOVA_MISSAO</option>
+                    </>
+                  ) : null}
                 </select>
               </label>
               <label>
@@ -1349,6 +1390,9 @@ export default function GovManagerPage() {
               Mensagem
               <textarea rows={4} value={chatMessage} onChange={(e) => setChatMessage(e.target.value)} placeholder="Comando curto para operação remota no HUB..." />
             </label>
+            {currentRole !== "admin" ? (
+              <p className="gm-meta">Perfil atual: {currentRole}. Somente admins podem executar comandos operacionais.</p>
+            ) : null}
             <div className="gm-row">
               <button onClick={sendOpsCommand}>Enviar comando</button>
               <button type="button" onClick={() => setChatRefreshNonce((prev) => prev + 1)}>
@@ -1356,8 +1400,8 @@ export default function GovManagerPage() {
               </button>
             </div>
             <div className="gm-row">
-              <button onClick={() => { setChatAction("OK"); setChatMessage("OK. Prosseguir com a execução."); }}>Preset: OK</button>
-              <button onClick={() => { setChatAction("PAUSAR"); setChatMessage("Pausar execução e aguardar owner."); }}>Preset: PAUSAR</button>
+              {currentRole === "admin" ? <button onClick={() => { setChatAction("OK"); setChatMessage("OK. Prosseguir com a execução."); }}>Preset: OK</button> : null}
+              {currentRole === "admin" ? <button onClick={() => { setChatAction("PAUSAR"); setChatMessage("Pausar execução e aguardar owner."); }}>Preset: PAUSAR</button> : null}
             </div>
             <div className="gm-mini-metrics">
               <article>

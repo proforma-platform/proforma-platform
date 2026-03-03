@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { hasSessionCookie } from "../../../../auth/session";
+import { hasSessionCookie, readSessionFromRequest } from "../../../../auth/session";
 import { loadSnapshotPayload, resolveGovhubSnapshotConfig, saveSnapshotPayload } from "../../../../core/govhub-snapshots";
 import { hashPassword, isValidUsername, sanitizeGovManagerUserState, toPublicGovManagerUsers, type GovManagerRole } from "../../../../core/gov-manager-users";
 
@@ -38,8 +38,12 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (!hasSessionCookie(request)) {
+  const session = readSessionFromRequest(request);
+  if (!session) {
     return NextResponse.json({ status: "unauthorized", error_code: "AUTH_REQUIRED" }, { status: 401 });
+  }
+  if (session.role !== "admin") {
+    return NextResponse.json({ status: "forbidden", error_code: "ADMIN_REQUIRED" }, { status: 403 });
   }
 
   const config = resolveGovhubSnapshotConfig();
@@ -62,7 +66,7 @@ export async function POST(request: Request) {
   const password = String(data.password || "");
   const roleRaw = String(data.role || "engineer").trim().toLowerCase();
   const active = data.active !== false;
-  const actor = String(data.actor || "staff@gov-manager").trim() || "staff@gov-manager";
+  const actor = String(data.actor || session.username).trim() || session.username;
 
   if (!isValidUsername(username) || password.length < 8 || !isAllowedRole(roleRaw)) {
     return NextResponse.json(
@@ -120,4 +124,3 @@ export async function POST(request: Request) {
     { status: saved.ok ? 200 : 502 }
   );
 }
-

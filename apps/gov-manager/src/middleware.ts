@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { GOV_MANAGER_SESSION_COOKIE } from "./auth/session";
+
+const GOV_MANAGER_SESSION_COOKIE = "gov_manager_session";
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

@@ -1,6 +1,5 @@
-import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
-import { GOV_MANAGER_SESSION_COOKIE, resolveLoginConfig } from "../../../../auth/session";
+import { GOV_MANAGER_SESSION_COOKIE, createSessionValue, readSessionFromRequest, resolveLoginConfig, type GovManagerRole } from "../../../../auth/session";
 import { loadSnapshotPayload, resolveGovhubSnapshotConfig } from "../../../../core/govhub-snapshots";
 import { sanitizeGovManagerUserState, verifyPassword } from "../../../../core/gov-manager-users";
 
@@ -25,6 +24,7 @@ export async function POST(request: Request) {
   }
 
   let authenticated = false;
+  let role: GovManagerRole = "viewer";
 
   const govhub = resolveGovhubSnapshotConfig();
   if (govhub.baseUrl && govhub.token) {
@@ -34,6 +34,7 @@ export async function POST(request: Request) {
       const user = state.rows.find((row) => row.active && row.username.toLowerCase() === username.toLowerCase());
       if (user && verifyPassword(password, user.password_hash)) {
         authenticated = true;
+        role = user.role;
       }
     } catch {
       // fail-closed on snapshot auth check, then fallback to bootstrap account only
@@ -43,13 +44,14 @@ export async function POST(request: Request) {
   if (!authenticated) {
     const cfg = resolveLoginConfig();
     authenticated = username === cfg.username && password === cfg.password;
+    if (authenticated) role = cfg.role;
   }
 
   if (!authenticated) {
     return NextResponse.json({ status: "error", error_code: "AUTH_INVALID" }, { status: 401 });
   }
 
-  const token = Buffer.from(`${username}:${Date.now()}:${randomUUID()}`, "utf8").toString("base64url");
+  const token = createSessionValue(username, role);
   const response = NextResponse.json({ status: "ok", actor: username, next_action: "open_dashboard" }, { status: 200 });
 
   response.cookies.set(GOV_MANAGER_SESSION_COOKIE, token, {
@@ -61,6 +63,17 @@ export async function POST(request: Request) {
   });
 
   return response;
+}
+
+export async function GET(request: Request) {
+  const session = readSessionFromRequest(request);
+  if (!session) {
+    return NextResponse.json({ status: "error", error_code: "AUTH_REQUIRED" }, { status: 401 });
+  }
+  return NextResponse.json(
+    { status: "ok", actor: session.username, role: session.role, issued_at_utc: session.issued_at_utc },
+    { status: 200 }
+  );
 }
 
 export async function DELETE() {

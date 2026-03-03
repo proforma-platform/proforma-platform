@@ -49,10 +49,11 @@
 - Snapshot dedicado: `gov_manager_users_v1` (configurável por `GOVHUB_USERS_SNAPSHOT_TYPE`).
 - Endpoints:
   - `GET /api/auth/users` (sessão ativa)
-  - `POST /api/auth/users` (sessão ativa)
+  - `POST /api/auth/users` (somente `admin`)
 - Login:
   - Primeiro valida credenciais no snapshot de usuários.
   - Mantém fallback do usuário técnico de bootstrap (`GOV_MANAGER_LOGIN_USER` / `GOV_MANAGER_LOGIN_PASSWORD`).
+  - Sessão assinada com `username` + `role` para autorização de ações.
 
 ## Registro de Status dos Bots
 - Snapshot dedicado: `gov_manager_bot_status_v1` (configurável por `GOVHUB_BOT_STATUS_SNAPSHOT_TYPE`).
@@ -92,6 +93,9 @@
   - Ativação por `GOVHUB_CHAT_DISPATCH_ENABLED`
 - Objetivo:
   - operar o fluxo remoto (Owner/Staff/Executores) sem dependência de terminal local.
+- Política de acesso:
+  - todos os usuários autenticados podem participar/visualizar o chat;
+  - apenas `admin` pode emitir comandos operacionais (`OK`, `PAUSAR`, `NEGAR`, `OWNER_CALL`, `NOVA_MISSAO`).
 
 ## Fluxo Owner Ack
 - Quando o retorno indicar `owner_ack_required` (ou `paused_waiting_owner`), a UI abre painel de decisao.
