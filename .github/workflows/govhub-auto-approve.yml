@@ -7,6 +7,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  issues: write
 
 jobs:
   auto-approve:
@@ -149,7 +150,8 @@ jobs:
               body: 'Auto-approved by governance-bot under GOVHUB policy criteria.'
             });
 
-      - name: Enable auto-merge (squash)
+      - name: Enable auto-merge (squash) with retry x2
+        id: automerge
         if: steps.evaluate.outputs.approve == 'true'
         uses: actions/github-script@v7
         with:
@@ -158,14 +160,60 @@ jobs:
             const { owner, repo } = context.repo;
             const pull_number = context.payload.pull_request.number;
             const pr = await github.rest.pulls.get({ owner, repo, pull_number });
-            await github.graphql(
-              `mutation($pullRequestId: ID!) {
-                enablePullRequestAutoMerge(input: {
-                  pullRequestId: $pullRequestId,
-                  mergeMethod: SQUASH
-                }) {
-                  pullRequest { number }
-                }
-              }`,
-              { pullRequestId: pr.data.node_id }
-            );
+            let enabled = false;
+            let lastError = '';
+
+            for (let attempt = 1; attempt <= 2; attempt++) {
+              try {
+                await github.graphql(
+                  `mutation($pullRequestId: ID!) {
+                    enablePullRequestAutoMerge(input: {
+                      pullRequestId: $pullRequestId,
+                      mergeMethod: SQUASH
+                    }) {
+                      pullRequest { number }
+                    }
+                  }`,
+                  { pullRequestId: pr.data.node_id }
+                );
+                core.info(`Auto-merge enabled on attempt ${attempt}.`);
+                enabled = true;
+                break;
+              } catch (e) {
+                lastError = String(e?.message || e);
+                core.warning(`Auto-merge attempt ${attempt} failed: ${lastError}`);
+                await new Promise((r) => setTimeout(r, 3000));
+              }
+            }
+
+            core.setOutput('enabled', enabled ? 'true' : 'false');
+            core.setOutput('error', lastError);
+
+      - name: Fallback owner_call on auto-merge failure
+        if: steps.evaluate.outputs.approve == 'true' && steps.automerge.outputs.enabled != 'true'
+        uses: actions/github-script@v7
+        env:
+          LAST_AUTOMERGE_ERROR: ${{ steps.automerge.outputs.error }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.pull_request.number;
+            const reason = process.env.LAST_AUTOMERGE_ERROR || 'unknown_error';
+
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number: pull_number,
+              labels: ['owner-call-required']
+            }).catch(() => null);
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: pull_number,
+              body:
+                'owner_call: auto-merge falhou após 2 tentativas automáticas. ' +
+                'Ação do owner é obrigatória para concluir o merge. ' +
+                `Motivo técnico: ${reason}`
+            });

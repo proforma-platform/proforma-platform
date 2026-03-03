@@ -55,3 +55,10 @@ All bot auto-approvals MUST be:
 - The bot MUST NOT bypass branch protection rules.
 - Direct push to `main` remains prohibited.
 - CI remains the authoritative technical gate.
+
+## Auto-Merge Retry and Owner Call
+- Auto-merge enablement MUST use up to 2 automatic attempts (`retry x2`).
+- If both attempts fail, the workflow MUST open `owner_call` automatically by:
+  - labeling the PR with `owner-call-required`
+  - posting an audit comment with failure reason
+- This fallback does NOT bypass protections and keeps merge blocked until owner action.
