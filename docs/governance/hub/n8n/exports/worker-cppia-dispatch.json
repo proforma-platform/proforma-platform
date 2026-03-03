@@ -116,7 +116,7 @@
         "parameters": {
           "respondWith": "json",
           "responseCode": 200,
-          "responseBody": "={{ { status: 'ok', dispatch: 'sent', worker_http_status: Number($json.statusCode || 200), worker_response: ($json.body || $json) } }}"
+          "responseBody": "={{ { status: 'ok', dispatch: 'sent', mission_id: ($node['Validar Payload'].json.mission_id || null), worker_http_status: Number($json.statusCode || 200), next_action: 'report_ingest' } }}"
         },
         "id": "Respond_Ok",
         "name": "Responder 200",
@@ -127,7 +127,7 @@
       {
         "parameters": {
           "respondWith": "json",
-          "responseBody": "={{ { status: 'error', dispatch: 'failed', error_code: 'DISPATCH_WORKER_HTTP_FAILURE', message: 'worker request failed; autofix-limited triggered', worker_error: ($node['Chamar Worker CPP-IA'].json.error || $node['Chamar Worker CPP-IA'].json), autofix_response: $json, next_action: (($json?.autofix_state === 'paused_waiting_owner' || $json?.owner_call_required === true) ? 'owner_ack_required' : 'retry_limited') } }}",
+          "responseBody": "={{ { status: 'error', dispatch: 'failed', mission_id: ($node['Validar Payload'].json.mission_id || null), error_code: 'DISPATCH_WORKER_HTTP_FAILURE', autofix_state: ($json?.autofix_state || null), owner_call_required: !!$json?.owner_call_required, next_action: (($json?.autofix_state === 'paused_waiting_owner' || $json?.owner_call_required === true) ? 'owner_ack_required' : 'retry_limited') } }}",
           "options": {
             "responseCode": "={{ (($json?.autofix_state === 'paused_waiting_owner' || $json?.owner_call_required === true) ? 409 : 502) }}"
           }
@@ -142,7 +142,7 @@
         "parameters": {
           "respondWith": "json",
           "responseCode": "={{$json.statusCode || 400}}",
-          "responseBody": "={{ { status: 'error', error_code: $json.error_code || 'DISPATCH_ERROR', message: $json.message || 'invalid request' } }}"
+          "responseBody": "={{ { status: 'error', error_code: $json.error_code || 'DISPATCH_ERROR', next_action: 'fix_payload' } }}"
         },
         "id": "Respond_Error",
         "name": "Responder Erro",
