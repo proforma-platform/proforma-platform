@@ -7,6 +7,7 @@ These workflows implement:
 - mission intake
 - mission owner approve/deny gate
 - mission auto-fix limited controller (2 rounds + pause for owner)
+- operations chat dispatch webhook (staff -> hub)
 - CPP-IA worker dispatch (self-hosted agent call)
 - report ingest with idempotency and hashing
 - decision aggregation
@@ -51,6 +52,7 @@ Autofix mission control:
   - com `git_ops`: worker executa ciclo git (fetch/checkout/add/commit/push) conforme politica local
   - se dispatch do worker falhar (`5xx` no gateway), o workflow aciona automaticamente `missions-autofix-limited`
   - quando o limite do autofix for excedido, o estado vai para `paused_waiting_owner` e o retorno segue com sinalizacao para chamada do owner
+- `operations-chat-dispatch` recebe comandos do Chat HUB (gov-manager) com validacao strict + fail-closed.
 - `GOVHUB_DB_URL` (or equivalent DB host/user/db config)
   - Database connection for Governance Hub Postgres schema.
 
