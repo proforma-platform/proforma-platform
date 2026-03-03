@@ -101,6 +101,7 @@ interface GovUserRow {
 interface SessionInfo {
   actor?: string;
   role?: string;
+  is_primary_admin?: boolean;
 }
 
 const defaultPolicy: TokenPolicy = {
@@ -181,10 +182,13 @@ function botStateLabel(state: string): string {
 export default function GovManagerPage() {
   const [theme, setTheme] = useState<Theme>("dark");
   const [section, setSection] = useState<Section>("visao");
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [mission, setMission] = useState({ id: "", target: "", branch: "main", agent_id: "CPP" });
   const [createdBy, setCreatedBy] = useState("staff@gov-manager");
-  const [currentRole, setCurrentRole] = useState("admin");
+  const [currentRole, setCurrentRole] = useState("viewer");
+  const [isPrimaryAdmin, setIsPrimaryAdmin] = useState(false);
   const [udn, setUdn] = useState("");
   const [status, setStatus] = useState("idle");
   const [responseText, setResponseText] = useState("");
@@ -256,6 +260,18 @@ export default function GovManagerPage() {
     const next = persisted === "light" ? "light" : "dark";
     setTheme(next);
     document.documentElement.dataset.theme = next;
+  }, []);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 1100px)");
+    const apply = () => {
+      const mobile = media.matches;
+      setIsMobile(mobile);
+      setMobileMenuOpen(!mobile);
+    };
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
   }, []);
 
   useEffect(() => {
@@ -395,6 +411,7 @@ export default function GovManagerPage() {
         const role = String(payload.role || "").trim().toLowerCase();
         if (actor) setCreatedBy(actor);
         setCurrentRole(role === "viewer" || role === "engineer" ? role : "admin");
+        setIsPrimaryAdmin(payload.is_primary_admin === true);
       }
     } catch {
       // no-op
@@ -494,6 +511,23 @@ export default function GovManagerPage() {
     window.localStorage.setItem("gov-manager-theme", next);
   }
 
+  function scrollToContent() {
+    window.requestAnimationFrame(() => {
+      const content = document.querySelector(".gm-main");
+      if (content) {
+        content.scrollIntoView({ behavior: "smooth", block: "start" });
+      } else {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    });
+  }
+
+  function goToSection(next: Section) {
+    setSection(next);
+    if (isMobile) setMobileMenuOpen(false);
+    scrollToContent();
+  }
+
   async function logout() {
     await fetch("/api/auth/session", { method: "DELETE" });
     window.location.href = "/login";
@@ -512,6 +546,7 @@ export default function GovManagerPage() {
   }
 
   async function openUsersModal() {
+    if (!isPrimaryAdmin) return;
     setUsersOpen(true);
     setUserStatus("");
     await loadUsers();
@@ -622,7 +657,7 @@ export default function GovManagerPage() {
       setResponseText(JSON.stringify(payload, null, 2));
       setAckRequired(resolveOwnerAckRequired(payload));
       setStatus(response.ok ? "success" : "error");
-      setSection("execucoes");
+      goToSection("execucoes");
     } catch {
       setStatus("error");
       setResponseText(JSON.stringify({ status: "error", error_code: "NETWORK_ERROR" }, null, 2));
@@ -651,7 +686,7 @@ export default function GovManagerPage() {
       setResponseText(JSON.stringify(payload, null, 2));
       setStatus(response.ok ? "success" : "error");
       setQueueRefreshNonce((prev) => prev + 1);
-      setSection("orquestracao");
+      goToSection("orquestracao");
     } catch {
       setStatus("error");
       setResponseText(JSON.stringify({ status: "error", error_code: "QUEUE_PLAN_FAILED" }, null, 2));
@@ -683,7 +718,7 @@ export default function GovManagerPage() {
       setStatus(response.ok ? "success" : "error");
       if (response.ok) setChatMessage("");
       setChatRefreshNonce((prev) => prev + 1);
-      setSection("chat");
+      goToSection("chat");
     } catch {
       setStatus("error");
       setResponseText(JSON.stringify({ status: "error", error_code: "CHAT_DISPATCH_FAILED" }, null, 2));
@@ -717,7 +752,7 @@ export default function GovManagerPage() {
       const payload = await response.json();
       setTokenPreview(JSON.stringify(payload, null, 2));
       setStatus(response.ok ? "success" : "error");
-      setSection("execucoes");
+      goToSection("execucoes");
     } catch {
       setStatus("error");
       setTokenPreview(JSON.stringify({ status: "error", error_code: "TOKEN_PREVIEW_NETWORK_ERROR" }, null, 2));
@@ -997,32 +1032,42 @@ export default function GovManagerPage() {
 
   return (
     <main className="gm-shell">
-      <aside className="gm-sidebar">
+      <aside className={`gm-sidebar ${isMobile ? "gm-sidebar-mobile" : ""} ${isMobile && !mobileMenuOpen ? "gm-sidebar-collapsed" : ""}`}>
         <div className="gm-brand">
+          {isMobile ? (
+            <button className="gm-menu-toggle" onClick={() => setMobileMenuOpen((prev) => !prev)}>
+              {mobileMenuOpen ? "✕" : "☰"}
+            </button>
+          ) : null}
           <div className="gm-brand-seal-wrap">
             <img className="gm-brand-seal" src="/selo-govhub.png" alt="Selo Gov-Hub" />
           </div>
         </div>
 
         <nav>
-          <button className={section === "visao" ? "active" : ""} onClick={() => setSection("visao")}>Visão geral</button>
-          <button className={section === "missoes" ? "active" : ""} onClick={() => setSection("missoes")}>Missões</button>
-          <button className={section === "orquestracao" ? "active" : ""} onClick={() => setSection("orquestracao")}>Orquestração</button>
-          <button className={section === "chat" ? "active" : ""} onClick={() => setSection("chat")}>Chat HUB</button>
-          <button className={section === "execucoes" ? "active" : ""} onClick={() => setSection("execucoes")}>Execuções</button>
-          <button className={section === "pendencias" ? "active" : ""} onClick={() => setSection("pendencias")}>Pendências</button>
-          <button className={section === "prompts" ? "active" : ""} onClick={() => setSection("prompts")}>Prompts</button>
-          <button className={section === "governanca" ? "active" : ""} onClick={() => setSection("governanca")}>Governança</button>
+          <button className={section === "visao" ? "active" : ""} onClick={() => goToSection("visao")}>Visão geral</button>
+          <button className={section === "missoes" ? "active" : ""} onClick={() => goToSection("missoes")}>Missões</button>
+          <button className={section === "orquestracao" ? "active" : ""} onClick={() => goToSection("orquestracao")}>Orquestração</button>
+          <button className={section === "chat" ? "active" : ""} onClick={() => goToSection("chat")}>Chat HUB</button>
+          <button className={section === "execucoes" ? "active" : ""} onClick={() => goToSection("execucoes")}>Execuções</button>
+          <button className={section === "pendencias" ? "active" : ""} onClick={() => goToSection("pendencias")}>Pendências</button>
+          <button className={section === "prompts" ? "active" : ""} onClick={() => goToSection("prompts")}>Prompts</button>
+          <button className={section === "governanca" ? "active" : ""} onClick={() => goToSection("governanca")}>Governança</button>
         </nav>
 
         <div className="gm-sidebar-bottom">
-          {currentRole === "admin" ? <button onClick={openUsersModal}>⚙ Usuários</button> : null}
+          {isPrimaryAdmin ? <button onClick={openUsersModal}>⚙ Usuários</button> : null}
           <button onClick={() => updateTheme(theme === "dark" ? "light" : "dark")}>Tema: {theme === "dark" ? "Escuro" : "Claro"}</button>
           <button onClick={logout}>Sair</button>
         </div>
       </aside>
 
       <section className="gm-main">
+        {isMobile && !mobileMenuOpen ? (
+          <button className="gm-back-menu" type="button" onClick={() => setMobileMenuOpen(true)}>
+            ☰ Voltar ao menu
+          </button>
+        ) : null}
         <header className="gm-header">
           <div>
             <h1>{pageTitle}</h1>
@@ -1050,7 +1095,7 @@ export default function GovManagerPage() {
                 <p>Partes em fila: <strong>{parts.length}</strong></p>
                 <p>Prompt por referência: <strong>{selectedPrompt ? selectedPrompt.prompt_id : "nenhum"}</strong></p>
               </div>
-              <button onClick={() => setSection("missoes")}>Ir para Missões</button>
+              <button onClick={() => goToSection("missoes")}>Ir para Missões</button>
               <button onClick={createExecutionPlan}>Gerar Fila Automatizada</button>
             </section>
 
@@ -1061,7 +1106,7 @@ export default function GovManagerPage() {
                 <p>Hard stop: <strong>{tokenControl.hard_stop ? "ativo" : "inativo"}</strong></p>
                 <p>Limite input/output: <strong>{tokenControl.max_input_tokens} / {tokenControl.max_output_tokens}</strong></p>
               </div>
-              <button onClick={() => setSection("governanca")}>Ir para Governança</button>
+              <button onClick={() => goToSection("governanca")}>Ir para Governança</button>
             </section>
 
             <section className="gm-card">
@@ -1274,7 +1319,7 @@ export default function GovManagerPage() {
             </div>
             <div className="gm-row">
               <button onClick={createExecutionPlan}>Gerar Fila Staff/CPP/CPP-IA</button>
-              <button onClick={() => setSection("orquestracao")}>Abrir Orquestração</button>
+              <button onClick={() => goToSection("orquestracao")}>Abrir Orquestração</button>
             </div>
           </section>
         ) : null}
@@ -1528,8 +1573,8 @@ export default function GovManagerPage() {
               ))}
             </ul>
             <div className="gm-row">
-              <button onClick={() => setSection("missoes")}>Abrir Missões</button>
-              <button onClick={() => setSection("execucoes")}>Abrir Execuções</button>
+              <button onClick={() => goToSection("missoes")}>Abrir Missões</button>
+              <button onClick={() => goToSection("execucoes")}>Abrir Execuções</button>
             </div>
           </section>
         ) : null}
@@ -1576,7 +1621,7 @@ export default function GovManagerPage() {
                     <div className="gm-row">
                       <button onClick={() => {
                         setSelectedPromptId(prompt.prompt_id);
-                        setSection("missoes");
+                        goToSection("missoes");
                       }}>
                         Usar na Missão
                       </button>
@@ -1743,7 +1788,7 @@ export default function GovManagerPage() {
               <p className="gm-meta">
                 Base calculada na última prospecção da missão atual. Atualize em "Missões" com "Prospecção de Custo" para refinar.
               </p>
-              <button type="button" onClick={() => setSection("missoes")}>
+              <button type="button" onClick={() => goToSection("missoes")}>
                 Revisar parâmetros da missão
               </button>
             </section>

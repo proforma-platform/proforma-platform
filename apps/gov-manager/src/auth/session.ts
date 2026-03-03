@@ -36,6 +36,11 @@ export function resolveLoginConfig() {
   return { username, password, role };
 }
 
+export function isPrimaryAdminUser(username: string): boolean {
+  const cfg = resolveLoginConfig();
+  return String(username || "").trim().toLowerCase() === cfg.username.toLowerCase();
+}
+
 function resolveSessionSecret(): string {
   const envSecret = String(process.env.GOV_MANAGER_SESSION_SECRET || "").trim();
   if (envSecret) return envSecret;

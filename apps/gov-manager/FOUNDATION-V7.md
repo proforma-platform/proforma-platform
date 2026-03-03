@@ -49,11 +49,13 @@
 - Snapshot dedicado: `gov_manager_users_v1` (configurável por `GOVHUB_USERS_SNAPSHOT_TYPE`).
 - Endpoints:
   - `GET /api/auth/users` (sessão ativa)
-  - `POST /api/auth/users` (somente `admin`)
+  - `POST /api/auth/users` (somente admin primário)
 - Login:
   - Primeiro valida credenciais no snapshot de usuários.
   - Mantém fallback do usuário técnico de bootstrap (`GOV_MANAGER_LOGIN_USER` / `GOV_MANAGER_LOGIN_PASSWORD`).
   - Sessão assinada com `username` + `role` para autorização de ações.
+- UI:
+  - botão de engrenagem (`Usuários`) visível apenas para o admin primário.
 
 ## Registro de Status dos Bots
 - Snapshot dedicado: `gov_manager_bot_status_v1` (configurável por `GOVHUB_BOT_STATUS_SNAPSHOT_TYPE`).

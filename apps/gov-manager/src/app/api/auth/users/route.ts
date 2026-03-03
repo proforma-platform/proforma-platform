@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { hasSessionCookie, readSessionFromRequest } from "../../../../auth/session";
+import { hasSessionCookie, isPrimaryAdminUser, readSessionFromRequest } from "../../../../auth/session";
 import { loadSnapshotPayload, resolveGovhubSnapshotConfig, saveSnapshotPayload } from "../../../../core/govhub-snapshots";
 import { hashPassword, isValidUsername, sanitizeGovManagerUserState, toPublicGovManagerUsers, type GovManagerRole } from "../../../../core/gov-manager-users";
 
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
   if (!session) {
     return NextResponse.json({ status: "unauthorized", error_code: "AUTH_REQUIRED" }, { status: 401 });
   }
-  if (session.role !== "admin") {
+  if (session.role !== "admin" || !isPrimaryAdminUser(session.username)) {
     return NextResponse.json({ status: "forbidden", error_code: "ADMIN_REQUIRED" }, { status: 403 });
   }
 

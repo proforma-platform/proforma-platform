@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { GOV_MANAGER_SESSION_COOKIE, createSessionValue, readSessionFromRequest, resolveLoginConfig, type GovManagerRole } from "../../../../auth/session";
+import { GOV_MANAGER_SESSION_COOKIE, createSessionValue, isPrimaryAdminUser, readSessionFromRequest, resolveLoginConfig, type GovManagerRole } from "../../../../auth/session";
 import { loadSnapshotPayload, resolveGovhubSnapshotConfig } from "../../../../core/govhub-snapshots";
 import { sanitizeGovManagerUserState, verifyPassword } from "../../../../core/gov-manager-users";
 
@@ -70,8 +70,9 @@ export async function GET(request: Request) {
   if (!session) {
     return NextResponse.json({ status: "error", error_code: "AUTH_REQUIRED" }, { status: 401 });
   }
+  const isPrimaryAdmin = session.role === "admin" && isPrimaryAdminUser(session.username);
   return NextResponse.json(
-    { status: "ok", actor: session.username, role: session.role, issued_at_utc: session.issued_at_utc },
+    { status: "ok", actor: session.username, role: session.role, is_primary_admin: isPrimaryAdmin, issued_at_utc: session.issued_at_utc },
     { status: 200 }
   );
 }
