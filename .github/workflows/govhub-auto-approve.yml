@@ -150,7 +150,7 @@ jobs:
 
       - name: Enable auto-merge (squash) with retry x3
         id: automerge
-        if: steps.evaluate.outputs.approve == 'true'
+        if: steps.evaluate.outputs.approve == 'true' || github.event.pull_request.auto_merge != null
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
