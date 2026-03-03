@@ -34,6 +34,23 @@ interface TokenPolicy {
   hard_stop: boolean;
 }
 
+interface UsageSummary {
+  daily_tokens?: number;
+  daily_usd?: number;
+  monthly_usd?: number;
+  daily_count?: number;
+  monthly_count?: number;
+}
+
+interface UsageRow {
+  mission_id?: string;
+  projected_total_tokens?: number;
+  projected_cost_usd?: number;
+  projected_cost_brl?: number;
+  status?: string;
+  created_at_utc?: string;
+}
+
 const defaultPolicy: TokenPolicy = {
   daily_token_limit: 60000,
   daily_usd_limit: 12,
@@ -63,6 +80,40 @@ function parseVars(raw: string): Record<string, string> {
     if (key) out[key] = value;
   }
   return out;
+}
+
+function safeJsonParse(raw: string): Record<string, unknown> | null {
+  if (!raw.trim()) return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+function readNumber(value: unknown, fallback = 0): number {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function formatUsd(value: number): string {
+  return `$${value.toFixed(2)}`;
+}
+
+function formatPct(value: number): string {
+  return `${Math.round(value)}%`;
+}
+
+function formatDateTime(value: string): string {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "medium",
+    timeZone: "UTC"
+  }).format(date);
 }
 
 export default function GovManagerPage() {
@@ -104,6 +155,13 @@ export default function GovManagerPage() {
 
   const [policy, setPolicy] = useState<TokenPolicy>(defaultPolicy);
   const [usageText, setUsageText] = useState("");
+  const [usageRefreshSec, setUsageRefreshSec] = useState(45);
+  const [monitorRefreshSec, setMonitorRefreshSec] = useState(30);
+  const [usageRefreshNonce, setUsageRefreshNonce] = useState(0);
+  const [monitorRefreshNonce, setMonitorRefreshNonce] = useState(0);
+  const [usageUpdatedAt, setUsageUpdatedAt] = useState("");
+  const [monitorUpdatedAt, setMonitorUpdatedAt] = useState("");
+  const [projectMissionCount, setProjectMissionCount] = useState(8);
 
   const selectedPrompt = useMemo(
     () => promptLibrary.find((prompt) => prompt.prompt_id === selectedPromptId) || null,
@@ -132,19 +190,25 @@ export default function GovManagerPage() {
           cache: "no-store"
         });
         const payload = await response.json();
-        if (active) setUsageText(JSON.stringify(payload, null, 2));
+        if (active) {
+          setUsageText(JSON.stringify(payload, null, 2));
+          setUsageUpdatedAt(new Date().toISOString());
+        }
       } catch {
-        if (active) setUsageText(JSON.stringify({ status: "error", error_code: "USAGE_FETCH_FAILED" }, null, 2));
+        if (active) {
+          setUsageText(JSON.stringify({ status: "error", error_code: "USAGE_FETCH_FAILED" }, null, 2));
+          setUsageUpdatedAt(new Date().toISOString());
+        }
       }
     };
 
     pullUsage();
-    const interval = window.setInterval(pullUsage, 30000);
+    const interval = window.setInterval(pullUsage, Math.max(15, usageRefreshSec) * 1000);
     return () => {
       active = false;
       window.clearInterval(interval);
     };
-  }, [createdBy]);
+  }, [createdBy, usageRefreshNonce, usageRefreshSec]);
 
   async function loadPrompts() {
     try {
@@ -387,20 +451,24 @@ export default function GovManagerPage() {
         });
         const response = await fetch(`/api/govhub/missions/token-monitor?${qs.toString()}`, { cache: "no-store" });
         const payload = await response.json();
-        if (active) setTokenRealtime(JSON.stringify(payload, null, 2));
+        if (active) {
+          setTokenRealtime(JSON.stringify(payload, null, 2));
+          setMonitorUpdatedAt(new Date().toISOString());
+        }
       } catch {
         if (active) {
           setTokenRealtime(JSON.stringify({ status: "error", error_code: "TOKEN_MONITOR_NETWORK_ERROR" }, null, 2));
+          setMonitorUpdatedAt(new Date().toISOString());
         }
       }
     };
     tick();
-    const interval = window.setInterval(tick, 30000);
+    const interval = window.setInterval(tick, Math.max(15, monitorRefreshSec) * 1000);
     return () => {
       active = false;
       window.clearInterval(interval);
     };
-  }, [createdBy, mission.id, mission.agent_id, mission.target, tokenControl, udn]);
+  }, [createdBy, mission.id, mission.agent_id, mission.target, monitorRefreshNonce, monitorRefreshSec, tokenControl, udn]);
 
   async function ownerAck(decision: "approve" | "deny") {
     setStatus("owner_ack");
@@ -464,6 +532,111 @@ export default function GovManagerPage() {
     if (section === "governanca") return "Política de limites, alertas e consumo em tempo real.";
     return "Painel oficial do GOV-HUB com operação direta e responsiva.";
   }, [section]);
+
+  const previewPayload = useMemo(() => safeJsonParse(tokenPreview), [tokenPreview]);
+  const realtimePayload = useMemo(() => safeJsonParse(tokenRealtime), [tokenRealtime]);
+  const usagePayload = useMemo(() => safeJsonParse(usageText), [usageText]);
+
+  const previewData = useMemo(() => {
+    const preview = previewPayload?.preview;
+    return preview && typeof preview === "object" ? (preview as Record<string, unknown>) : null;
+  }, [previewPayload]);
+
+  const realtimeData = useMemo(() => {
+    const realtime = realtimePayload?.realtime;
+    return realtime && typeof realtime === "object" ? (realtime as Record<string, unknown>) : null;
+  }, [realtimePayload]);
+
+  const monitorPolicy = useMemo(() => {
+    const governance = realtimePayload?.governance;
+    if (!governance || typeof governance !== "object") return policy;
+    const p = (governance as Record<string, unknown>).policy;
+    if (!p || typeof p !== "object") return policy;
+    const candidate = p as Record<string, unknown>;
+    return {
+      daily_token_limit: Math.max(1, Math.trunc(readNumber(candidate.daily_token_limit, policy.daily_token_limit))),
+      daily_usd_limit: Math.max(0.01, readNumber(candidate.daily_usd_limit, policy.daily_usd_limit)),
+      monthly_usd_limit: Math.max(0.01, readNumber(candidate.monthly_usd_limit, policy.monthly_usd_limit)),
+      warn_threshold_pct: Math.max(1, Math.min(99, Math.trunc(readNumber(candidate.warn_threshold_pct, policy.warn_threshold_pct)))),
+      auto_pause_on_limit: candidate.auto_pause_on_limit !== false,
+      hard_stop: candidate.hard_stop !== false
+    } as TokenPolicy;
+  }, [policy, realtimePayload]);
+
+  const monitorUsage = useMemo(() => {
+    const governance = realtimePayload?.governance;
+    if (!governance || typeof governance !== "object") return {} as UsageSummary;
+    const usage = (governance as Record<string, unknown>).usage;
+    if (!usage || typeof usage !== "object") return {} as UsageSummary;
+    return usage as UsageSummary;
+  }, [realtimePayload]);
+
+  const monitorRisk = useMemo(() => {
+    const dailyTokenRatio = readNumber(monitorUsage.daily_tokens) / Math.max(1, monitorPolicy.daily_token_limit);
+    const dailyUsdRatio = readNumber(monitorUsage.daily_usd) / Math.max(0.01, monitorPolicy.daily_usd_limit);
+    const monthlyUsdRatio = readNumber(monitorUsage.monthly_usd) / Math.max(0.01, monitorPolicy.monthly_usd_limit);
+    const ratio = Math.max(dailyTokenRatio, dailyUsdRatio, monthlyUsdRatio);
+    const warnRatio = Math.max(1, Math.min(99, monitorPolicy.warn_threshold_pct)) / 100;
+    if (ratio >= 1) return { level: "limite", pct: formatPct(ratio * 100) };
+    if (ratio >= warnRatio) return { level: "atencao", pct: formatPct(ratio * 100) };
+    return { level: "ok", pct: formatPct(ratio * 100) };
+  }, [monitorPolicy, monitorUsage]);
+
+  const usageSummary = useMemo(() => {
+    const summary = usagePayload?.summary;
+    if (!summary || typeof summary !== "object") return {} as UsageSummary;
+    return summary as UsageSummary;
+  }, [usagePayload]);
+
+  const usageRows = useMemo(() => {
+    const rows = usagePayload?.rows;
+    return Array.isArray(rows) ? (rows as UsageRow[]) : [];
+  }, [usagePayload]);
+
+  const topMissionUsage = useMemo(() => {
+    const map = new Map<string, { mission_id: string; usd: number; tokens: number; count: number; last_at: string }>();
+    for (const row of usageRows) {
+      const missionId = String(row.mission_id || "").trim();
+      if (!missionId) continue;
+      const current = map.get(missionId) || { mission_id: missionId, usd: 0, tokens: 0, count: 0, last_at: "" };
+      current.usd += readNumber(row.projected_cost_usd);
+      current.tokens += readNumber(row.projected_total_tokens);
+      current.count += 1;
+      const createdAt = String(row.created_at_utc || "");
+      if (createdAt > current.last_at) current.last_at = createdAt;
+      map.set(missionId, current);
+    }
+    return Array.from(map.values())
+      .sort((a, b) => b.usd - a.usd)
+      .slice(0, 8);
+  }, [usageRows]);
+
+  const missionForecastUsd = useMemo(() => {
+    const previewUsd = previewData ? readNumber(previewData.projected_cost_usd) : 0;
+    const realtimePreview = realtimePayload?.preview;
+    const realtimePreviewUsd = realtimePreview && typeof realtimePreview === "object"
+      ? readNumber((realtimePreview as Record<string, unknown>).projected_cost_usd)
+      : 0;
+    return Math.max(previewUsd, realtimePreviewUsd);
+  }, [previewData, realtimePayload]);
+
+  const missionForecastTokens = useMemo(() => {
+    const previewTokens = previewData ? readNumber(previewData.projected_total_tokens) : 0;
+    const realtimePreview = realtimePayload?.preview;
+    const realtimePreviewTokens = realtimePreview && typeof realtimePreview === "object"
+      ? readNumber((realtimePreview as Record<string, unknown>).projected_total_tokens)
+      : 0;
+    return Math.max(previewTokens, realtimePreviewTokens);
+  }, [previewData, realtimePayload]);
+
+  const missionForecastBrl = useMemo(() => {
+    const previewBrl = previewData ? readNumber(previewData.projected_cost_brl) : 0;
+    const realtimePreview = realtimePayload?.preview;
+    const realtimePreviewBrl = realtimePreview && typeof realtimePreview === "object"
+      ? readNumber((realtimePreview as Record<string, unknown>).projected_cost_brl)
+      : 0;
+    return Math.max(previewBrl, realtimePreviewBrl);
+  }, [previewData, realtimePayload]);
 
   return (
     <main className="gm-shell">
@@ -686,6 +859,48 @@ export default function GovManagerPage() {
         {section === "execucoes" ? (
           <section className="gm-card">
             <h2>Monitoramento</h2>
+            <div className="gm-row">
+              <label>
+                Atualização monitor (seg)
+                <select value={monitorRefreshSec} onChange={(e) => setMonitorRefreshSec(Number(e.target.value || 30))}>
+                  <option value={15}>15s</option>
+                  <option value={30}>30s</option>
+                  <option value={45}>45s</option>
+                  <option value={60}>60s</option>
+                  <option value={120}>120s</option>
+                </select>
+              </label>
+              <button type="button" onClick={() => setMonitorRefreshNonce((prev) => prev + 1)}>
+                Atualizar agora
+              </button>
+            </div>
+            <div className="gm-mini-metrics">
+              <article>
+                <span>Progresso</span>
+                <strong>{formatPct(readNumber(realtimeData?.progress_pct))}</strong>
+              </article>
+              <article>
+                <span>Status/Fase</span>
+                <strong>{String(realtimeData?.status || "aguardando")} · {String(realtimeData?.phase || "-")}</strong>
+              </article>
+              <article className={`gm-risk-${monitorRisk.level}`}>
+                <span>Risco de limite</span>
+                <strong>{monitorRisk.level.toUpperCase()} ({monitorRisk.pct})</strong>
+              </article>
+              <article>
+                <span>Tokens usados</span>
+                <strong>{Math.round(readNumber(realtimeData?.estimated_used_tokens)).toLocaleString("pt-BR")}</strong>
+              </article>
+              <article>
+                <span>Tokens restantes</span>
+                <strong>{Math.round(readNumber(realtimeData?.estimated_remaining_tokens)).toLocaleString("pt-BR")}</strong>
+              </article>
+              <article>
+                <span>Custo missão</span>
+                <strong>{formatUsd(missionForecastUsd)}</strong>
+              </article>
+            </div>
+            <p className="gm-meta">Último monitor UTC: {formatDateTime(monitorUpdatedAt)}</p>
             <textarea value={udn} onChange={(e) => setUdn(e.target.value)} rows={8} />
             {ackRequired ? (
               <div className="gm-ack">
@@ -696,9 +911,18 @@ export default function GovManagerPage() {
                 </div>
               </div>
             ) : null}
-            <pre>{responseText || "Aguardando operação..."}</pre>
-            <pre>{tokenPreview || "Prospecção de custo pendente..."}</pre>
-            <pre>{tokenRealtime || "Monitoramento em tempo real aguardando..."}</pre>
+            <details className="gm-debug">
+              <summary>Resposta da missão (diagnóstico)</summary>
+              <pre>{responseText || "Aguardando operação..."}</pre>
+            </details>
+            <details className="gm-debug">
+              <summary>Prospecção detalhada (diagnóstico)</summary>
+              <pre>{tokenPreview || "Prospecção de custo pendente..."}</pre>
+            </details>
+            <details className="gm-debug">
+              <summary>Monitor detalhado (diagnóstico)</summary>
+              <pre>{tokenRealtime || "Monitoramento em tempo real aguardando..."}</pre>
+            </details>
           </section>
         ) : null}
 
@@ -834,7 +1058,101 @@ export default function GovManagerPage() {
 
             <section className="gm-card">
               <h2>Uso em Tempo Real</h2>
-              <pre>{usageText || "Sem dados de uso no momento..."}</pre>
+              <div className="gm-row">
+                <label>
+                  Atualização uso (seg)
+                  <select value={usageRefreshSec} onChange={(e) => setUsageRefreshSec(Number(e.target.value || 45))}>
+                    <option value={15}>15s</option>
+                    <option value={30}>30s</option>
+                    <option value={45}>45s</option>
+                    <option value={60}>60s</option>
+                    <option value={120}>120s</option>
+                  </select>
+                </label>
+                <button type="button" onClick={() => setUsageRefreshNonce((prev) => prev + 1)}>
+                  Atualizar agora
+                </button>
+              </div>
+              <div className="gm-mini-metrics">
+                <article>
+                  <span>Tokens hoje</span>
+                  <strong>{Math.round(readNumber(usageSummary.daily_tokens)).toLocaleString("pt-BR")}</strong>
+                </article>
+                <article>
+                  <span>USD hoje</span>
+                  <strong>{formatUsd(readNumber(usageSummary.daily_usd))}</strong>
+                </article>
+                <article>
+                  <span>USD mês</span>
+                  <strong>{formatUsd(readNumber(usageSummary.monthly_usd))}</strong>
+                </article>
+                <article>
+                  <span>Missões hoje</span>
+                  <strong>{Math.round(readNumber(usageSummary.daily_count)).toLocaleString("pt-BR")}</strong>
+                </article>
+              </div>
+              <p className="gm-meta">Último uso UTC: {formatDateTime(usageUpdatedAt)}</p>
+              <div className="gm-usage-list">
+                {topMissionUsage.length === 0 ? (
+                  <p className="gm-empty">Sem missões consumindo tokens no momento.</p>
+                ) : (
+                  topMissionUsage.map((item) => (
+                    <article key={item.mission_id}>
+                      <strong>{item.mission_id}</strong>
+                      <span>{item.tokens.toLocaleString("pt-BR")} tokens</span>
+                      <span>{formatUsd(item.usd)}</span>
+                      <span>{item.count} lançamentos</span>
+                      <span>UTC {formatDateTime(item.last_at)}</span>
+                    </article>
+                  ))
+                )}
+              </div>
+              <details className="gm-debug">
+                <summary>Uso detalhado (diagnóstico)</summary>
+                <pre>{usageText || "Sem dados de uso no momento..."}</pre>
+              </details>
+            </section>
+
+            <section className="gm-card">
+              <h2>Prospecção de Projeto</h2>
+              <label>
+                Quantidade de missões planejadas
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={projectMissionCount}
+                  onChange={(e) => setProjectMissionCount(Math.max(1, Math.trunc(Number(e.target.value || 1))))}
+                />
+              </label>
+              <div className="gm-mini-metrics">
+                <article>
+                  <span>Base por missão (tokens)</span>
+                  <strong>{Math.round(missionForecastTokens).toLocaleString("pt-BR")}</strong>
+                </article>
+                <article>
+                  <span>Base por missão (USD)</span>
+                  <strong>{formatUsd(missionForecastUsd)}</strong>
+                </article>
+                <article>
+                  <span>Projeto estimado (tokens)</span>
+                  <strong>{Math.round(missionForecastTokens * projectMissionCount).toLocaleString("pt-BR")}</strong>
+                </article>
+                <article>
+                  <span>Projeto estimado (USD)</span>
+                  <strong>{formatUsd(missionForecastUsd * projectMissionCount)}</strong>
+                </article>
+                <article>
+                  <span>Projeto estimado (BRL)</span>
+                  <strong>R$ {(missionForecastBrl * projectMissionCount).toFixed(2)}</strong>
+                </article>
+              </div>
+              <p className="gm-meta">
+                Base calculada na última prospecção da missão atual. Atualize em "Missões" com "Prospecção de Custo" para refinar.
+              </p>
+              <button type="button" onClick={() => setSection("missoes")}>
+                Revisar parâmetros da missão
+              </button>
             </section>
           </div>
         ) : null}

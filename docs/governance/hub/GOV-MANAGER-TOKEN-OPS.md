@@ -10,6 +10,11 @@ Operar custo de token com visibilidade em tempo real no `gov-manager`, com gover
 - Politica de limite por owner (snapshot) com bloqueio automatico em `paused_waiting_owner`.
 - Registro de uso projetado por missao (snapshot de uso).
 - Biblioteca de prompts por referencia (`prompt_ref`) para reduzir payload repetido.
+- Painel operacional v2:
+  - KPIs de monitor (`progresso`, `status/fase`, `risco de limite`, `tokens usados/restantes`, `custo da missao`).
+  - Uso em tempo real com ranking de missoes por custo (top consumo).
+  - Prospecao rapida de projeto (`n` missoes planejadas x custo base por missao).
+  - Polling configuravel (15s/30s/45s/60s/120s) com refresh manual para reduzir ruido e custo operacional.
 
 ## Endpoints (gov-manager)
 - `POST /api/govhub/missions/cost-preview`
@@ -51,3 +56,4 @@ Operar custo de token com visibilidade em tempo real no `gov-manager`, com gover
 - Fail-closed para payload snapshot invalido.
 - Saidas compactas (sem dumps desnecessarios em webhooks criticos).
 - Se limite for excedido e politica exigir bloqueio, registrar missao retorna `paused_waiting_owner` sem envio ao executor.
+- JSON bruto mantido apenas em bloco de diagnostico no app (sem poluir fluxo principal).
