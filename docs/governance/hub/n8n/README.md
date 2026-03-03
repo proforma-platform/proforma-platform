@@ -7,6 +7,7 @@ These workflows implement:
 - mission intake
 - mission owner approve/deny gate
 - mission auto-fix limited controller (2 rounds + pause for owner)
+- CPP-IA worker dispatch (self-hosted agent call)
 - report ingest with idempotency and hashing
 - decision aggregation
 - snapshot update (mission run upsert + mission_runs_v1 snapshot publishing)
@@ -38,7 +39,18 @@ Use environment variables in the n8n runtime (container/env file/secrets manager
 - `GOVHUB_TOKEN_SCOPES_JSON`
   - JSON map of token -> scopes used by scoped endpoints.
   - `snapshot-update` requires scope `s:w` (or `snapshots:write`).
+  - `missions-autofix-limited`: if this map is empty/unset, token-only auth is used (scope gate skipped). If configured, requires `m:w`/`missions:write`/`s:w`.
   - Example: `{"token_agent_a":["s:w","snapshots:read"],"token_agent_b":["snapshots:read"]}`
+
+Autofix mission control:
+- `missions-register` accepts optional `autofix_control` and writes canonical control into mission UDN:
+  - `#af:enabled=<bool>;max_rounds=<1|2>;on_exhaust=pause_owner`
+- `missions-autofix-limited` reads this line per mission and applies controller behavior without schema change.
+- `worker-cppia-dispatch` aceita opcionalmente `git_ops` no payload e repassa ao self-worker.
+  - sem `git_ops`: fluxo padrao de execucao
+  - com `git_ops`: worker executa ciclo git (fetch/checkout/add/commit/push) conforme politica local
+  - se dispatch do worker falhar (`5xx` no gateway), o workflow aciona automaticamente `missions-autofix-limited`
+  - quando o limite do autofix for excedido, o estado vai para `paused_waiting_owner` e o retorno segue com sinalizacao para chamada do owner
 - `GOVHUB_DB_URL` (or equivalent DB host/user/db config)
   - Database connection for Governance Hub Postgres schema.
 
@@ -140,6 +152,23 @@ Operational result:
   - retry safe for ingest operations
   - duplicates are no-op by design
   - manually re-run decision-aggregate when needed
+
+## Teste de contrato automatico (missions-next)
+Script:
+- `docs/governance/hub/n8n/tests/validate_missions_next_contract.sh`
+
+Objetivo:
+- validar invariante de contrato do endpoint `missions-next`:
+  - se `status=assigned`, `mission_key` e `mission_task_id` devem estar preenchidos.
+  - caso contrario, o fluxo deve responder `status=no_work`.
+
+Uso:
+```bash
+GOVHUB_TOKEN=<token> \
+GOVHUB_BASE_URL=http://127.0.0.1:15678 \
+CALLS=3 \
+docs/governance/hub/n8n/tests/validate_missions_next_contract.sh
+```
 
 ## Data safety and audit posture
 - Report and decision artifacts are hash-addressed.

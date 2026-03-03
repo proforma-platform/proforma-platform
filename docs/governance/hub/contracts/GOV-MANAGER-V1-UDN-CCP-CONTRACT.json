@@ -11,8 +11,27 @@
       "mission_id",
       "mode",
       "udn_block",
+      "autofix_control",
       "constraints"
     ]
+  },
+  "autofix_control": {
+    "required": false,
+    "defaults": {
+      "enabled": true,
+      "max_rounds": 2,
+      "on_exhaust": "pause_owner"
+    },
+    "constraints": {
+      "max_rounds_allowed": [
+        1,
+        2
+      ],
+      "on_exhaust_allowed": [
+        "pause_owner"
+      ]
+    },
+    "persistence": "serialized in udn_mission as #af:enabled=<bool>;max_rounds=<int>;on_exhaust=<value>"
   },
   "udn": {
     "primary_semantics": true,

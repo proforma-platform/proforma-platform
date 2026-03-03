@@ -1,0 +1,219 @@
+[
+  {
+    "id": "govhub-v7-timeline-writer",
+    "name": "govhub-v7-timeline-writer",
+    "active": false,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "path": "govhub/timelines/write",
+          "httpMethod": "POST",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "Webhook_TimelineWrite",
+        "name": "Webhook Timeline Write",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "webhookId": "8d81f09d-5bf1-46c3-b7f3-e8ce85977c02",
+        "position": [
+          220,
+          280
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const crypto = require('crypto');\nconst headers = $json.headers ?? {};\nconst tokenHeader = String(headers['x-govhub-token'] || headers['X-GOVHUB-TOKEN'] || '').trim();\nconst allowed = String($env.GOVHUB_TOKENS || '').split(',').map(v => v.trim()).filter(Boolean);\nif (!tokenHeader || !allowed.includes(tokenHeader)) {\n  return [{ json: { ok: false, statusCode: 401, error_code: 'AUTH_INVALID_TOKEN', message: 'invalid token' } }];\n}\nconst asObj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});\nlet body = asObj($json.body);\nif (!Object.keys(body).length && typeof $json.body === 'string') {\n  try { body = asObj(JSON.parse($json.body)); } catch {}\n}\nif (!Object.keys(body).length) body = asObj($json);\n\nconst timeline_type = String(body.timeline_type || '').trim().toLowerCase();\nconst mission_id = String(body.mission_id || '').trim();\nconst run_id = String(body.run_id || '').trim();\nconst udn_line = String(body.udn_line || '').trim();\nconst artifact_ref = String(body.artifact_ref || '').trim();\nconst source = String(body.source || 'timeline-writer').trim() || 'timeline-writer';\nconst executor_id = String(body.executor_id || '').trim();\nconst performed_by = String(body.performed_by || '').trim();\nconst context_summary = String(body.context_summary || '').trim();\nconst context_payload = asObj(body.context_payload);\nlet occurred_at = String(body.occurred_at || '').trim();\nif (!occurred_at) occurred_at = new Date().toISOString();\nconst occurredDate = new Date(occurred_at);\nif (!Number.isFinite(occurredDate.getTime())) {\n  return [{ json: { ok: false, statusCode: 400, error_code: 'OCCURRED_AT_INVALID', message: 'occurred_at must be valid ISO datetime' } }];\n}\n\nif (!['dev','evl'].includes(timeline_type)) {\n  return [{ json: { ok: false, statusCode: 400, error_code: 'TIMELINE_TYPE_INVALID', message: 'timeline_type must be dev|evl' } }];\n}\nif (!mission_id || !udn_line || !executor_id || !performed_by) {\n  return [{ json: { ok: false, statusCode: 400, error_code: 'TIMELINE_PAYLOAD_INVALID', message: 'mission_id, udn_line, executor_id and performed_by are required' } }];\n}\nif (timeline_type === 'dev' && !udn_line.startsWith('!DEV|')) {\n  return [{ json: { ok: false, statusCode: 400, error_code: 'UDN_DEV_INVALID', message: 'udn_line must start with !DEV|' } }];\n}\nif (timeline_type === 'evl' && !udn_line.startsWith('!EVL|')) {\n  return [{ json: { ok: false, statusCode: 400, error_code: 'UDN_EVL_INVALID', message: 'udn_line must start with !EVL|' } }];\n}\n\nconst esc = (v) => String(v ?? '').replace(/'/g, \"''\");\nconst contextPayloadJson = JSON.stringify(context_payload);\n\nif (timeline_type === 'dev') {\n  const parts = udn_line.replace(/;\\s*$/, '').split('|');\n  if (parts.length < 6) {\n    return [{ json: { ok: false, statusCode: 400, error_code: 'UDN_DEV_PARTS_INVALID', message: 'expected !DEV|PHASE|DUR|MS|EXEC|QG;' } }];\n  }\n  const phase = String(parts[1] || '').trim();\n  const duration_ref = String(parts[2] || '').trim();\n  const milestone = String(parts[3] || '').trim();\n  const prompt_executor = String(parts[4] || '').trim();\n  const quality_gate = String(parts[5] || '').trim();\n  if (!phase || !duration_ref || !milestone || !prompt_executor || !quality_gate) {\n    return [{ json: { ok: false, statusCode: 400, error_code: 'UDN_DEV_FIELDS_INVALID', message: 'missing DEV fields' } }];\n  }\n  const canon = JSON.stringify({timeline_type, mission_id, run_id, executor_id, performed_by, occurred_at: occurredDate.toISOString(), phase, duration_ref, milestone, prompt_executor, quality_gate, context_summary, context_payload: context_payload, udn_line, artifact_ref, source});\n  const event_hash = crypto.createHash('sha256').update(Buffer.from(canon, 'utf8')).digest('hex');\n  return [{ json: { ok: true, route: 'dev', timeline_type, mission_id, run_id, executor_id, performed_by, occurred_at: occurredDate.toISOString(), phase, duration_ref, milestone, prompt_executor, quality_gate, context_summary, context_payload_json: contextPayloadJson, udn_line, artifact_ref, source, event_hash, mission_id_sql: esc(mission_id), run_id_sql: esc(run_id), executor_id_sql: esc(executor_id), performed_by_sql: esc(performed_by), occurred_at_sql: esc(occurredDate.toISOString()), phase_sql: esc(phase), duration_ref_sql: esc(duration_ref), milestone_sql: esc(milestone), prompt_executor_sql: esc(prompt_executor), quality_gate_sql: esc(quality_gate), context_summary_sql: esc(context_summary), context_payload_sql: esc(contextPayloadJson), udn_line_sql: esc(udn_line), artifact_ref_sql: esc(artifact_ref), source_sql: esc(source), event_hash_sql: esc(event_hash) } }];\n}\n\nconst parts = udn_line.replace(/;\\s*$/, '').split('|');\nif (parts.length < 5) {\n  return [{ json: { ok: false, statusCode: 400, error_code: 'UDN_EVL_PARTS_INVALID', message: 'expected !EVL|TIMELINE|EVENT|STAFF_ACT|ART;' } }];\n}\nconst timeline_ref = String(parts[1] || '').trim();\nconst event_name = String(parts[2] || '').trim();\nconst staff_action = String(parts[3] || '').trim();\nconst art_ref_from_udn = String(parts[4] || '').trim();\nif (!timeline_ref || !event_name || !staff_action || !art_ref_from_udn) {\n  return [{ json: { ok: false, statusCode: 400, error_code: 'UDN_EVL_FIELDS_INVALID', message: 'missing EVL fields' } }];\n}\nconst art_final = artifact_ref || art_ref_from_udn;\nconst canon = JSON.stringify({timeline_type, mission_id, run_id, executor_id, performed_by, occurred_at: occurredDate.toISOString(), timeline_ref, event_name, staff_action, context_summary, context_payload: context_payload, artifact_ref: art_final, udn_line, source});\nconst event_hash = crypto.createHash('sha256').update(Buffer.from(canon, 'utf8')).digest('hex');\nreturn [{ json: { ok: true, route: 'evl', timeline_type, mission_id, run_id, executor_id, performed_by, occurred_at: occurredDate.toISOString(), timeline_ref, event_name, staff_action, context_summary, context_payload_json: contextPayloadJson, artifact_ref: art_final, udn_line, source, event_hash, mission_id_sql: esc(mission_id), run_id_sql: esc(run_id), executor_id_sql: esc(executor_id), performed_by_sql: esc(performed_by), occurred_at_sql: esc(occurredDate.toISOString()), timeline_ref_sql: esc(timeline_ref), event_name_sql: esc(event_name), staff_action_sql: esc(staff_action), context_summary_sql: esc(context_summary), context_payload_sql: esc(contextPayloadJson), artifact_ref_sql: esc(art_final), udn_line_sql: esc(udn_line), source_sql: esc(source), event_hash_sql: esc(event_hash) } }];"
+        },
+        "id": "Code_ValidateTimeline",
+        "name": "Validar Timeline",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          480,
+          280
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "expression",
+          "numberOutputs": 3,
+          "output": "={{$json.ok ? ($json.route === 'dev' ? 1 : 2) : 0}}"
+        },
+        "id": "Switch_Route",
+        "name": "Rota Timeline",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
+        "position": [
+          720,
+          280
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { status:'error', error_code:$json.error_code || 'TIMELINE_ERROR', message:$json.message || 'invalid request' } }}",
+          "options": {
+            "responseCode": "={{$json.statusCode || 400}}"
+          }
+        },
+        "id": "Respond_Error",
+        "name": "Responder Erro",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [
+          980,
+          120
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "INSERT INTO gov.timeline_dev (mission_id, run_id, executor_id, performed_by, occurred_at, phase, duration_ref, milestone, prompt_executor, quality_gate, context_summary, context_payload, udn_line, artifact_ref, event_hash, source) VALUES ('{{$json.mission_id_sql}}', NULLIF('{{$json.run_id_sql}}',''), '{{$json.executor_id_sql}}', '{{$json.performed_by_sql}}', '{{$json.occurred_at_sql}}'::timestamptz, '{{$json.phase_sql}}', '{{$json.duration_ref_sql}}', '{{$json.milestone_sql}}', '{{$json.prompt_executor_sql}}', '{{$json.quality_gate_sql}}', NULLIF('{{$json.context_summary_sql}}',''), '{{$json.context_payload_sql}}'::jsonb, '{{$json.udn_line_sql}}', NULLIF('{{$json.artifact_ref_sql}}',''), '{{$json.event_hash_sql}}', '{{$json.source_sql}}') ON CONFLICT (event_hash) DO NOTHING RETURNING timeline_id::text, mission_id, event_hash, to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at_utc;"
+        },
+        "id": "Postgres_InsertDev",
+        "name": "Inserir Timeline DEV",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2,
+        "position": [
+          980,
+          280
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "11111111-2222-4333-8444-555555555555",
+            "name": "GOVHUB_DB"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "INSERT INTO gov.timeline_evl (mission_id, run_id, executor_id, performed_by, occurred_at, timeline_ref, event_name, staff_action, context_summary, context_payload, artifact_ref, udn_line, event_hash, source) VALUES ('{{$json.mission_id_sql}}', NULLIF('{{$json.run_id_sql}}',''), '{{$json.executor_id_sql}}', '{{$json.performed_by_sql}}', '{{$json.occurred_at_sql}}'::timestamptz, '{{$json.timeline_ref_sql}}', '{{$json.event_name_sql}}', '{{$json.staff_action_sql}}', NULLIF('{{$json.context_summary_sql}}',''), '{{$json.context_payload_sql}}'::jsonb, NULLIF('{{$json.artifact_ref_sql}}',''), '{{$json.udn_line_sql}}', '{{$json.event_hash_sql}}', '{{$json.source_sql}}') ON CONFLICT (event_hash) DO NOTHING RETURNING timeline_id::text, mission_id, event_hash, to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at_utc;"
+        },
+        "id": "Postgres_InsertEvl",
+        "name": "Inserir Timeline EVL",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2,
+        "position": [
+          980,
+          440
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "11111111-2222-4333-8444-555555555555",
+            "name": "GOVHUB_DB"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { status:'ok', timeline_type:'dev', mission_id:$node['Validar Timeline'].json.mission_id, executor_id:$node['Validar Timeline'].json.executor_id, performed_by:$node['Validar Timeline'].json.performed_by, occurred_at:$node['Validar Timeline'].json.occurred_at, event_hash:$node['Validar Timeline'].json.event_hash, next_action:'timeline_logged' } }}",
+          "options": {
+            "responseCode": 200
+          }
+        },
+        "id": "Respond_OkDev",
+        "name": "Responder OK DEV",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [
+          1220,
+          280
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { status:'ok', timeline_type:'evl', mission_id:$node['Validar Timeline'].json.mission_id, executor_id:$node['Validar Timeline'].json.executor_id, performed_by:$node['Validar Timeline'].json.performed_by, occurred_at:$node['Validar Timeline'].json.occurred_at, event_hash:$node['Validar Timeline'].json.event_hash, next_action:'timeline_logged' } }}",
+          "options": {
+            "responseCode": 200
+          }
+        },
+        "id": "Respond_OkEvl",
+        "name": "Responder OK EVL",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [
+          1220,
+          440
+        ]
+      }
+    ],
+    "connections": {
+      "Webhook Timeline Write": {
+        "main": [
+          [
+            {
+              "node": "Validar Timeline",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Validar Timeline": {
+        "main": [
+          [
+            {
+              "node": "Rota Timeline",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Rota Timeline": {
+        "main": [
+          [
+            {
+              "node": "Responder Erro",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Inserir Timeline DEV",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Inserir Timeline EVL",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Inserir Timeline DEV": {
+        "main": [
+          [
+            {
+              "node": "Responder OK DEV",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Inserir Timeline EVL": {
+        "main": [
+          [
+            {
+              "node": "Responder OK EVL",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {}
+  }
+]

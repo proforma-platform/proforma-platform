@@ -19,9 +19,42 @@ Endpoint purpose:
 Method:
 - `POST`
 
+## Webhook: missions-register
+Endpoint purpose:
+- register `gov.missions` + initial `gov.mission_runs` with UDN-first contract and per-mission autofix control.
+
+Method:
+- `POST`
+
+Canonical endpoint:
+- `https://govhub.proforma.net.br/webhook/govhub/missions/register`
+
+Required input:
+- `mission_id`
+- `udn_mission`
+- `tdv_version`
+- `created_by`
+
+Optional input:
+- `branch` (default: `main`)
+- `agent_id` (default: `CPP`)
+- `autofix_control`
+  - `enabled` (bool, default `true`)
+  - `max_rounds` (`1` or `2`, default `2`)
+  - `on_exhaust` (`pause_owner`, default `pause_owner`)
+
+Persistence rule:
+- the control is persisted inside `udn_mission` as:
+  - `#af:enabled=<bool>;max_rounds=<int>;on_exhaust=<value>`
+- any previous `#af:` line is replaced at register-time by canonical value.
+
 ## Webhook: missions-next
 Endpoint purpose:
 - deterministic pull of the next mission task for a repository agent.
+
+Compact output policy:
+- respostas HTTP devem ser minimas para reduzir consumo de tokens.
+- detalhamento operacional completo permanece no DB/ledger.
 
 Method:
 - `POST` (MVP)
@@ -38,19 +71,24 @@ Required input:
 
 Success responses:
 - `200` + `{ "status": "no_work" }` when no mission is available
-- `200` + assignment payload when lock succeeds:
+- `200` + assignment payload when lock succeeds and dispatch is sent to the worker selected by `agent_id` (`CPP` or `CPP-IA`):
 ```json
 {
   "status": "assigned",
-  "mission_key": "AEI-0.6.2",
-  "repo_key": "platform",
-  "agent_id": "cpp",
-  "lock_ttl_seconds": 900,
-  "lock_expires_at_utc": "2026-02-26T14:30:00Z",
-  "instructions": null,
-  "source": "govhub-n8n"
+  "mission_id": "AEI-0.6.2",
+  "mission_task_id": "97a2d9a9-2e44-4b3f-b0bb-58e4f9b3b97f",
+  "next_action": "execute_mission"
 }
 ```
+
+Invariante de contrato (obrigatorio):
+- se `status="assigned"`, entao `mission_id` e `mission_task_id` DEVEM estar preenchidos.
+- se qualquer um estiver ausente, a resposta deve ser normalizada para `status="no_work"` (fail-closed sem atribuicao fantasma).
+
+Auditoria automatica (timeline):
+- quando `status=assigned`, o workflow registra evento `EVL` automaticamente no ledger via `POST /webhook/govhub/timelines/write`.
+- envio nao bloqueia o dispatch principal (`ignoreResponseCode=true`) para preservar continuidade operacional.
+- campos preenchidos no evento: `mission_id`, `run_id` (`mission_task_id`), `executor_id` (`agent_id`), `performed_by`, `occurred_at`, `context_summary`, `context_payload`.
 
 Error responses:
 - `400` invalid request (`repo_key`/`agent_id` missing)
@@ -118,9 +156,13 @@ Optional input:
 - `error_excerpt` (truncated to 256)
 
 Behavior:
-- round 1: set `autofix_state=round_1`, increment attempts
-- round 2: set `autofix_state=round_2`, increment attempts
-- after limit: set `autofix_state=paused_waiting_owner` and `owner_call_required=true`
+- control source: parsed from mission `udn_mission` `#af:` line
+- defaults when absent: `enabled=true`, `max_rounds=2`, `on_exhaust=pause_owner`
+- when `enabled=false`: state becomes `resolved`, `next_action=autofix_disabled`
+- when `enabled=true`:
+  - round 1: set `autofix_state=round_1`, increment attempts
+  - round 2 (if `max_rounds=2`): set `autofix_state=round_2`, increment attempts
+  - after configured limit: set `autofix_state=paused_waiting_owner` and `owner_call_required=true`
 
 Success response (`200`):
 ```json
@@ -130,7 +172,157 @@ Success response (`200`):
   "autofix_attempts": 2,
   "autofix_state": "round_2",
   "owner_call_required": false,
+  "control": {
+    "enabled": true,
+    "max_rounds": 2,
+    "on_exhaust": "pause_owner"
+  },
   "next_action": "retry_limited"
+}
+```
+
+## Webhook: workers-cppia-dispatch
+
+- `POST /webhook/govhub/workers/cppia/dispatch`
+- Auth: `X-GOVHUB-TOKEN` in `GOVHUB_TOKENS`
+- Purpose: dispatch an execution task to the self-hosted `CPP-IA` worker.
+- Regra operacional: `git_ops` e opcional; se ausente, o worker executa modo padrao (`accepted`).
+
+Request:
+```json
+{
+  "mission_id": "GOV-CPP-IA-TEST-01",
+  "task_id": "task-01",
+  "udn_block": "!MIS|GOV-CPP-IA-TEST-01|P1|RUN",
+  "git_ops": {
+    "repo_path": "/workspace/proforma-platform",
+    "branch": "feat/gov-123",
+    "base_branch": "main",
+    "remote": "origin",
+    "commit_message": "feat: ajuste GOV-123",
+    "fetch_remote": true,
+    "stage_all": true,
+    "push": true
+  }
+}
+```
+
+Success response:
+```json
+{
+  "status": "ok",
+  "dispatch": "sent",
+  "worker_response": {
+    "status": "ok",
+    "worker_id": "CPP-IA",
+    "mission_id": "GOV-CPP-IA-TEST-01",
+    "task_id": "task-01",
+    "result": "accepted",
+    "udn_received": true,
+    "git_ops": {
+      "status": "ok",
+      "branch": "feat/gov-123",
+      "head_sha": "abc123",
+      "commit_created": true
+    },
+    "next_action": "report_ingest"
+  }
+}
+```
+
+Failure response with automatic limited autofix:
+- if worker execution fails (for example HTTP 422 from worker), gateway returns `502` and triggers `missions-autofix-limited`.
+- when autofix limit is exceeded and mission moves to `paused_waiting_owner`, gateway returns `409`.
+
+Example failure payload:
+```json
+{
+  "status": "error",
+  "dispatch": "failed",
+  "error_code": "DISPATCH_WORKER_HTTP_FAILURE",
+  "autofix_response": {
+    "mission_id": "GOV-EXAMPLE-02",
+    "autofix_state": "paused_waiting_owner",
+    "owner_call_required": true,
+    "next_action": "pause_owner"
+  },
+  "next_action": "owner_ack_required"
+}
+```
+
+## Webhook: timelines-write
+
+- `POST /webhook/govhub/timelines/write`
+- Auth: `X-GOVHUB-TOKEN` in `GOVHUB_TOKENS`
+- Purpose: registrar eventos de governanca real no ledger de timelines (desenvolvimento e evolucao).
+
+Timeline 1 - Desenvolvimento:
+- UDN: `!DEV|PHASE|DUR|MS|EXEC|QG;`
+- Campos de conteudo: fase, duracao, milestone, prompt executor, quality gate.
+
+Timeline 2 - Evolucao:
+- UDN: `!EVL|TIMELINE|EVENT|STAFF_ACT|ART;`
+- Campos de conteudo: timeline, evento, acao IA/Staff, artefato.
+
+Campos minimos obrigatorios em qualquer timeline:
+- `mission_id`
+- `timeline_type` (`dev` ou `evl`)
+- `executor_id` (quem executou tecnicamente)
+- `performed_by` (quem registrou/efetivou no Hub)
+- `occurred_at` (quando ocorreu, ISO-8601)
+- `udn_line`
+- `context_summary` e/ou `context_payload`
+
+Request (DEV):
+```json
+{
+  "timeline_type": "dev",
+  "mission_id": "GOV-MANAGER-V1-FOUNDATION",
+  "run_id": "GOV-MANAGER-V1-FOUNDATION-run-001",
+  "executor_id": "CPP",
+  "performed_by": "self-worker-cpp",
+  "occurred_at": "2026-03-02T23:30:00Z",
+  "udn_line": "!DEV|PHASE_2|DUR_2H|MS_RUNTIME_ADAPTERS|CPP|QG_PASS;",
+  "context_summary": "Implementacao de runtime adapters e validacao de contrato",
+  "context_payload": {
+    "files": ["apps/gov-manager/src/app/page.tsx"],
+    "tests": "typecheck_ok"
+  },
+  "artifact_ref": "apps/gov-manager/src/app/page.tsx",
+  "source": "staff-hub"
+}
+```
+
+Request (EVL):
+```json
+{
+  "timeline_type": "evl",
+  "mission_id": "GOV-MANAGER-V1-FOUNDATION",
+  "run_id": "GOV-MANAGER-V1-FOUNDATION-run-001",
+  "executor_id": "STAFF",
+  "performed_by": "governance-bot",
+  "occurred_at": "2026-03-02T23:35:00Z",
+  "udn_line": "!EVL|TIMELINE_V1|AUTOFIX_TRIGGERED|STAFF_ROUTING|docs/governance/hub/n8n/exports/missions-autofix-limited.json;",
+  "context_summary": "Erro de dispatch levou a rodada automatica de autofix",
+  "context_payload": {
+    "http_status": 502,
+    "next_action": "retry_limited"
+  },
+  "source": "self-worker"
+}
+```
+
+Success response:
+```json
+{
+  "status": "ok",
+  "timeline_type": "dev",
+  "mission_id": "GOV-MANAGER-V1-FOUNDATION",
+  "executor_id": "CPP",
+  "performed_by": "self-worker-cpp",
+  "occurred_at": "2026-03-02T23:30:00Z",
+  "event_hash": "<sha256>",
+  "next_action": "timeline_logged"
 }
 ```
 

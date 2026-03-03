@@ -1,22 +1,57 @@
-# Gov-Manager V7 Foundation
+# Fundação Gov-Manager V7
 
-## Components
-- TDV 1.0 schema and signal validator: `src/tdv/schema-v1.ts`
-- UDN canonical engine: `src/udn/canonical-engine.ts`
-- Ledger V7 chain primitives: `src/infra/ledger-v7.ts`
-- Contract adapter legacy->v7: `src/contracts/adapter-v7.ts`
+## Componentes
+- Esquema TDV 1.0 e validador de sinal: `src/tdv/schema-v1.ts`
+- Motor canônico UDN: `src/udn/canonical-engine.ts`
+- Primitivos da cadeia Ledger V7: `src/infra/ledger-v7.ts`
+- Adaptador de contrato legado para V7: `src/contracts/adapter-v7.ts`
 
-## Determinism Model
-- Hashing uses SHA-256 (`src/core/determinism.ts`).
-- JSON hashing uses stable key ordering.
-- Ledger genesis hash is deterministic.
-- UDN engine normalizes line endings and whitespace before hashing.
+## Modelo de Determinismo
+- Hash com SHA-256 (`src/core/determinism.ts`)
+- Hash de JSON com ordenação estável de chaves
+- Hash de gênese do ledger determinístico
+- Normalização de quebra de linha e espaços do UDN antes do hash
 
-## API Boundary
-- Mission route: `src/app/api/mission/route.ts`
-- Contract version returned: `v7-baseline`
-- Adapter accepts legacy envelope and normalizes to V7 mission contract.
+## Fronteira de API
+- Rota de missão local: `src/app/api/mission/route.ts`
+- Rota proxy de registro no GOVHUB: `src/app/api/govhub/missions/register/route.ts`
+- Rota proxy de decisao do Owner: `src/app/api/govhub/missions/owner-ack/route.ts`
+- Versão de contrato retornada: `v7-baseline`
+- Adaptador aceita envelope legado e normaliza para o contrato V7
 
-## Notes
-- No dynamic timestamps are used for contract-level deterministic identifiers.
-- Build reproducibility verification remains dependent on network-capable `npm ci`.
+## Controles Operacionais (V7)
+- O payload de missão aceita `autofix_control`:
+  - `enabled: boolean`
+  - `max_rounds: 1 | 2`
+  - `on_exhaust: "pause_owner"`
+- O payload de missão aceita `token_control`:
+  - `enabled: boolean`
+  - `budget_usd: number`
+  - `budget_brl: number`
+  - `max_input_tokens: number`
+  - `max_output_tokens: number`
+  - `hard_stop: boolean`
+- Validação em modo fail-closed para valores inválidos
+- A UI gera UDN com linhas de governança:
+  - `#af:` para política de autofix limitado
+  - `#ct:` para política de orçamento e limites de tokens
+
+## Configuração de Runtime GOVHUB
+- Variáveis obrigatórias:
+  - `GOVHUB_BASE_URL` (exemplo: `https://govhub.proforma.net.br`)
+  - `GOVHUB_TOKEN` (somente servidor; não expor no navegador)
+- Variável opcional:
+  - `GOVHUB_MISSIONS_REGISTER_PATH` (padrão: `/webhook/govhub/missions/register`)
+- O app envia o registro de missão server-side com header `X-GOVHUB-TOKEN`
+- O app envia a decisao do Owner (`approve|deny`) server-side para `missions/owner-ack`
+
+## Fluxo Owner Ack
+- Quando o retorno indicar `owner_ack_required` (ou `paused_waiting_owner`), a UI abre painel de decisao.
+- O Owner pode executar:
+  - `APROVAR` -> envia `decision=approve`
+  - `NEGAR` -> envia `decision=deny`
+- A resposta da acao e exibida no painel em JSON para auditoria rapida.
+
+## Observações
+- Não usar timestamps dinâmicos em identificadores determinísticos de contrato
+- A verificação de reprodutibilidade de build ainda depende de `npm ci` com rede
