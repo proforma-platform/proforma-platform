@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "HUB-GOV V6 | OMNI-SYNAPSE",
-  description: "Proforma Platform Governance Console",
+  title: "Gov-Hub Manager",
+  description: "Painel oficial de governanca operacional do Gov-Hub",
 };
 
 export default function RootLayout({
@@ -12,7 +12,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="bg-slate-950">
+    <html lang="pt-BR" data-theme="dark">
       <body className="antialiased">{children}</body>
     </html>
   );
