@@ -243,6 +243,17 @@ body {
   gap: 18px;
 }
 
+.gm-back-menu {
+  width: fit-content;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  padding: 8px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
 .gm-header {
   display: flex;
   justify-content: space-between;
@@ -673,6 +684,27 @@ body {
   .gm-sidebar {
     border-right: none;
     border-bottom: 1px solid var(--line);
+  }
+
+  .gm-sidebar-mobile.gm-sidebar-collapsed nav,
+  .gm-sidebar-mobile.gm-sidebar-collapsed .gm-sidebar-bottom {
+    display: none;
+  }
+
+  .gm-sidebar-mobile.gm-sidebar-collapsed {
+    padding: 8px 12px;
+    gap: 8px;
+  }
+
+  .gm-sidebar-mobile.gm-sidebar-collapsed .gm-brand {
+    justify-content: flex-start;
+    padding: 4px 0;
+  }
+
+  .gm-sidebar-mobile.gm-sidebar-collapsed .gm-brand-seal-wrap {
+    width: 72px;
+    height: 72px;
+    flex: 0 0 72px;
   }
 
   .gm-brand-seal-wrap {

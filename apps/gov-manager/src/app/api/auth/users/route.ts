@@ -77,29 +77,35 @@ export async function POST(request: Request) {
 
   const loaded = await loadSnapshotPayload(config, USERS_SNAPSHOT_TYPE);
   const state = loaded.found && loaded.payload ? sanitizeGovManagerUserState(loaded.payload) : sanitizeGovManagerUserState(null);
-  const exists = state.rows.some((row) => row.username.toLowerCase() === username.toLowerCase());
-  if (exists) {
-    return NextResponse.json(
-      { status: "conflict", error_code: "USER_ALREADY_EXISTS" },
-      { status: 409 }
-    );
-  }
+  const existing = state.rows.find((row) => row.username.toLowerCase() === username.toLowerCase());
 
   const now = new Date().toISOString();
   const next = {
     version: "1.0" as const,
     updated_at_utc: now,
-    rows: [
-      ...state.rows,
-      {
-        username,
-        role: roleRaw,
-        active,
-        password_hash: hashPassword(password),
-        created_at_utc: now,
-        updated_at_utc: now
-      }
-    ]
+    rows: existing
+      ? state.rows.map((row) =>
+          row.username.toLowerCase() === username.toLowerCase()
+            ? {
+                ...row,
+                role: roleRaw,
+                active,
+                password_hash: hashPassword(password),
+                updated_at_utc: now
+              }
+            : row
+        )
+      : [
+          ...state.rows,
+          {
+            username,
+            role: roleRaw,
+            active,
+            password_hash: hashPassword(password),
+            created_at_utc: now,
+            updated_at_utc: now
+          }
+        ]
   };
 
   const saved = await saveSnapshotPayload(config, {
@@ -115,6 +121,7 @@ export async function POST(request: Request) {
   return NextResponse.json(
     {
       status: saved.ok ? "ok" : "upstream_error",
+      mode: existing ? "updated" : "created",
       govhub_http: saved.status,
       snapshot_type: USERS_SNAPSHOT_TYPE,
       row,

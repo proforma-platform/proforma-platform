@@ -270,8 +270,12 @@ export default function GovManagerPage() {
       setMobileMenuOpen(!mobile);
     };
     apply();
-    media.addEventListener("change", apply);
-    return () => media.removeEventListener("change", apply);
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", apply);
+      return () => media.removeEventListener("change", apply);
+    }
+    media.addListener(apply);
+    return () => media.removeListener(apply);
   }, []);
 
   useEffect(() => {
@@ -572,7 +576,8 @@ export default function GovManagerPage() {
         setUserStatus(`erro: ${String(payload?.error_code || "USER_CREATE_FAILED")}`);
         return;
       }
-      setUserStatus("ok");
+      const mode = String(payload?.mode || "created");
+      setUserStatus(mode === "updated" ? "ok (senha atualizada)" : "ok (usuário criado)");
       setUserForm({ username: "", password: "", role: "engineer" });
       await loadUsers();
     } catch {
@@ -1034,11 +1039,6 @@ export default function GovManagerPage() {
     <main className="gm-shell">
       <aside className={`gm-sidebar ${isMobile ? "gm-sidebar-mobile" : ""} ${isMobile && !mobileMenuOpen ? "gm-sidebar-collapsed" : ""}`}>
         <div className="gm-brand">
-          {isMobile ? (
-            <button className="gm-menu-toggle" onClick={() => setMobileMenuOpen((prev) => !prev)}>
-              {mobileMenuOpen ? "✕" : "☰"}
-            </button>
-          ) : null}
           <div className="gm-brand-seal-wrap">
             <img className="gm-brand-seal" src="/selo-govhub.png" alt="Selo Gov-Hub" />
           </div>
