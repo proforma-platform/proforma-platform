@@ -347,6 +347,73 @@ body {
   gap: 4px;
 }
 
+.gm-bot-list {
+  display: grid;
+  gap: 8px;
+}
+
+.gm-bot-item {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--panel-2);
+  display: grid;
+  gap: 4px;
+}
+
+.gm-bot-item strong {
+  font-size: 14px;
+}
+
+.gm-bot-item span,
+.gm-bot-item small {
+  color: var(--text-soft);
+}
+
+.gm-bot-item a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+  width: fit-content;
+}
+
+.gm-bot-state {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11px;
+  color: var(--text);
+  width: fit-content;
+}
+
+.gm-bot-state-ok {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.gm-bot-state-running {
+  border-color: #22d3ee;
+  color: #22d3ee;
+}
+
+.gm-bot-state-error {
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.gm-bot-state-blocked {
+  border-color: #f59e0b;
+  color: #f59e0b;
+}
+
+.gm-bot-state-skipped,
+.gm-bot-state-unknown {
+  border-color: var(--text-soft);
+  color: var(--text-soft);
+}
+
 .gm-empty {
   margin: 0;
   color: var(--text-soft);

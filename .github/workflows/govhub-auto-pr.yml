@@ -74,3 +74,28 @@ jobs:
             });
 
             core.info(`Created PR #${pr.data.number}`);
+
+      - name: Registrar status do bot govhublab-pr
+        if: always() && secrets.GOV_MANAGER_BOT_STATUS_ENDPOINT != '' && secrets.GOV_MANAGER_BOT_STATUS_TOKEN != ''
+        env:
+          GOV_MANAGER_BOT_STATUS_ENDPOINT: ${{ secrets.GOV_MANAGER_BOT_STATUS_ENDPOINT }}
+          GOV_MANAGER_BOT_STATUS_TOKEN: ${{ secrets.GOV_MANAGER_BOT_STATUS_TOKEN }}
+          HAS_GOVHUB_PR_TOKEN: ${{ secrets.GOVHUB_PR_TOKEN != '' }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          state="ok"
+          message="auto-pr executado"
+
+          if [ "$HAS_GOVHUB_PR_TOKEN" != "true" ]; then
+            state="blocked"
+            message="GOVHUB_PR_TOKEN ausente"
+          elif [ "$JOB_STATUS" != "success" ]; then
+            state="error"
+            message="falha no workflow auto-pr"
+          fi
+
+          curl -fsS -X PUT "$GOV_MANAGER_BOT_STATUS_ENDPOINT" \
+            -H "content-type: application/json" \
+            -H "x-gov-manager-token: $GOV_MANAGER_BOT_STATUS_TOKEN" \
+            --data "{\"bot_id\":\"govhublab-pr\",\"workflow_id\":\"govhub-auto-pr\",\"state\":\"$state\",\"result\":\"$JOB_STATUS\",\"message\":\"$message\",\"run_id\":\"${{ github.run_id }}\",\"run_url\":\"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\",\"actor\":\"github-actions\"}" >/dev/null

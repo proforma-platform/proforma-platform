@@ -51,6 +51,18 @@ interface UsageRow {
   created_at_utc?: string;
 }
 
+interface BotStatusRow {
+  bot_id?: string;
+  workflow_id?: string;
+  state?: string;
+  result?: string;
+  message?: string;
+  run_id?: string;
+  run_url?: string;
+  actor?: string;
+  updated_at_utc?: string;
+}
+
 const defaultPolicy: TokenPolicy = {
   daily_token_limit: 60000,
   daily_usd_limit: 12,
@@ -116,6 +128,16 @@ function formatDateTime(value: string): string {
   }).format(date);
 }
 
+function botStateLabel(state: string): string {
+  const normalized = String(state || "unknown").toLowerCase();
+  if (normalized === "ok") return "OK";
+  if (normalized === "running") return "Rodando";
+  if (normalized === "error") return "Erro";
+  if (normalized === "blocked") return "Bloqueado";
+  if (normalized === "skipped") return "Ignorado";
+  return "Desconhecido";
+}
+
 export default function GovManagerPage() {
   const [theme, setTheme] = useState<Theme>("dark");
   const [section, setSection] = useState<Section>("visao");
@@ -157,10 +179,14 @@ export default function GovManagerPage() {
   const [usageText, setUsageText] = useState("");
   const [usageRefreshSec, setUsageRefreshSec] = useState(45);
   const [monitorRefreshSec, setMonitorRefreshSec] = useState(30);
+  const [botStatusRefreshSec, setBotStatusRefreshSec] = useState(30);
   const [usageRefreshNonce, setUsageRefreshNonce] = useState(0);
   const [monitorRefreshNonce, setMonitorRefreshNonce] = useState(0);
+  const [botStatusRefreshNonce, setBotStatusRefreshNonce] = useState(0);
   const [usageUpdatedAt, setUsageUpdatedAt] = useState("");
   const [monitorUpdatedAt, setMonitorUpdatedAt] = useState("");
+  const [botStatusText, setBotStatusText] = useState("");
+  const [botStatusUpdatedAt, setBotStatusUpdatedAt] = useState("");
   const [projectMissionCount, setProjectMissionCount] = useState(8);
 
   const selectedPrompt = useMemo(
@@ -209,6 +235,33 @@ export default function GovManagerPage() {
       window.clearInterval(interval);
     };
   }, [createdBy, usageRefreshNonce, usageRefreshSec]);
+
+  useEffect(() => {
+    let active = true;
+
+    const pullBotStatus = async () => {
+      try {
+        const response = await fetch("/api/govhub/bots/status", { cache: "no-store" });
+        const payload = await response.json();
+        if (active) {
+          setBotStatusText(JSON.stringify(payload, null, 2));
+          setBotStatusUpdatedAt(new Date().toISOString());
+        }
+      } catch {
+        if (active) {
+          setBotStatusText(JSON.stringify({ status: "error", error_code: "BOT_STATUS_FETCH_FAILED" }, null, 2));
+          setBotStatusUpdatedAt(new Date().toISOString());
+        }
+      }
+    };
+
+    pullBotStatus();
+    const interval = window.setInterval(pullBotStatus, Math.max(15, botStatusRefreshSec) * 1000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [botStatusRefreshNonce, botStatusRefreshSec]);
 
   async function loadPrompts() {
     try {
@@ -536,6 +589,7 @@ export default function GovManagerPage() {
   const previewPayload = useMemo(() => safeJsonParse(tokenPreview), [tokenPreview]);
   const realtimePayload = useMemo(() => safeJsonParse(tokenRealtime), [tokenRealtime]);
   const usagePayload = useMemo(() => safeJsonParse(usageText), [usageText]);
+  const botStatusPayload = useMemo(() => safeJsonParse(botStatusText), [botStatusText]);
 
   const previewData = useMemo(() => {
     const preview = previewPayload?.preview;
@@ -592,6 +646,19 @@ export default function GovManagerPage() {
     const rows = usagePayload?.rows;
     return Array.isArray(rows) ? (rows as UsageRow[]) : [];
   }, [usagePayload]);
+
+  const botRows = useMemo(() => {
+    const rows = botStatusPayload?.rows;
+    return Array.isArray(rows) ? (rows as BotStatusRow[]) : [];
+  }, [botStatusPayload]);
+
+  const botSummary = useMemo(() => {
+    const total = botRows.length;
+    const ok = botRows.filter((row) => String(row.state || "").toLowerCase() === "ok").length;
+    const error = botRows.filter((row) => String(row.state || "").toLowerCase() === "error").length;
+    const blocked = botRows.filter((row) => String(row.state || "").toLowerCase() === "blocked").length;
+    return { total, ok, error, blocked };
+  }, [botRows]);
 
   const topMissionUsage = useMemo(() => {
     const map = new Map<string, { mission_id: string; usd: number; tokens: number; count: number; last_at: string }>();
@@ -703,6 +770,66 @@ export default function GovManagerPage() {
                 <p>Limite input/output: <strong>{tokenControl.max_input_tokens} / {tokenControl.max_output_tokens}</strong></p>
               </div>
               <button onClick={() => setSection("governanca")}>Ir para Governança</button>
+            </section>
+
+            <section className="gm-card">
+              <h2>Status dos Bots</h2>
+              <div className="gm-row">
+                <label>
+                  Atualização bots (seg)
+                  <select value={botStatusRefreshSec} onChange={(e) => setBotStatusRefreshSec(Number(e.target.value || 30))}>
+                    <option value={15}>15s</option>
+                    <option value={30}>30s</option>
+                    <option value={45}>45s</option>
+                    <option value={60}>60s</option>
+                    <option value={120}>120s</option>
+                  </select>
+                </label>
+                <button type="button" onClick={() => setBotStatusRefreshNonce((prev) => prev + 1)}>
+                  Atualizar agora
+                </button>
+              </div>
+              <div className="gm-mini-metrics">
+                <article>
+                  <span>Total</span>
+                  <strong>{botSummary.total}</strong>
+                </article>
+                <article>
+                  <span>OK</span>
+                  <strong>{botSummary.ok}</strong>
+                </article>
+                <article>
+                  <span>Erro</span>
+                  <strong>{botSummary.error}</strong>
+                </article>
+                <article>
+                  <span>Bloqueado</span>
+                  <strong>{botSummary.blocked}</strong>
+                </article>
+              </div>
+              <p className="gm-meta">Último status UTC: {formatDateTime(botStatusUpdatedAt)}</p>
+              <div className="gm-bot-list">
+                {botRows.length === 0 ? (
+                  <p className="gm-empty">Sem status registrado dos bots ainda.</p>
+                ) : (
+                  botRows.map((row) => (
+                    <article key={`${row.bot_id || "bot"}-${row.workflow_id || "workflow"}`} className="gm-bot-item">
+                      <strong>{row.bot_id || "bot"}</strong>
+                      <span>{row.workflow_id || "-"}</span>
+                      <span className={`gm-bot-state gm-bot-state-${String(row.state || "unknown").toLowerCase()}`}>
+                        {botStateLabel(String(row.state || "unknown"))}
+                      </span>
+                      <small>Resultado: {row.result || "-"}</small>
+                      <small>Atualizado: {formatDateTime(String(row.updated_at_utc || ""))}</small>
+                      {row.run_url ? (
+                        <a href={row.run_url} target="_blank" rel="noreferrer">
+                          Abrir execução
+                        </a>
+                      ) : null}
+                    </article>
+                  ))
+                )}
+              </div>
             </section>
           </div>
         ) : null}

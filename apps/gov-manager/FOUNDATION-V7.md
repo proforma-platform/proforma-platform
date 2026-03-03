@@ -45,6 +45,20 @@
 - O app envia o registro de missão server-side com header `X-GOVHUB-TOKEN`
 - O app envia a decisao do Owner (`approve|deny`) server-side para `missions/owner-ack`
 
+## Registro de Status dos Bots
+- Snapshot dedicado: `gov_manager_bot_status_v1` (configurável por `GOVHUB_BOT_STATUS_SNAPSHOT_TYPE`).
+- Endpoint do app:
+  - `GET /api/govhub/bots/status` (sessão ativa).
+  - `PUT /api/govhub/bots/status` (sessão ativa ou token técnico no header `x-gov-manager-token`).
+- Variável opcional do app para escrita técnica sem sessão:
+  - `GOV_MANAGER_BOT_STATUS_TOKEN`
+- Secrets necessários no GitHub Actions para registrar o status no app:
+  - `GOV_MANAGER_BOT_STATUS_ENDPOINT` (exemplo: `https://gov.proforma.net.br/api/govhub/bots/status`)
+  - `GOV_MANAGER_BOT_STATUS_TOKEN` (mesmo valor do runtime do app)
+- Workflows que atualizam o status:
+  - `GOVHUB Auto PR` -> bot `govhublab-pr`
+  - `GOVHUB Auto Approve` -> bot `govhub-approve-br`
+
 ## Fluxo Owner Ack
 - Quando o retorno indicar `owner_ack_required` (ou `paused_waiting_owner`), a UI abre painel de decisao.
 - O Owner pode executar:
