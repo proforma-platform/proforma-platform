@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type Theme = "dark" | "light";
 type Section = "visao" | "missoes" | "orquestracao" | "chat" | "execucoes" | "pendencias" | "prompts" | "governanca";
 type PartExecutor = "STAFF" | "CPP" | "CPP-IA";
 type PartPriority = "P0" | "P1" | "P2";
+type ChatUiAction = "MSG" | "STATUS" | "OK" | "PAUSAR" | "NEGAR" | "OWNER_CALL" | "NOVA_MISSAO";
 
 interface MissionPart {
   part_id: string;
@@ -104,6 +105,12 @@ interface SessionInfo {
   is_primary_admin?: boolean;
 }
 
+const ADMIN_COMMAND_ACTIONS = new Set<ChatUiAction>(["OK", "PAUSAR", "NEGAR", "OWNER_CALL", "NOVA_MISSAO"]);
+
+function isAdminCommandAction(action: string): boolean {
+  return ADMIN_COMMAND_ACTIONS.has(String(action || "").toUpperCase() as ChatUiAction);
+}
+
 const defaultPolicy: TokenPolicy = {
   daily_token_limit: 60000,
   daily_usd_limit: 12,
@@ -179,6 +186,29 @@ function botStateLabel(state: string): string {
   return "Desconhecido";
 }
 
+function playTimSound() {
+  try {
+    const Context = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Context) return;
+    const ctx = new Context();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = 920;
+    gain.gain.value = 0.0001;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    const now = ctx.currentTime;
+    gain.gain.exponentialRampToValueAtTime(0.04, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
+    osc.start(now);
+    osc.stop(now + 0.16);
+    window.setTimeout(() => void ctx.close(), 220);
+  } catch {
+    // no-op
+  }
+}
+
 export default function GovManagerPage() {
   const [theme, setTheme] = useState<Theme>("dark");
   const [section, setSection] = useState<Section>("visao");
@@ -240,15 +270,19 @@ export default function GovManagerPage() {
   const [chatUpdatedAt, setChatUpdatedAt] = useState("");
   const [chatRefreshSec, setChatRefreshSec] = useState(5);
   const [chatRefreshNonce, setChatRefreshNonce] = useState(0);
-  const [chatAction, setChatAction] = useState("STATUS");
+  const [chatAction, setChatAction] = useState<ChatUiAction>("MSG");
   const [chatTarget, setChatTarget] = useState("CPP");
   const [chatMessage, setChatMessage] = useState("");
+  const [chatNotice, setChatNotice] = useState("");
+  const [chatUnread, setChatUnread] = useState(0);
   const [projectMissionCount, setProjectMissionCount] = useState(8);
   const [usersOpen, setUsersOpen] = useState(false);
   const [usersText, setUsersText] = useState("");
   const [usersUpdatedAt, setUsersUpdatedAt] = useState("");
   const [userForm, setUserForm] = useState({ username: "", password: "", role: "engineer" });
   const [userStatus, setUserStatus] = useState("");
+  const chatSeenMessageIdRef = useRef("");
+  const chatInitRef = useRef(false);
 
   const selectedPrompt = useMemo(
     () => promptLibrary.find((prompt) => prompt.prompt_id === selectedPromptId) || null,
@@ -377,6 +411,33 @@ export default function GovManagerPage() {
         const response = await fetch(`/api/govhub/operations/chat${qs}`, { cache: "no-store" });
         const payload = await response.json();
         if (active) {
+          const rows = Array.isArray(payload?.rows) ? (payload.rows as ChatRow[]) : [];
+          const newestMessageId = String(rows[0]?.message_id || "").trim();
+          if (newestMessageId) {
+            if (!chatInitRef.current) {
+              chatInitRef.current = true;
+              chatSeenMessageIdRef.current = newestMessageId;
+            } else if (chatSeenMessageIdRef.current !== newestMessageId) {
+              const unseenRows: ChatRow[] = [];
+              for (const row of rows) {
+                const rowId = String(row.message_id || "").trim();
+                if (!rowId) continue;
+                if (rowId === chatSeenMessageIdRef.current) break;
+                unseenRows.push(row);
+              }
+              const unseenInbound = unseenRows.filter((row) => {
+                const actor = String(row.actor || "").trim().toLowerCase();
+                const mine = createdBy.trim().toLowerCase();
+                return actor && actor !== mine;
+              }).length;
+              if (unseenInbound > 0 && section !== "chat") {
+                setChatUnread((prev) => prev + unseenInbound);
+                setChatNotice(`TIM! Você tem ${unseenInbound} nova(s) mensagem(ns).`);
+                playTimSound();
+              }
+              chatSeenMessageIdRef.current = newestMessageId;
+            }
+          }
           setChatText(JSON.stringify(payload, null, 2));
           setChatUpdatedAt(new Date().toISOString());
         }
@@ -394,7 +455,26 @@ export default function GovManagerPage() {
       active = false;
       window.clearInterval(interval);
     };
-  }, [chatRefreshNonce, chatRefreshSec, mission.id]);
+  }, [chatRefreshNonce, chatRefreshSec, createdBy, mission.id, section]);
+
+  useEffect(() => {
+    if (currentRole !== "admin" && chatAction !== "MSG" && chatAction !== "STATUS") {
+      setChatAction("MSG");
+    }
+  }, [chatAction, currentRole]);
+
+  useEffect(() => {
+    if (section !== "chat") return;
+    setChatUnread(0);
+    if (!chatText) return;
+    const payload = safeJsonParse(chatText);
+    const rows = Array.isArray(payload?.rows) ? (payload.rows as ChatRow[]) : [];
+    const newestMessageId = String(rows[0]?.message_id || "").trim();
+    if (newestMessageId) {
+      chatSeenMessageIdRef.current = newestMessageId;
+      chatInitRef.current = true;
+    }
+  }, [chatText, section]);
 
   async function loadPrompts() {
     try {
@@ -699,8 +779,9 @@ export default function GovManagerPage() {
   }
 
   async function sendOpsCommand() {
-    if (currentRole !== "admin" && chatAction !== "STATUS") {
+    if (currentRole !== "admin" && isAdminCommandAction(chatAction)) {
       setStatus("error");
+      setChatNotice("Ação bloqueada: apenas Admin pode executar comando operacional.");
       setResponseText(JSON.stringify({ status: "forbidden", error_code: "ADMIN_REQUIRED_FOR_COMMAND" }, null, 2));
       return;
     }
@@ -721,11 +802,17 @@ export default function GovManagerPage() {
       const payload = await response.json();
       setResponseText(JSON.stringify(payload, null, 2));
       setStatus(response.ok ? "success" : "error");
-      if (response.ok) setChatMessage("");
+      if (response.ok) {
+        setChatMessage("");
+        setChatNotice(isAdminCommandAction(chatAction) ? "Comando enviado ao HUB." : "Mensagem enviada.");
+      } else {
+        setChatNotice("Falha no envio. Verifique o retorno técnico abaixo.");
+      }
       setChatRefreshNonce((prev) => prev + 1);
       goToSection("chat");
     } catch {
       setStatus("error");
+      setChatNotice("Falha de rede ao enviar mensagem/comando.");
       setResponseText(JSON.stringify({ status: "error", error_code: "CHAT_DISPATCH_FAILED" }, null, 2));
     }
   }
@@ -990,6 +1077,19 @@ export default function GovManagerPage() {
     return Array.from(set);
   }, [usersRows]);
 
+  const chatActionOptions = useMemo(
+    () =>
+      currentRole === "admin"
+        ? (["MSG", "STATUS", "OK", "PAUSAR", "NEGAR", "OWNER_CALL", "NOVA_MISSAO"] as ChatUiAction[])
+        : (["MSG", "STATUS"] as ChatUiAction[]),
+    [currentRole]
+  );
+
+  const chatSendLabel = useMemo(
+    () => (currentRole === "admin" && isAdminCommandAction(chatAction) ? "Enviar comando" : "Enviar mensagem"),
+    [chatAction, currentRole]
+  );
+
   const topMissionUsage = useMemo(() => {
     const map = new Map<string, { mission_id: string; usd: number; tokens: number; count: number; last_at: string }>();
     for (const row of usageRows) {
@@ -1048,7 +1148,10 @@ export default function GovManagerPage() {
           <button className={section === "visao" ? "active" : ""} onClick={() => goToSection("visao")}>Visão geral</button>
           <button className={section === "missoes" ? "active" : ""} onClick={() => goToSection("missoes")}>Missões</button>
           <button className={section === "orquestracao" ? "active" : ""} onClick={() => goToSection("orquestracao")}>Orquestração</button>
-          <button className={section === "chat" ? "active" : ""} onClick={() => goToSection("chat")}>Chat HUB</button>
+          <button className={section === "chat" ? "active" : ""} onClick={() => goToSection("chat")}>
+            Chat HUB
+            {chatUnread > 0 ? <span className="gm-badge">{chatUnread}</span> : null}
+          </button>
           <button className={section === "execucoes" ? "active" : ""} onClick={() => goToSection("execucoes")}>Execuções</button>
           <button className={section === "pendencias" ? "active" : ""} onClick={() => goToSection("pendencias")}>Pendências</button>
           <button className={section === "prompts" ? "active" : ""} onClick={() => goToSection("prompts")}>Prompts</button>
@@ -1404,17 +1507,10 @@ export default function GovManagerPage() {
             <div className="gm-row">
               <label>
                 Ação
-                <select value={chatAction} onChange={(e) => setChatAction(e.target.value)}>
-                  <option value="STATUS">STATUS</option>
-                  {currentRole === "admin" ? (
-                    <>
-                      <option value="OK">OK</option>
-                      <option value="PAUSAR">PAUSAR</option>
-                      <option value="NEGAR">NEGAR</option>
-                      <option value="OWNER_CALL">OWNER_CALL</option>
-                      <option value="NOVA_MISSAO">NOVA_MISSAO</option>
-                    </>
-                  ) : null}
+                <select value={chatAction} onChange={(e) => setChatAction(e.target.value as ChatUiAction)}>
+                  {chatActionOptions.map((action) => (
+                    <option key={action} value={action}>{action}</option>
+                  ))}
                 </select>
               </label>
               <label>
@@ -1433,18 +1529,25 @@ export default function GovManagerPage() {
             </div>
             <label>
               Mensagem
-              <textarea rows={4} value={chatMessage} onChange={(e) => setChatMessage(e.target.value)} placeholder="Comando curto para operação remota no HUB..." />
+              <textarea
+                rows={4}
+                value={chatMessage}
+                onChange={(e) => setChatMessage(e.target.value)}
+                placeholder={isAdminCommandAction(chatAction) ? "Comando curto para operação remota no HUB..." : "Mensagem interna para equipe HUB..."}
+              />
             </label>
+            {chatNotice ? <p className="gm-chat-notice" role="status" aria-live="polite">{chatNotice}</p> : null}
             {currentRole !== "admin" ? (
-              <p className="gm-meta">Perfil atual: {currentRole}. Somente admins podem executar comandos operacionais.</p>
+              <p className="gm-meta">Perfil atual: {currentRole}. Você pode conversar via chat. Comandos operacionais são exclusivos do Admin.</p>
             ) : null}
             <div className="gm-row">
-              <button onClick={sendOpsCommand}>Enviar comando</button>
+              <button onClick={sendOpsCommand}>{chatSendLabel}</button>
               <button type="button" onClick={() => setChatRefreshNonce((prev) => prev + 1)}>
                 Atualizar agora
               </button>
             </div>
             <div className="gm-row">
+              <button onClick={() => { setChatAction("MSG"); setChatMessage("Recebido. Seguimos no fluxo normal."); }}>Preset: MSG</button>
               {currentRole === "admin" ? <button onClick={() => { setChatAction("OK"); setChatMessage("OK. Prosseguir com a execução."); }}>Preset: OK</button> : null}
               {currentRole === "admin" ? <button onClick={() => { setChatAction("PAUSAR"); setChatMessage("Pausar execução e aguardar owner."); }}>Preset: PAUSAR</button> : null}
             </div>

@@ -15,6 +15,7 @@ import {
 const CHAT_SNAPSHOT_TYPE = String(process.env.GOVHUB_CHAT_SNAPSHOT_TYPE || "gov_manager_ops_chat_v1").trim();
 const CHAT_DISPATCH_PATH = String(process.env.GOVHUB_CHAT_DISPATCH_PATH || "/webhook/govhub/operations/chat-dispatch").trim();
 const CHAT_DISPATCH_ENABLED = String(process.env.GOVHUB_CHAT_DISPATCH_ENABLED || "true").trim().toLowerCase() !== "false";
+const ADMIN_COMMAND_ACTIONS = new Set<ChatAction>(["OK", "PAUSAR", "NEGAR", "OWNER_CALL", "NOVA_MISSAO"]);
 
 async function dispatchToWebhook(
   config: ReturnType<typeof resolveGovhubSnapshotConfig>,
@@ -96,9 +97,11 @@ export async function POST(request: Request) {
   const data = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
   const missionId = clampChatText(data.mission_id, 120);
   const action = clampChatText(data.action, 20).toUpperCase() as ChatAction;
+  const defaultTarget = action === "MSG" ? "STAFF" : "CPP";
   const actor = session.username;
-  const target = clampChatText(data.target, 80) || "CPP";
+  const target = clampChatText(data.target, 80) || defaultTarget;
   const message = clampChatText(data.message, 2000);
+  const isAdminCommand = ADMIN_COMMAND_ACTIONS.has(action);
 
   if (!missionId || !ALLOWED_CHAT_ACTIONS.has(action)) {
     return NextResponse.json(
@@ -106,7 +109,13 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
-  if (session.role !== "admin" && action !== "STATUS") {
+  if (action === "MSG" && !message) {
+    return NextResponse.json(
+      { status: "invalid_request", error_code: "MESSAGE_REQUIRED" },
+      { status: 400 }
+    );
+  }
+  if (session.role !== "admin" && isAdminCommand) {
     return NextResponse.json(
       { status: "forbidden", error_code: "ADMIN_REQUIRED_FOR_COMMAND" },
       { status: 403 }
@@ -118,15 +127,18 @@ export async function POST(request: Request) {
   const state = loaded.found && loaded.payload ? sanitizeChatState(loaded.payload) : sanitizeChatState(null);
   const messageId = `${missionId}-${Date.now()}`;
 
-  const dispatch = await dispatchToWebhook(config, {
-    message_id: messageId,
-    mission_id: missionId,
-    actor,
-    target,
-    action,
-    message,
-    udn_block: udnBlock
-  });
+  const dispatch =
+    action === "MSG"
+      ? { status: "dispatched" as DeliveryStatus, http: 204, error_code: "" }
+      : await dispatchToWebhook(config, {
+          message_id: messageId,
+          mission_id: missionId,
+          actor,
+          target,
+          action,
+          message,
+          udn_block: udnBlock
+        });
 
   const row: ChatMessage = {
     message_id: messageId,

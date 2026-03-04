@@ -1,4 +1,4 @@
-export type ChatAction = "OK" | "PAUSAR" | "NEGAR" | "OWNER_CALL" | "NOVA_MISSAO" | "STATUS";
+export type ChatAction = "MSG" | "OK" | "PAUSAR" | "NEGAR" | "OWNER_CALL" | "NOVA_MISSAO" | "STATUS";
 export type DeliveryStatus = "queued" | "dispatched" | "failed";
 export type ChatDirection = "outbound" | "inbound";
 
@@ -25,7 +25,7 @@ export interface ChatState {
   rows: ChatMessage[];
 }
 
-export const ALLOWED_CHAT_ACTIONS = new Set<ChatAction>(["OK", "PAUSAR", "NEGAR", "OWNER_CALL", "NOVA_MISSAO", "STATUS"]);
+export const ALLOWED_CHAT_ACTIONS = new Set<ChatAction>(["MSG", "OK", "PAUSAR", "NEGAR", "OWNER_CALL", "NOVA_MISSAO", "STATUS"]);
 
 export function nowUtc(): string {
   return new Date().toISOString();
@@ -85,12 +85,12 @@ export function sanitizeChatState(input: unknown): ChatState {
 
 export function toOpsUdn(input: { missionId: string; action: ChatAction; actor: string; target: string; message: string }): string {
   const safe = (text: string) => text.replace(/\r?\n/g, " ").replace(/[;|]/g, ",").trim();
+  const kind = input.action === "MSG" ? "CHAT_MSG" : "CHAT_CMD";
   return [
-    `!OPS|${safe(input.missionId)}|${input.action}|CHAT_CMD`,
+    `!OPS|${safe(input.missionId)}|${input.action}|${kind}`,
     `#actor:${safe(input.actor)};target=${safe(input.target)}`,
     `#msg:${safe(input.message)}`,
-    "#tau:dispatch_to_worker;update_queue;persist_audit",
+    input.action === "MSG" ? "#tau:notify_inbox;persist_audit" : "#tau:dispatch_to_worker;update_queue;persist_audit",
     "!OUT:JSON_ONLY.NO_MD.NO_TXT."
   ].join("\n");
 }
-

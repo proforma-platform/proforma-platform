@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { hasSessionCookie } from "../../../../../../auth/session";
+import { hasSessionCookie, readSessionFromRequest } from "../../../../../../auth/session";
 import { loadSnapshotPayload, resolveGovhubSnapshotConfig, saveSnapshotPayload } from "../../../../../../core/govhub-snapshots";
 import { ALLOWED_CHAT_ACTIONS, clampChatText, nowUtc, sanitizeChatState, toOpsUdn, type ChatAction, type ChatMessage } from "../../../../../../core/operations-chat";
 
 const CHAT_SNAPSHOT_TYPE = String(process.env.GOVHUB_CHAT_SNAPSHOT_TYPE || "gov_manager_ops_chat_v1").trim();
+const ADMIN_COMMAND_ACTIONS = new Set<ChatAction>(["OK", "PAUSAR", "NEGAR", "OWNER_CALL", "NOVA_MISSAO"]);
 
 function hasGovhubToken(request: Request, expectedToken: string): boolean {
   const provided = String(request.headers.get("x-govhub-token") || "").trim();
@@ -19,7 +20,9 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!hasSessionCookie(request) && !hasGovhubToken(request, config.token)) {
+  const session = readSessionFromRequest(request);
+  const tokenAuth = hasGovhubToken(request, config.token);
+  if (!hasSessionCookie(request) && !tokenAuth) {
     return NextResponse.json({ status: "unauthorized", error_code: "AUTH_REQUIRED" }, { status: 401 });
   }
 
@@ -45,6 +48,12 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { status: "invalid_request", error_code: "MISSION_ID_ACTION_MESSAGE_REQUIRED" },
       { status: 400 }
+    );
+  }
+  if (session && session.role !== "admin" && ADMIN_COMMAND_ACTIONS.has(action) && !tokenAuth) {
+    return NextResponse.json(
+      { status: "forbidden", error_code: "ADMIN_REQUIRED_FOR_COMMAND" },
+      { status: 403 }
     );
   }
 
