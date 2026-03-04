@@ -350,6 +350,11 @@ export default function GovManagerPage() {
   }, [createdBy, usageRefreshNonce, usageRefreshSec]);
 
   useEffect(() => {
+    if (section !== "chat") return;
+    void loadUsers();
+  }, [section]);
+
+  useEffect(() => {
     let active = true;
 
     const pullBotStatus = async () => {
@@ -1069,13 +1074,36 @@ export default function GovManagerPage() {
   }, [usersPayload]);
 
   const chatTargetOptions = useMemo(() => {
-    const set = new Set<string>(["STAFF", "CPP", "CPP-IA"]);
+    const seen = new Set<string>();
+    const out: string[] = [];
+    const push = (value: unknown) => {
+      const clean = String(value || "").trim();
+      if (!clean) return;
+      const key = clean.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push(clean);
+    };
+
+    push("STAFF");
+    push("CPP");
+    push("CPP-IA");
+    push("ADMIN");
+    push(createdBy);
+
     for (const row of usersRows) {
-      const username = String(row.username || "").trim();
-      if (username) set.add(username);
+      push(row.username);
     }
-    return Array.from(set);
-  }, [usersRows]);
+
+    const chat = safeJsonParse(chatText);
+    const rows = Array.isArray(chat?.rows) ? (chat.rows as ChatRow[]) : [];
+    for (const row of rows.slice(0, 120)) {
+      push(row.actor);
+      push(row.target);
+    }
+
+    return out;
+  }, [chatText, createdBy, usersRows]);
 
   const chatActionOptions = useMemo(
     () =>
