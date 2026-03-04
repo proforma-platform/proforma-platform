@@ -1181,6 +1181,11 @@ export default function GovManagerPage() {
     [chatAction, currentRole]
   );
 
+  const chatTargetDynamicOptions = useMemo(() => {
+    const fixed = new Set(["STAFF", "CPP", "CPP-IA", "ADMIN", PRINCIPAL_ARCHITECT_TARGET]);
+    return chatTargetOptions.filter((target) => !fixed.has(String(target || "").toUpperCase()));
+  }, [chatTargetOptions]);
+
   const topMissionUsage = useMemo(() => {
     const map = new Map<string, { mission_id: string; usd: number; tokens: number; count: number; last_at: string }>();
     for (const row of usageRows) {
@@ -1589,7 +1594,12 @@ export default function GovManagerPage() {
               <label>
                 Destino
                 <select value={chatTarget} onChange={(e) => setChatTarget(e.target.value)}>
-                  {chatTargetOptions.map((target) => (
+                  <option value={PRINCIPAL_ARCHITECT_TARGET}>Principal Architect</option>
+                  <option value="CPP">CPP</option>
+                  <option value="CPP-IA">CPP-IA</option>
+                  <option value="STAFF">STAFF</option>
+                  <option value="ADMIN">ADMIN</option>
+                  {chatTargetDynamicOptions.map((target) => (
                     <option key={target} value={target}>{formatChatIdentity(target)}</option>
                   ))}
                 </select>
