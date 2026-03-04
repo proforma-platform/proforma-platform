@@ -44,6 +44,9 @@
   - `GOVHUB_MISSIONS_REGISTER_PATH` (padrão: `/webhook/govhub/missions/register`)
 - O app envia o registro de missão server-side com header `X-GOVHUB-TOKEN`
 - O app envia a decisao do Owner (`approve|deny`) server-side para `missions/owner-ack`
+- Cache/Build:
+  - `buildId` é gerado dinamicamente por deploy (ou por `GOV_MANAGER_BUILD_ID` / `GITHUB_SHA`).
+  - páginas `/` e `/login` usam header `Cache-Control: no-store` para evitar bundle antigo no cliente.
 
 ## Gestão de Usuários (Gov-Manager)
 - Snapshot dedicado: `gov_manager_users_v1` (configurável por `GOVHUB_USERS_SNAPSHOT_TYPE`).
