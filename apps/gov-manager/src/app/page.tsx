@@ -304,6 +304,7 @@ export default function GovManagerPage() {
   const [usersText, setUsersText] = useState("");
   const [usersUpdatedAt, setUsersUpdatedAt] = useState("");
   const [userForm, setUserForm] = useState({ username: "", password: "", role: "engineer" });
+  const [selectedUser, setSelectedUser] = useState("");
   const [userStatus, setUserStatus] = useState("");
   const chatSeenMessageIdRef = useRef("");
   const chatInitRef = useRef(false);
@@ -666,18 +667,48 @@ export default function GovManagerPage() {
     if (!isPrimaryAdmin) return;
     setUsersOpen(true);
     setUserStatus("");
+    setSelectedUser("");
+    setUserForm({ username: "", password: "", role: "engineer" });
     await loadUsers();
   }
 
+  function selectUserForEdit(username: string) {
+    const clean = String(username || "").trim();
+    if (!clean) {
+      setSelectedUser("");
+      setUserForm({ username: "", password: "", role: "engineer" });
+      setUserStatus("Novo usuário.");
+      return;
+    }
+    const row = usersRows.find((item) => String(item.username || "").toLowerCase() === clean.toLowerCase());
+    setSelectedUser(clean);
+    setUserForm({
+      username: clean,
+      password: "",
+      role: String(row?.role || "engineer")
+    });
+    setUserStatus(`Editando usuário: ${clean}`);
+  }
+
   async function createUser() {
+    const username = String(userForm.username || "").trim();
+    const password = String(userForm.password || "");
+    if (!username) {
+      setUserStatus("Informe o usuário.");
+      return;
+    }
+    if (password.length < 8) {
+      setUserStatus("Senha mínima: 8 caracteres.");
+      return;
+    }
     setUserStatus("salvando");
     try {
       const response = await fetch("/api/auth/users", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          username: userForm.username,
-          password: userForm.password,
+          username,
+          password,
           role: userForm.role,
           active: true,
           actor: createdBy
@@ -690,8 +721,11 @@ export default function GovManagerPage() {
         return;
       }
       const mode = String(payload?.mode || "created");
-      setUserStatus(mode === "updated" ? "ok (senha atualizada)" : "ok (usuário criado)");
-      setUserForm({ username: "", password: "", role: "engineer" });
+      const savedUsername = String(payload?.row?.username || username);
+      const savedRole = String(payload?.row?.role || userForm.role);
+      setSelectedUser(savedUsername);
+      setUserForm({ username: savedUsername, password: "", role: savedRole });
+      setUserStatus(mode === "updated" ? "Usuario atualizado!" : "Usuario cadastrado!");
       await loadUsers();
     } catch {
       setUserStatus("erro: USER_CREATE_NETWORK_FAILED");
@@ -1965,12 +1999,19 @@ export default function GovManagerPage() {
             </header>
             <div className="gm-row">
               <label>
-                Usuário
-                <input
-                  value={userForm.username}
-                  onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
-                  placeholder="engenheiro.01"
-                />
+                Selecionar usuário
+                <select value={selectedUser} onChange={(e) => selectUserForEdit(e.target.value)}>
+                  <option value="">Novo usuário</option>
+                  {usersRows.map((row) => {
+                    const username = String(row.username || "").trim();
+                    if (!username) return null;
+                    return (
+                      <option key={`select-${username}`} value={username}>
+                        {username}
+                      </option>
+                    );
+                  })}
+                </select>
               </label>
               <label>
                 Perfil
@@ -1980,6 +2021,17 @@ export default function GovManagerPage() {
                   <option value="viewer">viewer</option>
                 </select>
               </label>
+            </div>
+            <div className="gm-row">
+              <label>
+                Usuário
+                <input
+                  value={userForm.username}
+                  onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
+                  placeholder="engenheiro.01"
+                />
+              </label>
+              <div />
             </div>
             <label>
               Senha
@@ -1991,8 +2043,18 @@ export default function GovManagerPage() {
               />
             </label>
             <div className="gm-row">
-              <button className="gm-primary" type="button" onClick={createUser}>Cadastrar usuário</button>
-              <button type="button" onClick={loadUsers}>Atualizar lista</button>
+              <button className="gm-primary" type="button" onClick={createUser}>
+                {selectedUser ? "Atualizar usuário" : "Cadastrar usuário"}
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await loadUsers();
+                  setUserStatus("Lista atualizada.");
+                }}
+              >
+                Atualizar lista
+              </button>
             </div>
             <p className="gm-meta">Última sincronização UTC: {formatDateTime(usersUpdatedAt)}</p>
             <p className="gm-meta">Status: {userStatus || "idle"}</p>
@@ -2006,6 +2068,12 @@ export default function GovManagerPage() {
                     <span>Perfil: {row.role || "-"}</span>
                     <span>Ativo: {row.active === false ? "não" : "sim"}</span>
                     <small>Atualizado: {formatDateTime(String(row.updated_at_utc || ""))}</small>
+                    <button
+                      type="button"
+                      onClick={() => selectUserForEdit(String(row.username || ""))}
+                    >
+                      Editar
+                    </button>
                   </article>
                 ))
               )}
