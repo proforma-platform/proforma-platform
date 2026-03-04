@@ -97,6 +97,7 @@
   - Webhook n8n configurável por `GOVHUB_CHAT_DISPATCH_PATH`
   - Ativação por `GOVHUB_CHAT_DISPATCH_ENABLED`
   - `MSG` é persistida no chat e não dispara webhook remoto
+  - quando o destino for `PRINCIPAL_ARCHITECT`, o app registra resposta automática local (`inbound`) para retorno imediato no chat
 - Objetivo:
   - operar o fluxo remoto (Owner/Staff/Executores) sem dependência de terminal local.
 - Política de acesso:

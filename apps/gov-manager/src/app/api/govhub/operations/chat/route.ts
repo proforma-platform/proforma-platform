@@ -16,6 +16,26 @@ const CHAT_SNAPSHOT_TYPE = String(process.env.GOVHUB_CHAT_SNAPSHOT_TYPE || "gov_
 const CHAT_DISPATCH_PATH = String(process.env.GOVHUB_CHAT_DISPATCH_PATH || "/webhook/govhub/operations/chat-dispatch").trim();
 const CHAT_DISPATCH_ENABLED = String(process.env.GOVHUB_CHAT_DISPATCH_ENABLED || "true").trim().toLowerCase() !== "false";
 const ADMIN_COMMAND_ACTIONS = new Set<ChatAction>(["OK", "PAUSAR", "NEGAR", "OWNER_CALL", "NOVA_MISSAO"]);
+const PRINCIPAL_ARCHITECT_TARGET = "PRINCIPAL_ARCHITECT";
+
+function isPrincipalArchitectTarget(target: string): boolean {
+  const normalized = String(target || "")
+    .trim()
+    .replace(/\s+/g, "_")
+    .toUpperCase();
+  return normalized === PRINCIPAL_ARCHITECT_TARGET;
+}
+
+function buildPrincipalArchitectReply(input: { missionId: string; actor: string; message: string }): string {
+  const clean = String(input.message || "").trim();
+  const short = clean.slice(0, 220) || "Recebido.";
+  return [
+    `Recebido, ${input.actor}.`,
+    `Missão: ${input.missionId}.`,
+    `Leitura inicial: ${short}`,
+    "Próximo passo recomendado: detalhar objetivo, restrições e critério de aceite."
+  ].join(" ");
+}
 
 async function dispatchToWebhook(
   config: ReturnType<typeof resolveGovhubSnapshotConfig>,
@@ -157,10 +177,41 @@ export async function POST(request: Request) {
     created_at_utc: nowUtc()
   };
 
+  const rows: ChatMessage[] = [row];
+  if (action === "MSG" && isPrincipalArchitectTarget(target)) {
+    const replyMessageId = `${missionId}-reply-${Date.now()}`;
+    const replyActor = PRINCIPAL_ARCHITECT_TARGET;
+    const replyTarget = actor;
+    const replyMessage = buildPrincipalArchitectReply({ missionId, actor, message });
+    const replyUdn = toOpsUdn({
+      missionId,
+      action: "MSG",
+      actor: replyActor,
+      target: replyTarget,
+      message: replyMessage
+    });
+    rows.unshift({
+      message_id: replyMessageId,
+      mission_id: missionId,
+      actor: replyActor,
+      target: replyTarget,
+      action: "MSG",
+      message: replyMessage,
+      udn_block: replyUdn,
+      direction: "inbound",
+      in_reply_to: messageId,
+      source: "principal-architect-local",
+      delivery_status: "dispatched",
+      dispatch_http: 200,
+      dispatch_error_code: "",
+      created_at_utc: nowUtc()
+    });
+  }
+
   const next = {
     version: "1.0",
     updated_at_utc: nowUtc(),
-    rows: [row, ...state.rows].slice(0, 500)
+    rows: [...rows, ...state.rows].slice(0, 500)
   };
 
   const saved = await saveSnapshotPayload(config, {
@@ -177,6 +228,7 @@ export async function POST(request: Request) {
       govhub_http: saved.status,
       snapshot_type: CHAT_SNAPSHOT_TYPE,
       row,
+      rows,
       payload_sha256: saved.payload_sha256,
       govhub_response: saved.response
     },
