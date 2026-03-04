@@ -106,6 +106,7 @@ interface SessionInfo {
 }
 
 const ADMIN_COMMAND_ACTIONS = new Set<ChatUiAction>(["OK", "PAUSAR", "NEGAR", "OWNER_CALL", "NOVA_MISSAO"]);
+const PRINCIPAL_ARCHITECT_TARGET = "PRINCIPAL_ARCHITECT";
 
 function isAdminCommandAction(action: string): boolean {
   return ADMIN_COMMAND_ACTIONS.has(String(action || "").toUpperCase() as ChatUiAction);
@@ -184,6 +185,27 @@ function botStateLabel(state: string): string {
   if (normalized === "blocked") return "Bloqueado";
   if (normalized === "skipped") return "Ignorado";
   return "Desconhecido";
+}
+
+function deliveryStatusLabel(status: string): string {
+  const normalized = String(status || "").toLowerCase();
+  if (normalized === "dispatched") return "Entregue";
+  if (normalized === "queued") return "Em fila";
+  if (normalized === "failed") return "Falhou";
+  return "Indefinido";
+}
+
+function deliveryStatusClass(status: string): string {
+  const normalized = String(status || "").toLowerCase();
+  if (normalized === "dispatched") return "gm-chip-ok";
+  if (normalized === "failed") return "gm-chip-error";
+  return "gm-chip-warn";
+}
+
+function formatChatIdentity(value: string): string {
+  const normalized = String(value || "").trim().toUpperCase();
+  if (normalized === PRINCIPAL_ARCHITECT_TARGET) return "Principal Architect";
+  return String(value || "").trim();
 }
 
 function playTimSound() {
@@ -275,6 +297,8 @@ export default function GovManagerPage() {
   const [chatMessage, setChatMessage] = useState("");
   const [chatNotice, setChatNotice] = useState("");
   const [chatUnread, setChatUnread] = useState(0);
+  const [chatPollState, setChatPollState] = useState<"online" | "offline">("online");
+  const [chatPingAt, setChatPingAt] = useState("");
   const [projectMissionCount, setProjectMissionCount] = useState(8);
   const [usersOpen, setUsersOpen] = useState(false);
   const [usersText, setUsersText] = useState("");
@@ -445,11 +469,15 @@ export default function GovManagerPage() {
           }
           setChatText(JSON.stringify(payload, null, 2));
           setChatUpdatedAt(new Date().toISOString());
+          setChatPingAt(new Date().toISOString());
+          setChatPollState("online");
         }
       } catch {
         if (active) {
           setChatText(JSON.stringify({ status: "error", error_code: "CHAT_FETCH_FAILED" }, null, 2));
           setChatUpdatedAt(new Date().toISOString());
+          setChatPingAt(new Date().toISOString());
+          setChatPollState("offline");
         }
       }
     };
@@ -1089,6 +1117,7 @@ export default function GovManagerPage() {
     push("CPP");
     push("CPP-IA");
     push("ADMIN");
+    push(PRINCIPAL_ARCHITECT_TARGET);
     push(createdBy);
 
     for (const row of usersRows) {
@@ -1527,7 +1556,7 @@ export default function GovManagerPage() {
                 Destino
                 <select value={chatTarget} onChange={(e) => setChatTarget(e.target.value)}>
                   {chatTargetOptions.map((target) => (
-                    <option key={target} value={target}>{target}</option>
+                    <option key={target} value={target}>{formatChatIdentity(target)}</option>
                   ))}
                 </select>
               </label>
@@ -1607,8 +1636,8 @@ export default function GovManagerPage() {
                     <strong>{row.action || "ACTION"}</strong>
                     <span>Missão: {row.mission_id || "-"}</span>
                     <span>Direção: {row.direction || "outbound"}</span>
-                    <span>Ator: {row.actor || "-"}</span>
-                    <span>Destino: {row.target || "-"}</span>
+                    <span>Ator: {formatChatIdentity(String(row.actor || "-"))}</span>
+                    <span>Destino: {formatChatIdentity(String(row.target || "-"))}</span>
                     <span>Status: {row.delivery_status || "-"}</span>
                     <span>HTTP: {row.dispatch_http ?? "-"}</span>
                     <span>Fonte: {row.source || "-"}</span>
