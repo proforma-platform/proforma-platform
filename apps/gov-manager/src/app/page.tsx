@@ -679,6 +679,8 @@ export default function GovManagerPage() {
   const [queuePriorityFilter, setQueuePriorityFilter] = useState<"all" | "P0" | "P1" | "P2" | "P3">("all");
   const [queueMissionFilter, setQueueMissionFilter] = useState("");
   const [queueDragId, setQueueDragId] = useState("");
+  const [queueDetailsOpen, setQueueDetailsOpen] = useState(false);
+  const [queueDetailsRow, setQueueDetailsRow] = useState<QueueRow | null>(null);
   const [missionManageText, setMissionManageText] = useState("");
   const [missionManageUpdatedAt, setMissionManageUpdatedAt] = useState("");
   const [missionManageNotice, setMissionManageNotice] = useState("");
@@ -1422,6 +1424,26 @@ export default function GovManagerPage() {
       objective: String(row.title || prev.objective || "")
     }));
     setManageExecution((prev) => ({ ...prev, mission_id: missionId, assignee: String(row.assignee || prev.assignee || "CPP"), priority: String(row.priority || prev.priority || "P1") }));
+  }
+
+  function openQueueDetails(row: QueueRow) {
+    const queueId = String(row.queue_id || "").trim();
+    if (queueId) setQueueFocusedId(queueId);
+    setQueueDetailsRow(row);
+    setQueueDetailsOpen(true);
+  }
+
+  function openMissionManageFromQueue(row: QueueRow) {
+    const missionId = String(row.mission_id || "").trim().toUpperCase();
+    if (missionId) {
+      setMission((prev) => ({ ...prev, id: missionId }));
+      setWatchMissionId(missionId);
+      setQueueMissionFilter(missionId);
+    }
+    loadMissionIntoManageForms(row);
+    setMissionsTab("gestao");
+    setQueueDetailsOpen(false);
+    goToSection("missoes");
   }
 
   function buildMissionUdn(missionDraft = mission) {
@@ -2733,9 +2755,7 @@ export default function GovManagerPage() {
                 type="button"
                 className="gm-icon-action"
                 onClick={() => {
-                  setQueueFocusedId(String(queueLead.queue_id || ""));
-                  setMission((prev) => ({ ...prev, id: String(queueLead.mission_id || prev.id) }));
-                  goToSection("orquestracao");
+                  openQueueDetails(queueLead);
                 }}
                 aria-label="Ver detalhes"
                 title="Ver detalhes"
@@ -2773,9 +2793,7 @@ export default function GovManagerPage() {
                 type="button"
                 className="gm-icon-action"
                 onClick={() => {
-                  setQueueFocusedId(String(queueRunningLead.queue_id || ""));
-                  setMission((prev) => ({ ...prev, id: String(queueRunningLead.mission_id || prev.id) }));
-                  goToSection("orquestracao");
+                  openQueueDetails(queueRunningLead);
                 }}
                 aria-label="Ver detalhes"
                 title="Ver detalhes"
@@ -3440,6 +3458,7 @@ export default function GovManagerPage() {
                               <p>ETA: {eta.label}</p>
                               <small>Atualizado: {formatDateTime(String(row.updated_at_utc || ""))}</small>
                               <div className="gm-kanban-actions">
+                                <button type="button" onClick={() => openQueueDetails(row)}>Detalhes</button>
                                 {statusValue === "open" ? (
                                   <button type="button" onClick={() => { void moveQueueCard(queueId, "in_progress"); }}>Iniciar</button>
                                 ) : null}
@@ -3991,6 +4010,83 @@ export default function GovManagerPage() {
           </div>
         ) : null}
       </section>
+
+      {queueDetailsOpen && queueDetailsRow ? (
+        <div className="gm-modal-backdrop" onClick={() => setQueueDetailsOpen(false)}>
+          <section className="gm-modal" onClick={(event) => event.stopPropagation()}>
+            <header>
+              <h2>Detalhes da Missão</h2>
+              <button type="button" onClick={() => setQueueDetailsOpen(false)}>Fechar</button>
+            </header>
+            {(() => {
+              const row = queueDetailsRow;
+              const queueId = String(row.queue_id || "").trim();
+              const statusValue = String(row.status || "").toLowerCase() as QueueWorkflowStatus;
+              const eta = estimateQueueEta(row, Date.now());
+              return (
+                <>
+                  <div className="gm-detail-grid">
+                    <article>
+                      <span>Missão</span>
+                      <strong>{row.mission_id || "-"}</strong>
+                    </article>
+                    <article>
+                      <span>Queue ID</span>
+                      <strong>{queueId || "-"}</strong>
+                    </article>
+                    <article>
+                      <span>Executor</span>
+                      <strong>{row.assignee || "-"}</strong>
+                    </article>
+                    <article>
+                      <span>Prioridade</span>
+                      <strong>{row.priority || "-"}</strong>
+                    </article>
+                    <article>
+                      <span>Status</span>
+                      <strong>{queueStatusLabel(String(row.status || ""))}</strong>
+                    </article>
+                    <article>
+                      <span>ETA</span>
+                      <strong>{eta.label}</strong>
+                    </article>
+                    <article>
+                      <span>Criado</span>
+                      <strong>{formatDateTime(String(row.created_at_utc || ""))}</strong>
+                    </article>
+                    <article>
+                      <span>Atualizado</span>
+                      <strong>{formatDateTime(String(row.updated_at_utc || ""))}</strong>
+                    </article>
+                  </div>
+                  <article className="gm-manage-block">
+                    <h3>{row.title || "Sem título"}</h3>
+                    <p>{row.description || "Sem descrição detalhada para este item."}</p>
+                  </article>
+                  <div className="gm-detail-actions">
+                    <button type="button" onClick={() => openMissionManageFromQueue(row)}>Abrir em Missões/Gestão</button>
+                    {queueId && statusValue === "open" ? (
+                      <button type="button" onClick={() => { void moveQueueCard(queueId, "in_progress"); setQueueDetailsOpen(false); }}>Iniciar</button>
+                    ) : null}
+                    {queueId && statusValue === "in_progress" ? (
+                      <>
+                        <button type="button" onClick={() => { void moveQueueCard(queueId, "paused_waiting_owner"); setQueueDetailsOpen(false); }}>Pausar</button>
+                        <button type="button" onClick={() => { void moveQueueCard(queueId, "done"); setQueueDetailsOpen(false); }}>Concluir</button>
+                      </>
+                    ) : null}
+                    {queueId && statusValue === "paused_waiting_owner" ? (
+                      <button type="button" onClick={() => { void moveQueueCard(queueId, "in_progress"); setQueueDetailsOpen(false); }}>Retomar</button>
+                    ) : null}
+                    {queueId && statusValue === "done" ? (
+                      <button type="button" onClick={() => { void moveQueueCard(queueId, "open"); setQueueDetailsOpen(false); }}>Reabrir</button>
+                    ) : null}
+                  </div>
+                </>
+              );
+            })()}
+          </section>
+        </div>
+      ) : null}
 
       {usersOpen ? (
         <div className="gm-modal-backdrop" onClick={() => setUsersOpen(false)}>
