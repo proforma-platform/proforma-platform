@@ -37,8 +37,9 @@ type MissionRunSnapshot = {
   updated_at?: string;
 };
 
-const DEFAULT_USD_PER_1K_INPUT = 0.003;
-const DEFAULT_USD_PER_1K_OUTPUT = 0.009;
+// GPT-5.3-Codex default pricing (USD per 1K tokens)
+const DEFAULT_USD_PER_1K_INPUT = 0.00175;
+const DEFAULT_USD_PER_1K_OUTPUT = 0.014;
 const DEFAULT_USD_TO_BRL = 5.2;
 
 export function estimateTokenCount(text: string): number {

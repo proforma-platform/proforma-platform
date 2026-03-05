@@ -62,6 +62,27 @@ Persistence rule:
 - partitioning is persisted in `gov.mission_parts` and mission run `total` reflects the current number of parts.
 - `prompt_ref` e politicas de token podem bloquear registro em estado `paused_waiting_owner` antes do dispatch.
 
+### Evolucao UDN V2 (compacto)
+- objetivo: reduzir tokens e evitar repeticao de metadados estaticos no prompt.
+- formato recomendado no cliente:
+  - `!MIS|<mission_token>`
+  - `#μ:<objetivo compacto>`
+  - `#τ:<tarefas compactas>`
+- `mission_token` pode ser:
+  - id curto numerico (ex: `00017`)
+  - id completo (ex: `GOV-MANAGER-V1-00017`)
+- o `mission_id` canonical continua no envelope JSON (`mission.id`) e no DB.
+- regras aplicadas no `missions/register` (server-side):
+  - remove prefixo textual antes de `!MIS` (canonicalizacao fail-closed)
+  - valida consistencia entre `mission.id` e token em `!MIS`
+  - injeta defaults ausentes:
+    - `#σ:READY`
+    - `!OUT:JSON_ONLY.NO_MD.NO_TXT.`
+    - `#af:enabled=true;max_rounds=2;on_exhaust=pause_owner` (ou override de `autofix_control`)
+- backward compatibility:
+  - payload UDN V1 continua aceito
+  - V2 e o padrao recomendado para novas missoes
+
 ## Webhook: missions-next
 Endpoint purpose:
 - deterministic pull of the next mission task for a repository agent.

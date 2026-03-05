@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { hasSessionCookie } from "../../../../../auth/session";
 import { loadSnapshotPayload, resolveGovhubSnapshotConfig, saveSnapshotPayload } from "../../../../../core/govhub-snapshots";
+import { defaultAgentRegistryState, hasHealthyAssigneeAgent, sanitizeAgentRegistryState } from "../../../../../core/agent-registry";
 import {
   createQueueId,
   decideAssignee,
@@ -12,8 +12,11 @@ import {
   type QueuePriority,
   type QueueStatus
 } from "../../../../../core/execution-queue";
+import { requireRole } from "../../../../../core/rbac";
+import { recordAuditEvent } from "../../../../../core/audit-store";
 
 const QUEUE_SNAPSHOT_TYPE = String(process.env.GOVHUB_EXECUTION_QUEUE_SNAPSHOT_TYPE || "gov_manager_execution_queue_v1").trim();
+const AGENTS_SNAPSHOT_TYPE = String(process.env.GOVHUB_AGENT_REGISTRY_SNAPSHOT_TYPE || "gov_manager_agent_registry_v1").trim();
 
 function isPriority(value: unknown): value is QueuePriority {
   return value === "P0" || value === "P1" || value === "P2" || value === "P3";
@@ -24,8 +27,9 @@ function isStatus(value: unknown): value is QueueStatus {
 }
 
 export async function GET(request: Request) {
-  if (!hasSessionCookie(request)) {
-    return NextResponse.json({ status: "unauthorized", error_code: "AUTH_REQUIRED" }, { status: 401 });
+  const auth = requireRole(request, "viewer");
+  if (!auth.ok) {
+    return NextResponse.json({ status: "unauthorized", error_code: auth.error_code }, { status: auth.status });
   }
 
   const config = resolveGovhubSnapshotConfig();
@@ -65,8 +69,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (!hasSessionCookie(request)) {
-    return NextResponse.json({ status: "unauthorized", error_code: "AUTH_REQUIRED" }, { status: 401 });
+  const auth = requireRole(request, "engineer");
+  if (!auth.ok) {
+    return NextResponse.json({ status: "forbidden", error_code: auth.error_code }, { status: auth.status });
   }
 
   const config = resolveGovhubSnapshotConfig();
@@ -86,7 +91,7 @@ export async function POST(request: Request) {
 
   const data = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
   const action = String(data.action || "create_plan").trim();
-  const actor = String(data.actor || "staff@gov-manager").trim() || "staff@gov-manager";
+  const actor = auth.session.username;
 
   const loaded = await loadSnapshotPayload(config, QUEUE_SNAPSHOT_TYPE);
   const base = loaded.found && loaded.payload ? sanitizeQueueState(loaded.payload) : defaultQueueState();
@@ -165,9 +170,52 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+  } else if (action === "update_status") {
+    const queueId = String(data.queue_id || "").trim();
+    const nextStatusRaw = String(data.status || "").trim().toLowerCase();
+    if (!queueId || !isStatus(nextStatusRaw)) {
+      return NextResponse.json(
+        { status: "invalid_request", error_code: "QUEUE_ID_AND_VALID_STATUS_REQUIRED" },
+        { status: 400 }
+      );
+    }
+    const nextStatus = nextStatusRaw as QueueStatus;
+
+    const current = base.rows.find((row) => row.queue_id === queueId);
+    if (!current) {
+      return NextResponse.json(
+        { status: "not_found", error_code: "QUEUE_ITEM_NOT_FOUND" },
+        { status: 404 }
+      );
+    }
+
+    if (nextStatus === "in_progress") {
+      const agentsLoaded = await loadSnapshotPayload(config, AGENTS_SNAPSHOT_TYPE);
+      const agentState = agentsLoaded.found && agentsLoaded.payload
+        ? sanitizeAgentRegistryState(agentsLoaded.payload)
+        : defaultAgentRegistryState();
+      if (!hasHealthyAssigneeAgent(agentState, current.assignee)) {
+        return NextResponse.json(
+          {
+            status: "conflict",
+            error_code: "ASSIGNEE_NOT_HEALTHY",
+            message: `Nenhum worker saudável para ${current.assignee}.`
+          },
+          { status: 409 }
+        );
+      }
+    }
+
+    newItems = [
+      {
+        ...current,
+        status: nextStatus,
+        updated_at_utc: now
+      }
+    ];
   } else {
     return NextResponse.json(
-      { status: "invalid_request", error_code: "ACTION_NOT_SUPPORTED", allowed_actions: ["create_item", "create_plan"] },
+      { status: "invalid_request", error_code: "ACTION_NOT_SUPPORTED", allowed_actions: ["create_item", "create_plan", "update_status"] },
       { status: 400 }
     );
   }
@@ -179,6 +227,21 @@ export async function POST(request: Request) {
     createdBy: actor,
     sourceRepo: "gov-manager",
     sourceRef: "execution-queue"
+  });
+
+  await recordAuditEvent(config, {
+    actor: auth.session.username,
+    role: auth.session.role,
+    action: `queue.${action}`,
+    target: newItems.map((item) => item.queue_id).join(",").slice(0, 180),
+    after_state: JSON.stringify({
+      inserted: newItems.length,
+      status: action === "update_status" ? newItems[0]?.status || "" : "",
+      mission_id: newItems[0]?.mission_id || ""
+    }),
+    correlation_id: `queue-${Date.now()}`,
+    source: "operations-queue",
+    createdBy: auth.session.username
   });
 
   const filtered = next.rows.filter((row) => row.status !== "done");

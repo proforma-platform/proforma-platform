@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Theme = "dark" | "light";
 type Section = "visao" | "missoes" | "orquestracao" | "chat" | "execucoes" | "pendencias" | "prompts" | "governanca";
+type MissionsTab = "cadastro" | "gestao";
 type PartExecutor = "STAFF" | "CPP" | "CPP-IA";
 type PartPriority = "P0" | "P1" | "P2";
 type ChatUiAction = "MSG" | "STATUS" | "OK" | "PAUSAR" | "NEGAR" | "OWNER_CALL" | "NOVA_MISSAO";
+type QueueWorkflowStatus = "open" | "in_progress" | "done" | "paused_waiting_owner";
 
 interface MissionPart {
   part_id: string;
@@ -36,7 +38,11 @@ interface TokenPolicy {
 }
 
 interface UsageSummary {
+  daily_input_tokens?: number;
+  daily_output_tokens?: number;
   daily_tokens?: number;
+  monthly_input_tokens?: number;
+  monthly_output_tokens?: number;
   daily_usd?: number;
   monthly_usd?: number;
   daily_count?: number;
@@ -45,6 +51,8 @@ interface UsageSummary {
 
 interface UsageRow {
   mission_id?: string;
+  projected_input_tokens?: number;
+  projected_output_tokens?: number;
   projected_total_tokens?: number;
   projected_cost_usd?: number;
   projected_cost_brl?: number;
@@ -73,7 +81,37 @@ interface QueueRow {
   priority?: string;
   assignee?: string;
   status?: string;
+  created_at_utc?: string;
   updated_at_utc?: string;
+}
+
+type QueueEtaConfidence = "alta" | "media" | "baixa";
+
+interface QueueEtaEstimate {
+  label: string;
+  confidence: QueueEtaConfidence;
+  deviation_min: number;
+}
+
+interface MissionBoardPackage {
+  package_id?: string;
+  mission_ids?: string[];
+  note?: string;
+  status?: string;
+  created_by?: string;
+  created_at_utc?: string;
+  updated_at_utc?: string;
+}
+
+interface MissionBoardMission {
+  mission_id?: string;
+  objective?: string;
+  assignee?: string;
+  priority?: string;
+  status?: string;
+  notes?: string;
+  updated_at_utc?: string;
+  updated_by?: string;
 }
 
 interface ChatRow {
@@ -105,8 +143,43 @@ interface SessionInfo {
   is_primary_admin?: boolean;
 }
 
+interface TopNotice {
+  message: string;
+  variant: "success" | "error" | "info";
+}
+
+interface SupportErrorReportInput {
+  source: string;
+  missionId?: string;
+  queueId?: string;
+  action?: string;
+  errorCode?: string;
+  message: string;
+  payload?: unknown;
+}
+
 const ADMIN_COMMAND_ACTIONS = new Set<ChatUiAction>(["OK", "PAUSAR", "NEGAR", "OWNER_CALL", "NOVA_MISSAO"]);
 const PRINCIPAL_ARCHITECT_TARGET = "PRINCIPAL_ARCHITECT";
+const MISSION_INTAKE_AGENT = PRINCIPAL_ARCHITECT_TARGET;
+const MISSION_ID_PREFIX = "GOV-MANAGER-V1-";
+const MISSION_ID_DIGITS = 5;
+const SUPPORT_REPORTED_SUFFIX = " (falha/erro reportado ao time de suporte).";
+const SECTION_ITEMS: Array<{ id: Section; label: string; icon: string }> = [
+  { id: "visao", label: "Visão geral", icon: "⌂" },
+  { id: "missoes", label: "Missões", icon: "◫" },
+  { id: "orquestracao", label: "Orquestração", icon: "◎" },
+  { id: "chat", label: "Chat HUB", icon: "✉" },
+  { id: "execucoes", label: "Execuções", icon: "▤" },
+  { id: "pendencias", label: "Pendências", icon: "⎋" },
+  { id: "prompts", label: "Prompts", icon: "⌘" },
+  { id: "governanca", label: "Governança", icon: "◉" }
+];
+const KANBAN_COLUMNS: Array<{ status: QueueWorkflowStatus; label: string }> = [
+  { status: "open", label: "A fazer" },
+  { status: "in_progress", label: "Em progresso" },
+  { status: "paused_waiting_owner", label: "Pausadas" },
+  { status: "done", label: "Concluídas" }
+];
 
 function isAdminCommandAction(action: string): boolean {
   return ADMIN_COMMAND_ACTIONS.has(String(action || "").toUpperCase() as ChatUiAction);
@@ -153,6 +226,17 @@ function safeJsonParse(raw: string): Record<string, unknown> | null {
   }
 }
 
+function parseMissionIds(raw: string): string[] {
+  return Array.from(
+    new Set(
+      String(raw || "")
+        .split(/[\s,;]+/)
+        .map((value) => value.trim().toUpperCase())
+        .filter(Boolean)
+    )
+  );
+}
+
 function readNumber(value: unknown, fallback = 0): number {
   const num = Number(value);
   return Number.isFinite(num) ? num : fallback;
@@ -173,8 +257,173 @@ function formatDateTime(value: string): string {
   return new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "short",
     timeStyle: "medium",
-    timeZone: "UTC"
+    timeZone: "America/Sao_Paulo"
   }).format(date);
+}
+
+function compactText(value: string, max = 180): string {
+  const clean = String(value || "").replace(/\s+/g, " ").trim();
+  if (!clean) return "";
+  if (clean.length <= max) return clean;
+  return `${clean.slice(0, max - 1)}…`;
+}
+
+function normalizeChatMatch(value: string): string {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase();
+}
+
+function isMissionFormattedRow(row: ChatRow): boolean {
+  const action = String(row.action || "").trim().toUpperCase();
+  if (action && action !== "MSG") return true;
+  const normalized = normalizeChatMatch(String(row.message || ""));
+  return (
+    normalized.includes("resultado") ||
+    normalized.includes("missao") ||
+    normalized.includes("finaliz") ||
+    normalized.includes("conclu") ||
+    normalized.includes("proximo recomendado") ||
+    normalized.includes("status")
+  );
+}
+
+function chatActionUiLabel(action: string): string {
+  const normalized = String(action || "").trim().toUpperCase();
+  if (normalized === "MSG") return "Conversa";
+  if (normalized === "STATUS") return "Confirmação de Missão";
+  if (normalized === "OK") return "Aprovar Execução";
+  if (normalized === "PAUSAR") return "Pausar Missão";
+  if (normalized === "NEGAR") return "Negar Missão";
+  if (normalized === "OWNER_CALL") return "Chamar Owner";
+  if (normalized === "NOVA_MISSAO") return "Nova Missão";
+  return normalized || "Conversa";
+}
+
+function replyCountLabel(count: number): string {
+  const safe = Math.max(0, Math.trunc(count));
+  const prefix = String(safe).padStart(2, "0");
+  const suffix = safe === 1 ? "resposta" : "respostas";
+  return `${prefix} ${suffix}`;
+}
+
+function chatRowSummary(row: ChatRow): string {
+  const directMessage = compactText(String(row.message || ""), 180);
+  if (directMessage) return directMessage;
+  const pieces = [
+    row.action ? String(row.action) : "",
+    row.mission_id ? `Missão ${String(row.mission_id)}` : "",
+    row.direction ? `Direção ${String(row.direction)}` : ""
+  ].filter(Boolean);
+  return compactText(pieces.join(" | "), 180) || "Sem conteúdo.";
+}
+
+function sanitizeMissionInline(value: string): string {
+  return String(value || "")
+    .replace(/\r?\n/g, " ")
+    .replace(/[;|]/g, ",")
+    .trim();
+}
+
+function missionRequiredIssues(mission: { id: string; target: string }, createdBy: string, parts: MissionPart[]): string[] {
+  const issues: string[] = [];
+  if (!String(mission.id || "").trim()) issues.push("Mission ID");
+  if (!String(mission.target || "").trim()) issues.push("Objetivo");
+  if (!String(createdBy || "").trim()) issues.push("Criado por");
+  const hasPartGoal = parts.some((part) => String(part.goal || "").trim().length > 0);
+  if (!hasPartGoal) issues.push("Entrega da Parte");
+  return issues;
+}
+
+function normalizeTdvTags(raw: string): string {
+  return String(raw || "")
+    .replace(/#\s*mu\s*:/gi, "#μ:")
+    .replace(/#\s*tau\s*:/gi, "#τ:")
+    .replace(/#\s*sigma\s*:/gi, "#σ:")
+    .replace(/#\s*rho\s*:/gi, "#ρ:")
+    .replace(/#\s*delta\s*:/gi, "#δ:");
+}
+
+function udnContractIssues(rawUdn: string): string[] {
+  const text = normalizeTdvTags(String(rawUdn || "")).trim().toUpperCase();
+  const issues: string[] = [];
+  if (!text) issues.push("UDN vazio");
+  if (text && !text.includes("!MIS|")) issues.push("!MIS");
+  if (text && !text.includes("#Μ:")) issues.push("#μ");
+  return issues;
+}
+
+function repairMissionUdn(rawUdn: string, generatedUdn: string): { udn: string; repaired: string[] } {
+  const rawLines = normalizeTdvTags(String(rawUdn || ""))
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const generatedLines = normalizeTdvTags(String(generatedUdn || ""))
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const repaired: string[] = [];
+  const ensureLine = (prefix: string) => {
+    const hasPrefix = rawLines.some((line) => line.toUpperCase().startsWith(prefix.toUpperCase()));
+    if (hasPrefix) return;
+    const fallback = generatedLines.find((line) => line.toUpperCase().startsWith(prefix.toUpperCase()));
+    if (fallback) {
+      rawLines.push(fallback);
+      repaired.push(prefix);
+    }
+  };
+
+  ensureLine("!MIS|");
+  ensureLine("#μ:");
+  if (rawLines.some((line) => line.toUpperCase().startsWith("!MIS|")) && !rawLines.some((line) => line.toUpperCase().startsWith("#τ:"))) {
+    ensureLine("#τ:");
+  }
+
+  return { udn: normalizeTdvTags(rawLines.join("\n")), repaired };
+}
+
+function resolveRegisterError(payload: unknown): string {
+  const obj = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
+  const upstream = obj.govhub_response && typeof obj.govhub_response === "object"
+    ? (obj.govhub_response as Record<string, unknown>)
+    : {};
+
+  const details = Array.isArray(obj.errors)
+    ? obj.errors.map((value) => String(value || "").trim()).filter(Boolean).join("; ")
+    : "";
+
+  const candidates = [
+    details ? `UDN inválido: ${details}` : "",
+    obj.message,
+    obj.error,
+    obj.error_code,
+    upstream.message,
+    upstream.error,
+    upstream.error_code
+  ]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+
+  const first = candidates[0];
+  if (first) return first;
+  return "REGISTER_FAILED";
+}
+
+function resolveErrorCode(payload: unknown): string {
+  const obj = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
+  const upstream = obj.govhub_response && typeof obj.govhub_response === "object"
+    ? (obj.govhub_response as Record<string, unknown>)
+    : {};
+  const code = String(obj.error_code || upstream.error_code || "").trim().toUpperCase();
+  return code || "UNKNOWN_ERROR";
+}
+
+function withSupportSuffix(message: string): string {
+  const text = String(message || "").trim();
+  if (!text) return SUPPORT_REPORTED_SUFFIX.trim();
+  return text.endsWith(SUPPORT_REPORTED_SUFFIX) ? text : `${text}${SUPPORT_REPORTED_SUFFIX}`;
 }
 
 function botStateLabel(state: string): string {
@@ -208,6 +457,141 @@ function formatChatIdentity(value: string): string {
   return String(value || "").trim();
 }
 
+function missionCodeNumber(value: string): number | null {
+  const match = String(value || "")
+    .trim()
+    .toUpperCase()
+    .match(/^GOV-MANAGER-V1-(\d{1,10})$/);
+  if (!match) return null;
+  const parsed = Number(match[1]);
+  if (!Number.isInteger(parsed) || parsed < 0) return null;
+  return parsed;
+}
+
+function formatMissionCode(value: number): string {
+  const safe = Math.max(1, Math.trunc(value));
+  return `${MISSION_ID_PREFIX}${String(safe).padStart(MISSION_ID_DIGITS, "0")}`;
+}
+
+function missionShortToken(value: string): string {
+  const clean = String(value || "").trim().toUpperCase();
+  const match = clean.match(/-(\d{1,10})$/);
+  if (!match || !match[1]) return clean || "00001";
+  return match[1].padStart(MISSION_ID_DIGITS, "0");
+}
+
+function toEpoch(value: unknown): number | null {
+  const parsed = Date.parse(String(value || "").trim());
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function queuePriorityBaseMinutes(priority: string): number {
+  const normalized = String(priority || "").trim().toUpperCase();
+  if (normalized === "P0") return 25;
+  if (normalized === "P1") return 45;
+  if (normalized === "P2") return 75;
+  if (normalized === "P3") return 120;
+  return 60;
+}
+
+function queueAssigneeFactor(assignee: string): number {
+  const normalized = String(assignee || "").trim().toUpperCase();
+  if (normalized === "CPP-IA") return 0.85;
+  if (normalized === "CPP") return 1;
+  if (normalized === "STAFF") return 1.15;
+  return 1;
+}
+
+function queueStatusLabel(status: string): string {
+  const normalized = String(status || "").trim().toLowerCase();
+  if (normalized === "open") return "A fazer";
+  if (normalized === "in_progress") return "Em progresso";
+  if (normalized === "paused_waiting_owner") return "Pausada";
+  if (normalized === "done") return "Concluída";
+  return "Indefinido";
+}
+
+function estimateQueueEta(row: QueueRow, nowEpoch: number): QueueEtaEstimate {
+  const status = String(row.status || "").trim().toLowerCase();
+  if (status === "done") return { label: "Concluída", confidence: "alta", deviation_min: 0 };
+  if (status === "paused_waiting_owner") return { label: "Pausada", confidence: "baixa", deviation_min: 0 };
+
+  const baseline = Math.max(10, Math.round(queuePriorityBaseMinutes(String(row.priority || "")) * queueAssigneeFactor(String(row.assignee || ""))));
+  const createdEpoch = toEpoch(row.created_at_utc) ?? toEpoch(row.updated_at_utc) ?? nowEpoch;
+  const updatedEpoch = toEpoch(row.updated_at_utc) ?? createdEpoch;
+
+  const elapsedFromCreateMin = Math.max(0, Math.round((nowEpoch - createdEpoch) / 60000));
+  const elapsedFromUpdateMin = Math.max(0, Math.round((nowEpoch - updatedEpoch) / 60000));
+  const elapsedMin = status === "in_progress" ? elapsedFromUpdateMin : elapsedFromCreateMin;
+  const staleMin = Math.max(0, Math.round((nowEpoch - updatedEpoch) / 60000));
+  const deviation = elapsedMin - baseline;
+
+  let remaining = baseline;
+  if (status === "in_progress") {
+    remaining = Math.max(3, baseline - elapsedMin);
+    if (elapsedMin > baseline) {
+      // Keep ETA realistic for long-running items instead of unbounded growth.
+      const overtime = elapsedMin - baseline;
+      remaining = Math.max(3, Math.min(Math.round(baseline * 1.25), Math.round(overtime * 0.25 + 6)));
+    }
+  }
+
+  let score = 100;
+  if (status === "open") score -= 25;
+  if (staleMin > 5) score -= 10;
+  if (staleMin > 15) score -= 20;
+  if (staleMin > 30) score -= 20;
+  if (Math.abs(deviation) > 30) score -= 15;
+  if (Math.abs(deviation) > 60) score -= 20;
+
+  const confidence: QueueEtaConfidence = score >= 75 ? "alta" : score >= 45 ? "media" : "baixa";
+  return {
+    label: `${remaining} min para conclusão`,
+    confidence,
+    deviation_min: deviation
+  };
+}
+
+function buildMissionDraftKey(input: {
+  mission: { id: string; target: string; branch: string; agent_id: string };
+  createdBy: string;
+  parts: MissionPart[];
+  udn: string;
+  tokenControl: {
+    enabled: boolean;
+    budget_usd: number;
+    budget_brl: number;
+    max_input_tokens: number;
+    max_output_tokens: number;
+    hard_stop: boolean;
+  };
+  selectedPromptId: string;
+  promptVarsRaw: string;
+}): string {
+  return JSON.stringify({
+    mission: input.mission,
+    createdBy: input.createdBy,
+    parts: input.parts,
+    udn: normalizeTdvTags(input.udn),
+    tokenControl: input.tokenControl,
+    selectedPromptId: input.selectedPromptId,
+    promptVarsRaw: input.promptVarsRaw
+  });
+}
+
+function isFinalReportText(value: string): boolean {
+  const normalized = String(value || "")
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase();
+  return (
+    normalized.includes("resultado") ||
+    normalized.includes("finaliz") ||
+    normalized.includes("conclu") ||
+    normalized.includes("entrega")
+  );
+}
+
 function playTimSound() {
   try {
     const Context = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -234,13 +618,13 @@ function playTimSound() {
 export default function GovManagerPage() {
   const [theme, setTheme] = useState<Theme>("dark");
   const [section, setSection] = useState<Section>("visao");
-  const [isMobile, setIsMobile] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [missionsTab, setMissionsTab] = useState<MissionsTab>("cadastro");
 
-  const [mission, setMission] = useState({ id: "", target: "", branch: "main", agent_id: "CPP" });
+  const [mission, setMission] = useState({ id: "", target: "", branch: "main", agent_id: MISSION_INTAKE_AGENT });
   const [createdBy, setCreatedBy] = useState("staff@gov-manager");
   const [currentRole, setCurrentRole] = useState("viewer");
   const [isPrimaryAdmin, setIsPrimaryAdmin] = useState(false);
+  const [topNotice, setTopNotice] = useState<TopNotice | null>(null);
   const [udn, setUdn] = useState("");
   const [status, setStatus] = useState("idle");
   const [responseText, setResponseText] = useState("");
@@ -286,8 +670,23 @@ export default function GovManagerPage() {
   const [botStatusUpdatedAt, setBotStatusUpdatedAt] = useState("");
   const [queueText, setQueueText] = useState("");
   const [queueUpdatedAt, setQueueUpdatedAt] = useState("");
+  const [queueLoading, setQueueLoading] = useState(false);
   const [queueRefreshSec, setQueueRefreshSec] = useState(30);
   const [queueRefreshNonce, setQueueRefreshNonce] = useState(0);
+  const [queueNotice, setQueueNotice] = useState("");
+  const [queueFocusedId, setQueueFocusedId] = useState("");
+  const [queueAssigneeFilter, setQueueAssigneeFilter] = useState<"all" | PartExecutor>("all");
+  const [queuePriorityFilter, setQueuePriorityFilter] = useState<"all" | "P0" | "P1" | "P2" | "P3">("all");
+  const [queueMissionFilter, setQueueMissionFilter] = useState("");
+  const [queueDragId, setQueueDragId] = useState("");
+  const [missionManageText, setMissionManageText] = useState("");
+  const [missionManageUpdatedAt, setMissionManageUpdatedAt] = useState("");
+  const [missionManageNotice, setMissionManageNotice] = useState("");
+  const [groupPackageId, setGroupPackageId] = useState("");
+  const [groupMissionIdsRaw, setGroupMissionIdsRaw] = useState("");
+  const [groupNote, setGroupNote] = useState("");
+  const [manageEdit, setManageEdit] = useState({ mission_id: "", objective: "", assignee: "STAFF", priority: "P1", notes: "" });
+  const [manageExecution, setManageExecution] = useState({ mission_id: "", title: "", description: "", assignee: "CPP", priority: "P1" });
   const [chatText, setChatText] = useState("");
   const [chatUpdatedAt, setChatUpdatedAt] = useState("");
   const [chatRefreshSec, setChatRefreshSec] = useState(5);
@@ -297,8 +696,11 @@ export default function GovManagerPage() {
   const [chatMessage, setChatMessage] = useState("");
   const [chatNotice, setChatNotice] = useState("");
   const [chatUnread, setChatUnread] = useState(0);
+  const [chatReplyOpenId, setChatReplyOpenId] = useState("");
   const [chatPollState, setChatPollState] = useState<"online" | "offline">("online");
   const [chatPingAt, setChatPingAt] = useState("");
+  const [watchMissionId, setWatchMissionId] = useState("");
+  const [validatedDraftKey, setValidatedDraftKey] = useState("");
   const [projectMissionCount, setProjectMissionCount] = useState(8);
   const [usersOpen, setUsersOpen] = useState(false);
   const [usersText, setUsersText] = useState("");
@@ -308,6 +710,57 @@ export default function GovManagerPage() {
   const [userStatus, setUserStatus] = useState("");
   const chatSeenMessageIdRef = useRef("");
   const chatInitRef = useRef(false);
+  const missionReportSeenRef = useRef<Record<string, boolean>>({});
+  const supportErrorDedupRef = useRef<Record<string, number>>({});
+
+  const reportSupportError = useCallback(async (input: SupportErrorReportInput) => {
+    const missionId = String(input.missionId || mission.id || "GOV-MANAGER-V1-ERROR")
+      .trim()
+      .toUpperCase();
+    if (!missionId) return;
+
+    const baseMessage = String(input.message || "").trim();
+    const errorCode = String(input.errorCode || "").trim().toUpperCase() || "UNKNOWN_ERROR";
+    const dedupKey = [input.source, missionId, errorCode, baseMessage].join("|").toLowerCase();
+    const now = Date.now();
+    const lastSent = Number(supportErrorDedupRef.current[dedupKey] || 0);
+    if (now - lastSent < 20_000) return;
+    supportErrorDedupRef.current[dedupKey] = now;
+
+    const payloadPreview = (() => {
+      try {
+        const raw = JSON.stringify(input.payload ?? {}, null, 0);
+        return raw.slice(0, 320);
+      } catch {
+        return "";
+      }
+    })();
+
+    const udn = [
+      `!ERR|${sanitizeMissionInline(input.source || "GOV_MANAGER")}|${sanitizeMissionInline(missionId)}|REPORT`,
+      `#μ:${sanitizeMissionInline(baseMessage || "Falha operacional no GOV-Manager")}`,
+      `#σ:ERR_CODE=${sanitizeMissionInline(errorCode)};ACTION=${sanitizeMissionInline(input.action || "-")};QUEUE=${sanitizeMissionInline(input.queueId || "-")}`,
+      `#τ:staff_triage;support_followup`,
+      `#ctx:payload=${sanitizeMissionInline(payloadPreview || "-")}`,
+      "!OUT:JSON_ONLY.NO_MD.NO_TXT."
+    ].join("\n");
+
+    try {
+      await fetch("/api/govhub/operations/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          mission_id: missionId,
+          actor: createdBy,
+          target: "STAFF",
+          action: "MSG",
+          message: udn
+        })
+      });
+    } catch {
+      // no-op
+    }
+  }, [createdBy, mission.id]);
 
   const selectedPrompt = useMemo(
     () => promptLibrary.find((prompt) => prompt.prompt_id === selectedPromptId) || null,
@@ -319,22 +772,6 @@ export default function GovManagerPage() {
     const next = persisted === "light" ? "light" : "dark";
     setTheme(next);
     document.documentElement.dataset.theme = next;
-  }, []);
-
-  useEffect(() => {
-    const media = window.matchMedia("(max-width: 1100px)");
-    const apply = () => {
-      const mobile = media.matches;
-      setIsMobile(mobile);
-      setMobileMenuOpen(!mobile);
-    };
-    apply();
-    if (typeof media.addEventListener === "function") {
-      media.addEventListener("change", apply);
-      return () => media.removeEventListener("change", apply);
-    }
-    media.addListener(apply);
-    return () => media.removeListener(apply);
   }, []);
 
   useEffect(() => {
@@ -350,7 +787,7 @@ export default function GovManagerPage() {
 
     const pullUsage = async () => {
       try {
-        const response = await fetch(`/api/govhub/token/usage?owner_id=${encodeURIComponent(createdBy)}`, {
+        const response = await fetch("/api/govhub/token/usage?owner_id=all", {
           cache: "no-store"
         });
         const payload = await response.json();
@@ -380,6 +817,11 @@ export default function GovManagerPage() {
   }, [section]);
 
   useEffect(() => {
+    if (section !== "missoes" || missionsTab !== "gestao") return;
+    void loadMissionManage();
+  }, [missionsTab, queueRefreshNonce, section]);
+
+  useEffect(() => {
     let active = true;
 
     const pullBotStatus = async () => {
@@ -406,22 +848,41 @@ export default function GovManagerPage() {
     };
   }, [botStatusRefreshNonce, botStatusRefreshSec]);
 
+  const pullQueueNow = useCallback(
+    async (options?: { silent?: boolean }) => {
+      const silent = options?.silent === true;
+      setQueueLoading(true);
+      try {
+        const response = await fetch("/api/govhub/operations/queue", { cache: "no-store" });
+        const payload = await response.json();
+        setQueueText(JSON.stringify(payload, null, 2));
+        setQueueUpdatedAt(new Date().toISOString());
+        if (!silent) setQueueNotice("Fila atualizada.");
+      } catch {
+        setQueueText(JSON.stringify({ status: "error", error_code: "QUEUE_FETCH_FAILED" }, null, 2));
+        setQueueUpdatedAt(new Date().toISOString());
+        if (!silent) {
+          const baseMessage = "Falha ao atualizar fila.";
+          void reportSupportError({
+            source: "QUEUE_PULL",
+            action: "GET_QUEUE",
+            errorCode: "QUEUE_FETCH_FAILED",
+            message: baseMessage
+          });
+          setQueueNotice(withSupportSuffix(baseMessage));
+        }
+      } finally {
+        setQueueLoading(false);
+      }
+    },
+    [reportSupportError]
+  );
+
   useEffect(() => {
     let active = true;
     const pullQueue = async () => {
-      try {
-        const response = await fetch("/api/govhub/operations/queue?status=open", { cache: "no-store" });
-        const payload = await response.json();
-        if (active) {
-          setQueueText(JSON.stringify(payload, null, 2));
-          setQueueUpdatedAt(new Date().toISOString());
-        }
-      } catch {
-        if (active) {
-          setQueueText(JSON.stringify({ status: "error", error_code: "QUEUE_FETCH_FAILED" }, null, 2));
-          setQueueUpdatedAt(new Date().toISOString());
-        }
-      }
+      if (!active) return;
+      await pullQueueNow({ silent: true });
     };
 
     pullQueue();
@@ -430,15 +891,13 @@ export default function GovManagerPage() {
       active = false;
       window.clearInterval(interval);
     };
-  }, [queueRefreshNonce, queueRefreshSec]);
+  }, [pullQueueNow, queueRefreshNonce, queueRefreshSec]);
 
   useEffect(() => {
     let active = true;
     const pullChat = async () => {
       try {
-        const missionId = mission.id.trim();
-        const qs = missionId ? `?mission_id=${encodeURIComponent(missionId)}` : "";
-        const response = await fetch(`/api/govhub/operations/chat${qs}`, { cache: "no-store" });
+        const response = await fetch("/api/govhub/operations/chat", { cache: "no-store" });
         const payload = await response.json();
         if (active) {
           const rows = Array.isArray(payload?.rows) ? (payload.rows as ChatRow[]) : [];
@@ -460,10 +919,10 @@ export default function GovManagerPage() {
                 const mine = createdBy.trim().toLowerCase();
                 return actor && actor !== mine;
               }).length;
-              if (unseenInbound > 0 && section !== "chat") {
+              if (unseenInbound > 0) {
                 setChatUnread((prev) => prev + unseenInbound);
-                setChatNotice(`TIM! Você tem ${unseenInbound} nova(s) mensagem(ns).`);
-                playTimSound();
+                setChatNotice(`Vc tem ${unseenInbound} nova(s) msg.`);
+                if (section !== "chat") playTimSound();
               }
               chatSeenMessageIdRef.current = newestMessageId;
             }
@@ -499,7 +958,6 @@ export default function GovManagerPage() {
 
   useEffect(() => {
     if (section !== "chat") return;
-    setChatUnread(0);
     if (!chatText) return;
     const payload = safeJsonParse(chatText);
     const rows = Array.isArray(payload?.rows) ? (payload.rows as ChatRow[]) : [];
@@ -642,7 +1100,6 @@ export default function GovManagerPage() {
 
   function goToSection(next: Section) {
     setSection(next);
-    if (isMobile) setMobileMenuOpen(false);
     scrollToContent();
   }
 
@@ -732,33 +1189,262 @@ export default function GovManagerPage() {
     }
   }
 
-  function compileUdn() {
-    const safe = (value: string) =>
-      String(value || "")
-        .replace(/\r?\n/g, " ")
-        .replace(/[;|]/g, ",")
-        .trim();
+  async function loadMissionManage() {
+    try {
+      const response = await fetch("/api/govhub/missions/manage", { cache: "no-store" });
+      const payload = await response.json();
+      setMissionManageText(JSON.stringify(payload, null, 2));
+      setMissionManageUpdatedAt(new Date().toISOString());
+    } catch {
+      setMissionManageText(JSON.stringify({ status: "error", error_code: "MISSION_MANAGE_FETCH_FAILED" }, null, 2));
+      setMissionManageUpdatedAt(new Date().toISOString());
+    }
+  }
 
-    const promptRefLine = selectedPrompt
-      ? `#ctx_prompt_ref:id=${selectedPrompt.prompt_id};hash=${selectedPrompt.prompt_hash}`
-      : "#ctx_prompt_ref:none";
+  async function groupMissions() {
+    const missionIds = parseMissionIds(groupMissionIdsRaw);
+    if (missionIds.length === 0) {
+      setMissionManageNotice("Informe ao menos uma missão para agrupar.");
+      return;
+    }
+    setStatus("mission_grouping");
+    try {
+      const response = await fetch("/api/govhub/missions/manage", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "group_missions",
+          actor: createdBy,
+          package_id: String(groupPackageId || "").trim() || `PACOTE-${Date.now()}`,
+          mission_ids: missionIds,
+          note: groupNote
+        })
+      });
+      const payload = await response.json();
+      setResponseText(JSON.stringify(payload, null, 2));
+      if (!response.ok) {
+        const baseMessage = `Falha ao agrupar: ${resolveRegisterError(payload)}.`;
+        await reportSupportError({
+          source: "MISSION_GROUP",
+          action: "group_missions",
+          ...(String(missionIds[0] || mission.id || "").trim()
+            ? { missionId: String(missionIds[0] || mission.id || "").trim().toUpperCase() }
+            : {}),
+          errorCode: resolveErrorCode(payload),
+          message: baseMessage,
+          payload
+        });
+        setStatus("error");
+        setMissionManageNotice(withSupportSuffix(baseMessage));
+        return;
+      }
+      setStatus("success");
+      setMissionManageNotice(`Pacote ${String(payload?.package?.package_id || "-")} salvo com ${missionIds.length} missão(ões).`);
+      await loadMissionManage();
+    } catch {
+      const baseMessage = "Falha de rede ao agrupar missões.";
+      await reportSupportError({
+        source: "MISSION_GROUP",
+        action: "group_missions",
+        missionId: mission.id,
+        errorCode: "NETWORK_ERROR",
+        message: baseMessage
+      });
+      setStatus("error");
+      setMissionManageNotice(withSupportSuffix(baseMessage));
+    }
+  }
 
+  async function editMissionInProgress() {
+    const missionId = String(manageEdit.mission_id || "").trim().toUpperCase();
+    if (!missionId) {
+      setMissionManageNotice("Informe a missão para editar.");
+      return;
+    }
+    setStatus("mission_editing");
+    try {
+      const response = await fetch("/api/govhub/missions/manage", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "edit_mission",
+          actor: createdBy,
+          mission_id: missionId,
+          objective: manageEdit.objective,
+          assignee: manageEdit.assignee,
+          priority: manageEdit.priority,
+          notes: manageEdit.notes
+        })
+      });
+      const payload = await response.json();
+      setResponseText(JSON.stringify(payload, null, 2));
+      if (!response.ok) {
+        const baseMessage = `Edição bloqueada: ${resolveRegisterError(payload)}.`;
+        await reportSupportError({
+          source: "MISSION_EDIT",
+          action: "edit_mission",
+          missionId,
+          errorCode: resolveErrorCode(payload),
+          message: baseMessage,
+          payload
+        });
+        setStatus("error");
+        setMissionManageNotice(withSupportSuffix(baseMessage));
+        return;
+      }
+      setStatus("success");
+      setMissionManageNotice(`Missão ${missionId} atualizada.`);
+      await loadMissionManage();
+    } catch {
+      const baseMessage = "Falha de rede ao editar missão.";
+      await reportSupportError({
+        source: "MISSION_EDIT",
+        action: "edit_mission",
+        missionId,
+        errorCode: "NETWORK_ERROR",
+        message: baseMessage
+      });
+      setStatus("error");
+      setMissionManageNotice(withSupportSuffix(baseMessage));
+    }
+  }
+
+  async function addExecutionToMission() {
+    const missionId = String(manageExecution.mission_id || "").trim().toUpperCase();
+    const title = String(manageExecution.title || "").trim();
+    if (!missionId || !title) {
+      setMissionManageNotice("Informe missão e título da execução.");
+      return;
+    }
+    setStatus("mission_add_execution");
+    try {
+      const response = await fetch("/api/govhub/missions/manage", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "add_execution",
+          actor: createdBy,
+          mission_id: missionId,
+          title,
+          description: manageExecution.description,
+          assignee: manageExecution.assignee,
+          priority: manageExecution.priority
+        })
+      });
+      const payload = await response.json();
+      setResponseText(JSON.stringify(payload, null, 2));
+      if (!response.ok) {
+        const baseMessage = `Falha ao adicionar execução: ${resolveRegisterError(payload)}.`;
+        await reportSupportError({
+          source: "MISSION_ADD_EXECUTION",
+          action: "add_execution",
+          missionId,
+          errorCode: resolveErrorCode(payload),
+          message: baseMessage,
+          payload
+        });
+        setStatus("error");
+        setMissionManageNotice(withSupportSuffix(baseMessage));
+        return;
+      }
+      setStatus("success");
+      setMissionManageNotice(`Nova execução adicionada na missão ${missionId}.`);
+      setQueueRefreshNonce((prev) => prev + 1);
+      await loadMissionManage();
+    } catch {
+      const baseMessage = "Falha de rede ao incluir execução.";
+      await reportSupportError({
+        source: "MISSION_ADD_EXECUTION",
+        action: "add_execution",
+        missionId,
+        errorCode: "NETWORK_ERROR",
+        message: baseMessage
+      });
+      setStatus("error");
+      setMissionManageNotice(withSupportSuffix(baseMessage));
+    }
+  }
+
+  async function startAllNonPausedMissions() {
+    setStatus("mission_bulk_start");
+    try {
+      const response = await fetch("/api/govhub/missions/manage", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "start_all_non_paused",
+          actor: createdBy
+        })
+      });
+      const payload = await response.json();
+      setResponseText(JSON.stringify(payload, null, 2));
+      if (!response.ok) {
+        const baseMessage = `Falha no início em lote: ${resolveRegisterError(payload)}.`;
+        await reportSupportError({
+          source: "MISSION_BULK_START",
+          action: "start_all_non_paused",
+          missionId: mission.id,
+          errorCode: resolveErrorCode(payload),
+          message: baseMessage,
+          payload
+        });
+        setStatus("error");
+        setMissionManageNotice(withSupportSuffix(baseMessage));
+        return;
+      }
+      const changed = Number(payload?.changed || 0);
+      setStatus("success");
+      setMissionManageNotice(changed > 0 ? `${changed} item(ns) colocados em execução.` : "Sem itens elegíveis para iniciar.");
+      setQueueRefreshNonce((prev) => prev + 1);
+      await loadMissionManage();
+    } catch {
+      const baseMessage = "Falha de rede ao iniciar missões não pausadas.";
+      await reportSupportError({
+        source: "MISSION_BULK_START",
+        action: "start_all_non_paused",
+        missionId: mission.id,
+        errorCode: "NETWORK_ERROR",
+        message: baseMessage
+      });
+      setStatus("error");
+      setMissionManageNotice(withSupportSuffix(baseMessage));
+    }
+  }
+
+  function loadMissionIntoManageForms(row: QueueRow) {
+    const missionId = String(row.mission_id || "").trim().toUpperCase();
+    if (!missionId) return;
+    setManageEdit((prev) => ({
+      ...prev,
+      mission_id: missionId,
+      assignee: String(row.assignee || prev.assignee || "STAFF"),
+      priority: String(row.priority || prev.priority || "P1"),
+      objective: String(row.title || prev.objective || "")
+    }));
+    setManageExecution((prev) => ({ ...prev, mission_id: missionId, assignee: String(row.assignee || prev.assignee || "CPP"), priority: String(row.priority || prev.priority || "P1") }));
+  }
+
+  function buildMissionUdn(missionDraft = mission) {
+    const missionToken = missionShortToken(missionDraft.id || nextMissionCode || "00001");
+    const compactTasks = parts
+      .map((part, index) => {
+        const partId = sanitizeMissionInline(part.part_id || `P${index + 1}`) || `P${index + 1}`;
+        const executor = String(part.executor || "STAFF").toUpperCase();
+        const priority = String(part.priority || "P1").toUpperCase();
+        return `${partId}:${executor}:${priority}`;
+      })
+      .slice(0, 16)
+      .join(";");
     const lines = [
-      `!MIS|${mission.id || "SEM_ID"}|PLAN|REGISTRAR`,
-      `#mu:${mission.target || "Registrar missao no GOV-HUB."}`,
-      promptRefLine,
-      "#staff:classificar;particionar;distribuir",
-      ...parts.map(
-        (part, index) =>
-          `#part:${safe(part.part_id || `P${index + 1}`)};exec=${part.executor};prio=${part.priority};goal=${safe(
-            part.goal || "definir entrega"
-          )}`
-      ),
-      "#tau:registrar_missao;monitorar_execucao",
-      "#sigma:READY",
-      "!OUT:JSON_ONLY.NO_MD.NO_TXT."
+      `!MIS|${missionToken}`,
+      `#μ:${missionDraft.target || "Registrar missao no GOV-HUB."}`,
+      `#τ:${compactTasks || "P1:STAFF:P1"};MON`
     ];
-    setUdn(lines.join("\n"));
+    return lines.join("\n");
+  }
+
+  function compileUdn() {
+    setUdn(buildMissionUdn());
   }
 
   function addPart() {
@@ -781,15 +1467,147 @@ export default function GovManagerPage() {
     setParts((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)));
   }
 
+  function validateMissionForSubmit(options?: { silent?: boolean }): {
+    ok: boolean;
+    missionPayload?: { id: string; target: string; branch: string; agent_id: string };
+    udnPayload?: string;
+    udnAutoRepaired?: boolean;
+    repairedTokens?: string[];
+    draftKey?: string;
+  } {
+    const silent = options?.silent === true;
+    const trimmedMissionId = String(mission.id || "").trim();
+    const nextId = String(nextMissionCode || "").trim().toUpperCase();
+    const currentUpper = trimmedMissionId.toUpperCase();
+    const currentNum = missionCodeNumber(trimmedMissionId);
+    const nextNum = missionCodeNumber(nextId);
+    const shouldAutoAdvance =
+      (!trimmedMissionId && Boolean(nextId)) ||
+      (Boolean(nextId) &&
+        currentUpper !== nextId &&
+        (knownMissionIds.has(currentUpper) || (currentNum !== null && nextNum !== null && currentNum < nextNum)));
+
+    const missionId = shouldAutoAdvance ? nextId : trimmedMissionId;
+    if (shouldAutoAdvance && nextId) {
+      setMission((prev) => ({ ...prev, id: nextId }));
+      if (!silent) {
+        setTopNotice({
+          message: `Mission ID ajustado automaticamente para ${nextId}.`,
+          variant: "info"
+        });
+      }
+    }
+    const missionPayload = {
+      id: missionId,
+      target: mission.target,
+      branch: mission.branch,
+      agent_id: MISSION_INTAKE_AGENT
+    };
+    const requiredIssues = missionRequiredIssues(missionPayload, createdBy, parts);
+    if (requiredIssues.length > 0) {
+      if (!silent) {
+        setStatus("error");
+        setTopNotice({
+          message: `Campos obrigatórios pendentes: ${requiredIssues.join(", ")}.`,
+          variant: "error"
+        });
+      }
+      return { ok: false };
+    }
+    const manualUdn = String(udn || "").trim();
+    const generatedUdn = buildMissionUdn(missionPayload);
+    let udnPayload = normalizeTdvTags(manualUdn || generatedUdn);
+    let udnAutoRepaired = false;
+    let repairedTokens: string[] = [];
+    if (!manualUdn) {
+      setUdn(udnPayload);
+    } else {
+      const contractIssues = udnContractIssues(udnPayload);
+      if (contractIssues.length > 0) {
+        const repaired = repairMissionUdn(manualUdn, generatedUdn);
+        udnPayload = normalizeTdvTags(repaired.udn);
+        repairedTokens = repaired.repaired;
+        setUdn(udnPayload);
+        udnAutoRepaired = repairedTokens.length > 0;
+      } else {
+        setUdn(udnPayload);
+      }
+    }
+    const contractIssues = udnContractIssues(udnPayload);
+    if (contractIssues.length > 0) {
+      if (!silent) {
+        setStatus("error");
+        setTopNotice({
+          message: `Campos UDN pendentes: ${contractIssues.join(", ")}.`,
+          variant: "error"
+        });
+      }
+      return { ok: false };
+    }
+    const draftKey = buildMissionDraftKey({
+      mission: missionPayload,
+      createdBy,
+      parts,
+      udn: udnPayload,
+      tokenControl,
+      selectedPromptId,
+      promptVarsRaw
+    });
+
+    return {
+      ok: true,
+      missionPayload,
+      udnPayload,
+      udnAutoRepaired,
+      repairedTokens,
+      draftKey
+    };
+  }
+
+  function validateMission() {
+    const result = validateMissionForSubmit();
+    if (!result.ok) {
+      setValidatedDraftKey("");
+      return;
+    }
+    setValidatedDraftKey(String(result.draftKey || ""));
+    setStatus("success");
+    setTopNotice({
+      message: "Validação concluída. Registrar no HUB liberado.",
+      variant: "success"
+    });
+  }
+
   async function registerMission() {
+    const validation = validateMissionForSubmit({ silent: true });
+    if (!validation.ok || !validation.missionPayload || !validation.udnPayload || !validation.draftKey) {
+      setValidatedDraftKey("");
+      setStatus("error");
+      setTopNotice({
+        message: "Validação pendente. Clique em Validar missão para ver o que falta.",
+        variant: "error"
+      });
+      return;
+    }
+    if (validatedDraftKey !== validation.draftKey) {
+      setStatus("error");
+      setTopNotice({
+        message: "Alterações detectadas. Clique em Validar missão antes de registrar.",
+        variant: "info"
+      });
+      return;
+    }
+    const { missionPayload, udnPayload, udnAutoRepaired = false, repairedTokens = [] } = validation;
     setStatus("sending");
     try {
       const response = await fetch("/api/govhub/missions/register", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          udn,
-          mission,
+          udn: udnPayload,
+          mission: {
+            ...missionPayload
+          },
           created_by: createdBy,
           token_control: tokenControl,
           parts,
@@ -809,10 +1627,62 @@ export default function GovManagerPage() {
       setResponseText(JSON.stringify(payload, null, 2));
       setAckRequired(resolveOwnerAckRequired(payload));
       setStatus(response.ok ? "success" : "error");
+      if (response.ok) {
+        setValidatedDraftKey("");
+        const missionId = String((payload && typeof payload === "object" ? (payload as Record<string, unknown>).mission_id : "") || missionPayload.id).trim();
+        const queueSync = payload && typeof payload === "object" ? (payload as Record<string, unknown>).queue_sync : null;
+        const queueSyncObj = queueSync && typeof queueSync === "object" ? (queueSync as Record<string, unknown>) : null;
+        const queueInserted = queueSyncObj ? Number(queueSyncObj.inserted || 0) : 0;
+        const queueStatus = queueSyncObj ? String(queueSyncObj.status || "").trim() : "";
+        const queueNotice =
+          queueInserted > 0
+            ? ` Enfileirada automaticamente (${queueInserted} item(ns)).`
+            : queueStatus === "already_exists"
+              ? " Missão já estava na fila."
+              : "";
+        if (missionId) {
+          setWatchMissionId(missionId);
+          missionReportSeenRef.current[missionId] = false;
+        }
+        setTopNotice({
+          message: udnAutoRepaired
+            ? `Missão ${missionId || mission.id || "-"} adicionada com sucesso. UDN ajustado automaticamente (${repairedTokens.join(", ")}).${queueNotice}`
+            : `Missão ${missionId || mission.id || "-"} adicionada com sucesso.${queueNotice} Você receberá um balão de resultado quando o Principal Architect finalizar.`,
+          variant: "success"
+        });
+      } else {
+        const baseMessage = `Falha ao registrar missão: ${resolveRegisterError(payload)}.`;
+        await reportSupportError({
+          source: "MISSION_REGISTER",
+          action: "register_mission",
+          missionId: String(missionPayload.id || mission.id || "").trim().toUpperCase(),
+          errorCode: resolveErrorCode(payload),
+          message: baseMessage,
+          payload
+        });
+        setValidatedDraftKey("");
+        setWatchMissionId("");
+        setTopNotice({
+          message: withSupportSuffix(baseMessage),
+          variant: "error"
+        });
+      }
       goToSection("execucoes");
     } catch {
+      const baseMessage = "Erro de rede ao registrar missão. Clique para fechar.";
+      await reportSupportError({
+        source: "MISSION_REGISTER",
+        action: "register_mission",
+        missionId: String(missionPayload.id || mission.id || "").trim().toUpperCase(),
+        errorCode: "NETWORK_ERROR",
+        message: baseMessage
+      });
       setStatus("error");
       setResponseText(JSON.stringify({ status: "error", error_code: "NETWORK_ERROR" }, null, 2));
+      setTopNotice({
+        message: withSupportSuffix(baseMessage),
+        variant: "error"
+      });
     }
   }
 
@@ -873,14 +1743,220 @@ export default function GovManagerPage() {
         setChatMessage("");
         setChatNotice(isAdminCommandAction(chatAction) ? "Comando enviado ao HUB." : "Mensagem enviada.");
       } else {
-        setChatNotice("Falha no envio. Verifique o retorno técnico abaixo.");
+        const baseMessage = `Falha no envio: ${resolveRegisterError(payload)}.`;
+        await reportSupportError({
+          source: "CHAT_DISPATCH",
+          action: chatAction,
+          missionId,
+          errorCode: resolveErrorCode(payload),
+          message: baseMessage,
+          payload
+        });
+        setChatNotice(withSupportSuffix(baseMessage));
       }
       setChatRefreshNonce((prev) => prev + 1);
       goToSection("chat");
     } catch {
+      const missionId = mission.id.trim() || `mission-${Date.now()}`;
+      const baseMessage = "Falha de rede ao enviar mensagem/comando.";
+      await reportSupportError({
+        source: "CHAT_DISPATCH",
+        action: chatAction,
+        missionId,
+        errorCode: "CHAT_DISPATCH_FAILED",
+        message: baseMessage
+      });
       setStatus("error");
-      setChatNotice("Falha de rede ao enviar mensagem/comando.");
+      setChatNotice(withSupportSuffix(baseMessage));
       setResponseText(JSON.stringify({ status: "error", error_code: "CHAT_DISPATCH_FAILED" }, null, 2));
+    }
+  }
+
+  async function ensureAssigneeHealthy(assigneeRaw: string): Promise<boolean> {
+    const role = String(assigneeRaw || "").trim().toUpperCase();
+    if (!role) return false;
+    if (role === "STAFF") return true;
+    if (role !== "CPP" && role !== "CPP-IA") return false;
+
+    const agentId = `AUTO-UI-${role.replace(/[^A-Z0-9-]/g, "_")}-${Date.now()}`;
+    try {
+      const registerResponse = await fetch("/api/govhub/operations/agents", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "register",
+          agent_id: agentId,
+          role,
+          group: "ui-autofix",
+          capabilities: ["queue", "execute"],
+          max_concurrency: 1,
+          heartbeat_interval_sec: 30,
+          health: "up",
+          current_load: 0
+        })
+      });
+      if (!registerResponse.ok) return false;
+
+      const heartbeatResponse = await fetch("/api/govhub/operations/agents", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "heartbeat",
+          agent_id: agentId,
+          current_load: 0,
+          health: "up"
+        })
+      });
+      return heartbeatResponse.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  async function updateQueueStatus(row: QueueRow, nextStatus: "open" | "in_progress" | "done" | "paused_waiting_owner", notice: string) {
+    const queueId = String(row.queue_id || "").trim();
+    if (!queueId) {
+      setQueueNotice("Item de fila inválido.");
+      return;
+    }
+    setStatus("queue_update");
+    try {
+      const requestBody = {
+        action: "update_status",
+        actor: createdBy,
+        queue_id: queueId,
+        status: nextStatus
+      };
+      const postUpdate = async () => {
+        const response = await fetch("/api/govhub/operations/queue", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(requestBody)
+        });
+        const payload = await response.json();
+        return { response, payload };
+      };
+
+      let { response, payload } = await postUpdate();
+      if (!response.ok && nextStatus === "in_progress" && resolveErrorCode(payload) === "ASSIGNEE_NOT_HEALTHY") {
+        const recovered = await ensureAssigneeHealthy(String(row.assignee || ""));
+        if (recovered) {
+          ({ response, payload } = await postUpdate());
+          if (response.ok) {
+            setResponseText(JSON.stringify(payload, null, 2));
+            setStatus("success");
+            setQueueNotice(`${notice} Auto-recuperação aplicada para ${String(row.assignee || "-")}.`);
+            setQueueRefreshNonce((prev) => prev + 1);
+            return;
+          }
+        }
+      }
+
+      setResponseText(JSON.stringify(payload, null, 2));
+      if (!response.ok) {
+        const baseMessage = `Falha ao atualizar item da fila: ${resolveRegisterError(payload)}.`;
+        await reportSupportError({
+          source: "QUEUE_UPDATE",
+          action: "update_status",
+          ...(String(row.mission_id || "").trim()
+            ? { missionId: String(row.mission_id || "").trim().toUpperCase() }
+            : {}),
+          queueId,
+          errorCode: resolveErrorCode(payload),
+          message: baseMessage,
+          payload
+        });
+        setStatus("error");
+        setQueueNotice(withSupportSuffix(baseMessage));
+        return;
+      }
+      setStatus("success");
+      setQueueNotice(notice);
+      setQueueRefreshNonce((prev) => prev + 1);
+    } catch {
+      const baseMessage = "Falha de rede ao atualizar fila.";
+      await reportSupportError({
+        source: "QUEUE_UPDATE",
+        action: "update_status",
+        ...(String(row.mission_id || "").trim()
+          ? { missionId: String(row.mission_id || "").trim().toUpperCase() }
+          : {}),
+        queueId,
+        errorCode: "NETWORK_ERROR",
+        message: baseMessage
+      });
+      setStatus("error");
+      setQueueNotice(withSupportSuffix(baseMessage));
+    }
+  }
+
+  async function moveQueueCard(queueId: string, nextStatus: QueueWorkflowStatus) {
+    const id = String(queueId || "").trim();
+    if (!id) return;
+    const row = queueOrderedRows.find((item) => String(item.queue_id || "") === id);
+    if (!row) {
+      setQueueNotice("Item não encontrado para mover.");
+      return;
+    }
+    const current = String(row.status || "").toLowerCase();
+    if (current === nextStatus) return;
+    await updateQueueStatus(row, nextStatus, `Item movido para ${queueStatusLabel(nextStatus)}.`);
+    setQueueFocusedId(id);
+  }
+
+  async function requestNextMissionApproval() {
+    if (currentRole === "viewer") {
+      setQueueNotice("Perfil viewer não pode solicitar próxima missão.");
+      return;
+    }
+    setStatus("chat_dispatch");
+    try {
+      const missionId = String(nextMissionCode || "").trim() || `GOV-NEXT-MISSION-${Date.now()}`;
+      const response = await fetch("/api/govhub/operations/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          mission_id: missionId,
+          target: PRINCIPAL_ARCHITECT_TARGET,
+          action: "MSG",
+          message: "Solicitação de próxima missão: fila sem itens ativos. Favor analisar e recomendar abertura da próxima missão."
+        })
+      });
+      const payload = await response.json();
+      setResponseText(JSON.stringify(payload, null, 2));
+      if (!response.ok) {
+        const baseMessage = `Falha ao solicitar próxima missão: ${resolveRegisterError(payload)}.`;
+        await reportSupportError({
+          source: "NEXT_MISSION_REQUEST",
+          action: "MSG",
+          missionId,
+          errorCode: resolveErrorCode(payload),
+          message: baseMessage,
+          payload
+        });
+        setStatus("error");
+        setQueueNotice(withSupportSuffix(baseMessage));
+        return;
+      }
+      setStatus("success");
+      setQueueNotice("Solicitação enviada com sucesso. Verifique no Chat HUB.");
+      setTopNotice({
+        message: "Solicitação de próxima missão enviada. Abra o Chat HUB para acompanhar o retorno.",
+        variant: "success"
+      });
+      setChatRefreshNonce((prev) => prev + 1);
+      goToSection("chat");
+    } catch {
+      const baseMessage = "Falha de rede ao enviar solicitação ao Admin.";
+      await reportSupportError({
+        source: "NEXT_MISSION_REQUEST",
+        action: "MSG",
+        missionId: String(nextMissionCode || "").trim() || mission.id,
+        errorCode: "NETWORK_ERROR",
+        message: baseMessage
+      });
+      setStatus("error");
+      setQueueNotice(withSupportSuffix(baseMessage));
     }
   }
 
@@ -975,27 +2051,38 @@ export default function GovManagerPage() {
     }
   }
 
-  const metrics = useMemo(
-    () => [
-      { label: "Missoes", value: mission.id ? "1 ativa" : "0" },
-      { label: "Status", value: status.toUpperCase() },
-      { label: "Partes", value: String(parts.length) },
-      { label: "Prompt", value: selectedPrompt ? selectedPrompt.prompt_id : "-" },
-      { label: "Agente", value: mission.agent_id },
-      { label: "Token Ctrl", value: tokenControl.enabled ? "ON" : "OFF" }
-    ],
-    [mission.agent_id, mission.id, parts.length, selectedPrompt, status, tokenControl.enabled]
+  const missingMissionFields = useMemo(
+    () => missionRequiredIssues(mission, createdBy, parts),
+    [createdBy, mission, parts]
   );
+
+  const missionDraftKey = useMemo(
+    () =>
+      JSON.stringify({
+        mission,
+        createdBy,
+        parts,
+        udn: normalizeTdvTags(udn),
+        tokenControl,
+        selectedPromptId,
+        promptVarsRaw
+      }),
+    [createdBy, mission, parts, promptVarsRaw, selectedPromptId, tokenControl, udn]
+  );
+
+  const missionCanSubmit = missingMissionFields.length === 0 && status !== "sending";
+  const missionReadyToRegister = missionCanSubmit && validatedDraftKey === missionDraftKey;
 
   const pendingItems = useMemo(() => {
     const list: string[] = [];
-    if (!udn.trim()) list.push("Gerar UDN antes de registrar.");
+    if (missingMissionFields.length > 0) list.push(`Campos obrigatórios pendentes: ${missingMissionFields.join(", ")}.`);
+    if (!udn.trim()) list.push("UDN será gerado automaticamente no envio, se necessário.");
     if (!mission.id.trim()) list.push("Definir Mission ID.");
     if (ackRequired) list.push("Missao aguardando aprovacao do owner.");
     if (status === "error") list.push("Existe erro operacional pendente no ultimo ciclo.");
     if (list.length === 0) list.push("Sem pendencias criticas neste momento.");
     return list;
-  }, [ackRequired, mission.id, status, udn]);
+  }, [ackRequired, mission.id, missingMissionFields, status, udn]);
 
   const pageTitle = useMemo(() => {
     if (section === "missoes") return "Missões";
@@ -1009,7 +2096,7 @@ export default function GovManagerPage() {
   }, [section]);
 
   const pageSubtitle = useMemo(() => {
-    if (section === "missoes") return "Cadastro de missão, particionamento e envio ao HUB.";
+    if (section === "missoes") return "Cadastro de missão (UDN V2 compacto), particionamento e envio ao HUB.";
     if (section === "orquestracao") return "Fila priorizada e distribuição de execução entre Staff, CPP e CPP-IA.";
     if (section === "chat") return "Comando rápido remoto: envio de ação pré-definida via webhook n8n/worker.";
     if (section === "execucoes") return "Monitoramento operacional e retorno de execução.";
@@ -1081,6 +2168,11 @@ export default function GovManagerPage() {
     const rows = usagePayload?.rows;
     return Array.isArray(rows) ? (rows as UsageRow[]) : [];
   }, [usagePayload]);
+  const usageLastAt = useMemo(() => {
+    if (usageRows.length === 0) return "";
+    const first = usageRows[0];
+    return String(first?.created_at_utc || "");
+  }, [usageRows]);
 
   const botRows = useMemo(() => {
     const rows = botStatusPayload?.rows;
@@ -1100,34 +2192,309 @@ export default function GovManagerPage() {
     return Array.isArray(rows) ? (rows as QueueRow[]) : [];
   }, [queuePayload]);
 
+  const queueOrderedRows = useMemo(() => {
+    return [...queueRows].sort((a, b) => {
+      const aTime = Date.parse(String(a.updated_at_utc || a.created_at_utc || ""));
+      const bTime = Date.parse(String(b.updated_at_utc || b.created_at_utc || ""));
+      const aEpoch = Number.isFinite(aTime) ? aTime : 0;
+      const bEpoch = Number.isFinite(bTime) ? bTime : 0;
+      if (bEpoch !== aEpoch) return bEpoch - aEpoch;
+
+      const aMissionNum = missionCodeNumber(String(a.mission_id || "")) ?? -1;
+      const bMissionNum = missionCodeNumber(String(b.mission_id || "")) ?? -1;
+      if (bMissionNum !== aMissionNum) return bMissionNum - aMissionNum;
+
+      const aMissionId = String(a.mission_id || "");
+      const bMissionId = String(b.mission_id || "");
+      const missionCmp = bMissionId.localeCompare(aMissionId);
+      if (missionCmp !== 0) return missionCmp;
+
+      return String(b.queue_id || "").localeCompare(String(a.queue_id || ""));
+    });
+  }, [queueRows]);
+
+  const queueFilteredRows = useMemo(() => {
+    const missionNeedle = String(queueMissionFilter || "").trim().toLowerCase();
+    return queueOrderedRows.filter((row) => {
+      const assignee = String(row.assignee || "").toUpperCase();
+      const priority = String(row.priority || "").toUpperCase();
+      const missionId = String(row.mission_id || "").toLowerCase();
+      const title = String(row.title || "").toLowerCase();
+      if (queueAssigneeFilter !== "all" && assignee !== queueAssigneeFilter) return false;
+      if (queuePriorityFilter !== "all" && priority !== queuePriorityFilter) return false;
+      if (missionNeedle && !missionId.includes(missionNeedle) && !title.includes(missionNeedle)) return false;
+      return true;
+    });
+  }, [queueAssigneeFilter, queueMissionFilter, queueOrderedRows, queuePriorityFilter]);
+
+  const queueRowsByStatus = useMemo(() => {
+    const grouped: Record<QueueWorkflowStatus, QueueRow[]> = {
+      open: [],
+      in_progress: [],
+      paused_waiting_owner: [],
+      done: []
+    };
+    for (const row of queueFilteredRows) {
+      const status = String(row.status || "").toLowerCase();
+      if (status === "open" || status === "in_progress" || status === "paused_waiting_owner" || status === "done") {
+        grouped[status].push(row);
+      }
+    }
+    return grouped;
+  }, [queueFilteredRows]);
+
+  const queueEtaById = useMemo(() => {
+    const now = Date.now();
+    const map = new Map<string, QueueEtaEstimate>();
+    for (const row of queueOrderedRows) {
+      const key = String(row.queue_id || `${row.mission_id}-${row.title}`);
+      map.set(key, estimateQueueEta(row, now));
+    }
+    return map;
+  }, [queueOrderedRows]);
+
+  const queueOpenRows = useMemo(() => {
+    return queueOrderedRows.filter((row) => {
+      const statusValue = String(row.status || "").toLowerCase();
+      return statusValue === "open";
+    });
+  }, [queueOrderedRows]);
+
+  const queueLead = useMemo(() => (queueOpenRows.length > 0 ? queueOpenRows[0] : null), [queueOpenRows]);
+  const queueInProgressRows = useMemo(() => {
+    return queueOrderedRows.filter((row) => String(row.status || "").toLowerCase() === "in_progress");
+  }, [queueOrderedRows]);
+  const queueRunningLead = useMemo(() => (queueInProgressRows.length > 0 ? queueInProgressRows[0] : null), [queueInProgressRows]);
+
   const queueSummary = useMemo(() => {
     const fromApi = queuePayload?.summary;
     if (fromApi && typeof fromApi === "object") return fromApi as Record<string, unknown>;
     return {};
   }, [queuePayload]);
 
+  const activeMissionCount = useMemo(() => {
+    const ids = new Set<string>();
+    for (const row of queueOrderedRows) {
+      const statusValue = String(row.status || "").toLowerCase();
+      if (statusValue !== "open" && statusValue !== "in_progress") continue;
+      const missionId = String(row.mission_id || "").trim();
+      if (!missionId) continue;
+      ids.add(missionId);
+    }
+    return ids.size;
+  }, [queueOrderedRows]);
+
+  const queueDoneCount = useMemo(
+    () => queueOrderedRows.filter((row) => String(row.status || "").toLowerCase() === "done").length,
+    [queueOrderedRows]
+  );
+
+  const queuePausedCount = useMemo(
+    () => queueOrderedRows.filter((row) => String(row.status || "").toLowerCase() === "paused_waiting_owner").length,
+    [queueOrderedRows]
+  );
+
+  const metrics = useMemo(
+    () => [
+      { label: "Execuções ativas", value: queueInProgressRows.length.toLocaleString("pt-BR") },
+      { label: "Missões ativas", value: activeMissionCount.toLocaleString("pt-BR") },
+      { label: "Fila pendente", value: queueOpenRows.length.toLocaleString("pt-BR") },
+      { label: "Concluídas", value: queueDoneCount.toLocaleString("pt-BR") },
+      { label: "Pausadas/Falha", value: queuePausedCount.toLocaleString("pt-BR") },
+      { label: "Tokens hoje", value: Math.round(readNumber(usageSummary.daily_tokens)).toLocaleString("pt-BR") }
+    ],
+    [activeMissionCount, queueDoneCount, queueInProgressRows.length, queueOpenRows.length, queuePausedCount, usageSummary.daily_tokens]
+  );
+
   const chatRows = useMemo(() => {
     const rows = chatPayload?.rows;
-    return Array.isArray(rows) ? (rows as ChatRow[]) : [];
+    if (!Array.isArray(rows)) return [];
+    return [...(rows as ChatRow[])].sort((a, b) => {
+      const aTime = Date.parse(String(a.created_at_utc || ""));
+      const bTime = Date.parse(String(b.created_at_utc || ""));
+      const aEpoch = Number.isFinite(aTime) ? aTime : 0;
+      const bEpoch = Number.isFinite(bTime) ? bTime : 0;
+      if (bEpoch !== aEpoch) return bEpoch - aEpoch;
+      return String(b.message_id || "").localeCompare(String(a.message_id || ""));
+    });
   }, [chatPayload]);
 
-  const chatSummary = useMemo(() => {
-    let queued = 0;
-    let dispatched = 0;
-    let failed = 0;
-    let inbound = 0;
-    let outbound = 0;
+  const chatReplyRowsByParentId = useMemo(() => {
+    const out = new Map<string, ChatRow[]>();
     for (const row of chatRows) {
-      const status = String(row.delivery_status || "").toLowerCase();
-      const direction = String(row.direction || "").toLowerCase();
-      if (direction === "inbound") inbound += 1;
-      else outbound += 1;
-      if (status === "dispatched") dispatched += 1;
-      else if (status === "failed") failed += 1;
-      else queued += 1;
+      const parentId = String(row.in_reply_to || "").trim();
+      if (!parentId) continue;
+      const current = out.get(parentId) || [];
+      current.push(row);
+      out.set(parentId, current);
     }
-    return { total: chatRows.length, queued, dispatched, failed, inbound, outbound };
+    return out;
   }, [chatRows]);
+
+  const chatTopRows = useMemo(() => {
+    const rows = chatRows.filter((row) => !String(row.in_reply_to || "").trim());
+    const seenMissionKeys = new Set<string>();
+    const out: ChatRow[] = [];
+    for (const row of rows) {
+      if (isMissionFormattedRow(row)) {
+        const key = [
+          String(row.mission_id || "").trim(),
+          String(row.action || "").trim().toUpperCase(),
+          String(row.direction || "").trim().toLowerCase(),
+          String(row.actor || "").trim().toLowerCase(),
+          String(row.target || "").trim().toLowerCase(),
+          compactText(String(row.message || ""), 140).toLowerCase()
+        ].join("|");
+        if (seenMissionKeys.has(key)) continue;
+        seenMissionKeys.add(key);
+      }
+      out.push(row);
+      if (out.length >= 20) break;
+    }
+    return out;
+  }, [chatRows]);
+
+  const nextMissionCode = useMemo(() => {
+    let max = 0;
+    const collect = (value: unknown) => {
+      const num = missionCodeNumber(String(value || ""));
+      if (num !== null) max = Math.max(max, num);
+    };
+    for (const row of queueRows) collect(row.mission_id);
+    for (const row of chatRows) collect(row.mission_id);
+    for (const row of usageRows) collect(row.mission_id);
+    return formatMissionCode(max + 1);
+  }, [chatRows, queueRows, usageRows]);
+
+  const knownMissionIds = useMemo(() => {
+    const out = new Set<string>();
+    const collect = (value: unknown) => {
+      const clean = String(value || "").trim().toUpperCase();
+      if (clean) out.add(clean);
+    };
+    for (const row of queueRows) collect(row.mission_id);
+    for (const row of chatRows) collect(row.mission_id);
+    for (const row of usageRows) collect(row.mission_id);
+    return out;
+  }, [chatRows, queueRows, usageRows]);
+
+  const missionManagePayload = useMemo(() => safeJsonParse(missionManageText), [missionManageText]);
+  const missionPackages = useMemo(() => {
+    const rows = missionManagePayload?.packages;
+    if (!Array.isArray(rows)) return [];
+    return [...(rows as MissionBoardPackage[])].sort((a, b) => {
+      const aTime = Date.parse(String(a.updated_at_utc || a.created_at_utc || ""));
+      const bTime = Date.parse(String(b.updated_at_utc || b.created_at_utc || ""));
+      const aEpoch = Number.isFinite(aTime) ? aTime : 0;
+      const bEpoch = Number.isFinite(bTime) ? bTime : 0;
+      return bEpoch - aEpoch;
+    });
+  }, [missionManagePayload]);
+
+  const managedMissionRows = useMemo(() => {
+    const rows = missionManagePayload?.missions;
+    if (!Array.isArray(rows)) return [];
+    return [...(rows as MissionBoardMission[])].sort((a, b) => {
+      const aTime = Date.parse(String(a.updated_at_utc || ""));
+      const bTime = Date.parse(String(b.updated_at_utc || ""));
+      const aEpoch = Number.isFinite(aTime) ? aTime : 0;
+      const bEpoch = Number.isFinite(bTime) ? bTime : 0;
+      return bEpoch - aEpoch;
+    });
+  }, [missionManagePayload]);
+
+  const queueInProgressMissionIds = useMemo(() => {
+    return Array.from(
+      new Set(
+        queueRows
+          .filter((row) => String(row.status || "").toLowerCase() === "in_progress")
+          .map((row) => String(row.mission_id || "").trim().toUpperCase())
+          .filter(Boolean)
+      )
+    );
+  }, [queueRows]);
+
+  useEffect(() => {
+    if (String(mission.id || "").trim()) return;
+    if (!nextMissionCode) return;
+    setMission((prev) => {
+      if (String(prev.id || "").trim()) return prev;
+      return { ...prev, id: nextMissionCode };
+    });
+  }, [mission.id, nextMissionCode]);
+
+  useEffect(() => {
+    if (section !== "missoes") return;
+    const current = String(mission.id || "").trim();
+    const currentUpper = current.toUpperCase();
+    const currentNum = missionCodeNumber(current);
+    const nextNum = missionCodeNumber(nextMissionCode);
+    if (!nextMissionCode) return;
+    if (
+      !current ||
+      knownMissionIds.has(currentUpper) ||
+      (currentNum !== null && nextNum !== null && currentNum < nextNum)
+    ) {
+      if (current !== nextMissionCode) {
+        setMission((prev) => ({ ...prev, id: nextMissionCode }));
+      }
+    }
+  }, [knownMissionIds, mission.id, nextMissionCode, section]);
+
+  useEffect(() => {
+    if (section !== "missoes" || missionsTab !== "gestao") return;
+    const firstInProgress = queueInProgressMissionIds[0] || "";
+    if (!manageEdit.mission_id && firstInProgress) {
+      setManageEdit((prev) => ({ ...prev, mission_id: firstInProgress }));
+    }
+    if (!manageExecution.mission_id && firstInProgress) {
+      setManageExecution((prev) => ({ ...prev, mission_id: firstInProgress }));
+    }
+  }, [manageEdit.mission_id, manageExecution.mission_id, missionsTab, queueInProgressMissionIds, section]);
+
+  useEffect(() => {
+    const missionId = String(watchMissionId || "").trim();
+    if (!missionId) return;
+    if (missionReportSeenRef.current[missionId]) return;
+
+    const myActor = String(createdBy || "").trim().toLowerCase();
+    const architectReply = chatRows.find((row) => {
+      const rowMissionId = String(row.mission_id || "").trim();
+      if (rowMissionId !== missionId) return false;
+      const actor = String(row.actor || "").trim().toUpperCase();
+      if (actor !== PRINCIPAL_ARCHITECT_TARGET) return false;
+      const direction = String(row.direction || "").trim().toLowerCase();
+      if (direction !== "inbound") return false;
+      const target = String(row.target || "").trim().toLowerCase();
+      if (myActor && target !== myActor) return false;
+      return isFinalReportText(String(row.message || ""));
+    });
+
+    if (architectReply) {
+      missionReportSeenRef.current[missionId] = true;
+      const summary = compactText(String(architectReply.message || ""), 240);
+      setTopNotice({
+        message: `Missão ${missionId} - Resultado: ${summary || "Finalização recebida do Principal Architect."}`,
+        variant: "success"
+      });
+      return;
+    }
+
+    const missionQueueRows = queueRows.filter((row) => String(row.mission_id || "").trim() === missionId);
+    if (missionQueueRows.length === 0) return;
+    const hasOpen = missionQueueRows.some((row) => {
+      const statusValue = String(row.status || "").toLowerCase();
+      return statusValue === "open" || statusValue === "in_progress";
+    });
+    const doneCount = missionQueueRows.filter((row) => String(row.status || "").toLowerCase() === "done").length;
+    if (!hasOpen && doneCount > 0) {
+      missionReportSeenRef.current[missionId] = true;
+      setTopNotice({
+        message: `Missão ${missionId} - Resultado: finalizada na fila (${doneCount}/${missionQueueRows.length} itens concluídos).`,
+        variant: "info"
+      });
+    }
+  }, [chatRows, createdBy, queueRows, watchMissionId]);
 
   const usersPayload = useMemo(() => safeJsonParse(usersText), [usersText]);
   const usersRows = useMemo(() => {
@@ -1181,18 +2548,29 @@ export default function GovManagerPage() {
     [chatAction, currentRole]
   );
 
+  const chatTargetIsPrincipalArchitect = useMemo(() => {
+    return String(chatTarget || "")
+      .trim()
+      .replace(/\s+/g, "_")
+      .toUpperCase() === PRINCIPAL_ARCHITECT_TARGET;
+  }, [chatTarget]);
+
+  const chatConversationIsOnline = chatPollState === "online";
+
   const chatTargetDynamicOptions = useMemo(() => {
     const fixed = new Set(["STAFF", "CPP", "CPP-IA", "ADMIN", PRINCIPAL_ARCHITECT_TARGET]);
     return chatTargetOptions.filter((target) => !fixed.has(String(target || "").toUpperCase()));
   }, [chatTargetOptions]);
 
   const topMissionUsage = useMemo(() => {
-    const map = new Map<string, { mission_id: string; usd: number; tokens: number; count: number; last_at: string }>();
+    const map = new Map<string, { mission_id: string; usd: number; tokens: number; input: number; output: number; count: number; last_at: string }>();
     for (const row of usageRows) {
       const missionId = String(row.mission_id || "").trim();
       if (!missionId) continue;
-      const current = map.get(missionId) || { mission_id: missionId, usd: 0, tokens: 0, count: 0, last_at: "" };
+      const current = map.get(missionId) || { mission_id: missionId, usd: 0, tokens: 0, input: 0, output: 0, count: 0, last_at: "" };
       current.usd += readNumber(row.projected_cost_usd);
+      current.input += readNumber(row.projected_input_tokens);
+      current.output += readNumber(row.projected_output_tokens);
       current.tokens += readNumber(row.projected_total_tokens);
       current.count += 1;
       const createdAt = String(row.created_at_utc || "");
@@ -1233,47 +2611,244 @@ export default function GovManagerPage() {
 
   return (
     <main className="gm-shell">
-      <aside className={`gm-sidebar ${isMobile ? "gm-sidebar-mobile" : ""} ${isMobile && !mobileMenuOpen ? "gm-sidebar-collapsed" : ""}`}>
-        <div className="gm-brand">
-          <div className="gm-brand-seal-wrap">
-            <img className="gm-brand-seal" src="/selo-govhub.png" alt="Selo Gov-Hub" />
+      <aside className="gm-sidebar">
+        <div className="gm-rail">
+          <div className="gm-rail-brand" title="GOV-HUB">
+            <img className="gm-rail-brand-seal" src="/selo-govhub.png" alt="GOV-HUB" />
           </div>
-        </div>
-
-        <nav>
-          <button className={section === "visao" ? "active" : ""} onClick={() => goToSection("visao")}>Visão geral</button>
-          <button className={section === "missoes" ? "active" : ""} onClick={() => goToSection("missoes")}>Missões</button>
-          <button className={section === "orquestracao" ? "active" : ""} onClick={() => goToSection("orquestracao")}>Orquestração</button>
-          <button className={section === "chat" ? "active" : ""} onClick={() => goToSection("chat")}>
-            Chat HUB
-            {chatUnread > 0 ? <span className="gm-badge">{chatUnread}</span> : null}
-          </button>
-          <button className={section === "execucoes" ? "active" : ""} onClick={() => goToSection("execucoes")}>Execuções</button>
-          <button className={section === "pendencias" ? "active" : ""} onClick={() => goToSection("pendencias")}>Pendências</button>
-          <button className={section === "prompts" ? "active" : ""} onClick={() => goToSection("prompts")}>Prompts</button>
-          <button className={section === "governanca" ? "active" : ""} onClick={() => goToSection("governanca")}>Governança</button>
-        </nav>
-
-        <div className="gm-sidebar-bottom">
-          {isPrimaryAdmin ? <button onClick={openUsersModal}>⚙ Usuários</button> : null}
-          <button onClick={() => updateTheme(theme === "dark" ? "light" : "dark")}>Tema: {theme === "dark" ? "Escuro" : "Claro"}</button>
-          <button onClick={logout}>Sair</button>
+          <nav className="gm-rail-nav">
+            {SECTION_ITEMS.map((item) => (
+              <button
+                key={`rail-${item.id}`}
+                className={section === item.id ? "active" : ""}
+                title={item.label}
+                aria-label={item.label}
+                onClick={() => goToSection(item.id)}
+              >
+                <span>{item.icon}</span>
+                {item.id === "chat" && chatUnread > 0 ? <small className="gm-rail-dot">{chatUnread}</small> : null}
+              </button>
+            ))}
+          </nav>
+          <div className="gm-rail-bottom">
+            {isPrimaryAdmin ? (
+              <button title="Usuários" aria-label="Usuários" onClick={openUsersModal}>
+                <span>⚙</span>
+              </button>
+            ) : null}
+            <button
+              title={theme === "dark" ? "Tema escuro" : "Tema claro"}
+              aria-label="Alternar tema"
+              onClick={() => updateTheme(theme === "dark" ? "light" : "dark")}
+            >
+              <span>{theme === "dark" ? "☾" : "☀"}</span>
+            </button>
+            <button title="Sair" aria-label="Sair" onClick={logout}>
+              <span>⇦</span>
+            </button>
+          </div>
         </div>
       </aside>
 
       <section className="gm-main">
-        {isMobile && !mobileMenuOpen ? (
-          <button className="gm-back-menu" type="button" onClick={() => setMobileMenuOpen(true)}>
-            ☰ Voltar ao menu
-          </button>
-        ) : null}
-        <header className="gm-header">
-          <div>
+        <header className="gm-header gm-header-shell">
+          <div className="gm-header-copy">
             <h1>{pageTitle}</h1>
             <p>{pageSubtitle}</p>
           </div>
-          <button className="gm-primary" onClick={compileUdn}>Gerar UDN</button>
+          <div className="gm-header-actions">
+            <label className="gm-header-search">
+              <span>Pesquisar</span>
+              <input type="text" placeholder="Pesquisar no GOV..." />
+            </label>
+            <div className="gm-header-icon-group">
+              <button
+                className="gm-header-icon-btn"
+                type="button"
+                onClick={() => goToSection("missoes")}
+                aria-label="Criar missão"
+                title="Criar missão"
+              >
+                ⊞
+              </button>
+              <button
+                className="gm-header-icon-btn gm-header-icon-btn-accent"
+                type="button"
+                onClick={compileUdn}
+                aria-label="Gerar UDN"
+                title="Gerar UDN"
+              >
+                ↻
+              </button>
+            </div>
+          </div>
         </header>
+
+        {topNotice ? (
+          <button
+            type="button"
+            className={`gm-top-notice gm-top-notice-${topNotice.variant}`}
+            onClick={() => setTopNotice(null)}
+          >
+            <span>{topNotice.message}</span>
+            <strong>Fechar</strong>
+          </button>
+        ) : null}
+
+        {queueLead ? (
+          <section className="gm-queue-alert" role="status" aria-live="polite">
+            <div className="gm-queue-alert-copy">
+              <strong>Missão na fila</strong>
+              <span>
+                Próximo recomendado: {queueLead.title || "avaliar item da fila"}.
+              </span>
+              <small>
+                Missão {queueLead.mission_id || "-"} | Executor {queueLead.assignee || "-"} | Prioridade {queueLead.priority || "-"}
+              </small>
+              {(() => {
+                const eta = estimateQueueEta(queueLead, Date.now());
+                return <small>ETA: {eta.label} | Confiança: {eta.confidence.toUpperCase()}</small>;
+              })()}
+            </div>
+            <div className="gm-queue-alert-actions">
+              <button
+                type="button"
+                className="gm-icon-action"
+                onClick={() => { void updateQueueStatus(queueLead, "in_progress", "Item marcado como em andamento."); }}
+                aria-label="Continuar"
+                title="Continuar"
+              >
+                ▶
+              </button>
+              <button
+                type="button"
+                className="gm-icon-action"
+                onClick={() => { void updateQueueStatus(queueLead, "paused_waiting_owner", "Item pausado."); }}
+                aria-label="Pausar"
+                title="Pausar"
+              >
+                ⏸
+              </button>
+              <button
+                type="button"
+                className="gm-icon-action"
+                onClick={() => {
+                  setQueueFocusedId(String(queueLead.queue_id || ""));
+                  setMission((prev) => ({ ...prev, id: String(queueLead.mission_id || prev.id) }));
+                  goToSection("orquestracao");
+                }}
+                aria-label="Ver detalhes"
+                title="Ver detalhes"
+              >
+                ⌕
+              </button>
+              <button
+                type="button"
+                className="gm-icon-action"
+                onClick={() => { void updateQueueStatus(queueLead, "paused_waiting_owner", "Item removido da fila ativa e movido para pendente."); }}
+                aria-label="Remover da fila"
+                title="Remover da fila"
+              >
+                ✕
+              </button>
+            </div>
+          </section>
+        ) : queueRunningLead ? (
+          <section className="gm-queue-alert" role="status" aria-live="polite">
+            <div className="gm-queue-alert-copy">
+              <strong>Missão em andamento</strong>
+              <span>
+                Execução em progresso: {queueRunningLead.title || "item em andamento"}.
+              </span>
+              <small>
+                Missão {queueRunningLead.mission_id || "-"} | Executor {queueRunningLead.assignee || "-"} | Prioridade {queueRunningLead.priority || "-"}
+              </small>
+              {(() => {
+                const eta = estimateQueueEta(queueRunningLead, Date.now());
+                return <small>ETA: {eta.label} | Confiança: {eta.confidence.toUpperCase()}</small>;
+              })()}
+            </div>
+            <div className="gm-queue-alert-actions">
+              <button
+                type="button"
+                className="gm-icon-action"
+                onClick={() => {
+                  setQueueFocusedId(String(queueRunningLead.queue_id || ""));
+                  setMission((prev) => ({ ...prev, id: String(queueRunningLead.mission_id || prev.id) }));
+                  goToSection("orquestracao");
+                }}
+                aria-label="Ver detalhes"
+                title="Ver detalhes"
+              >
+                ⌕
+              </button>
+              <button
+                type="button"
+                className="gm-icon-action"
+                onClick={() => { void updateQueueStatus(queueRunningLead, "paused_waiting_owner", "Item pausado."); }}
+                aria-label="Pausar"
+                title="Pausar"
+              >
+                ⏸
+              </button>
+              <button
+                type="button"
+                className="gm-icon-action"
+                onClick={() => { void updateQueueStatus(queueRunningLead, "done", "Item marcado como concluído."); }}
+                aria-label="Concluir"
+                title="Concluir"
+              >
+                ✓
+              </button>
+            </div>
+          </section>
+        ) : (
+          <section className="gm-queue-empty-alert" role="status" aria-live="polite">
+            <div className="gm-queue-alert-copy">
+              <strong>Fila ativa vazia</strong>
+              <span>Se não há itens em execução, o Staff deve solicitar ao Admin aprovação para a próxima missão.</span>
+            </div>
+            <div className="gm-queue-alert-actions">
+              <button type="button" onClick={requestNextMissionApproval}>
+                Solicitar próxima missão
+              </button>
+              <button type="button" onClick={() => { void pullQueueNow(); }}>
+                {queueLoading ? "Atualizando..." : "Atualizar fila"}
+              </button>
+            </div>
+          </section>
+        )}
+        {queueNotice ? <p className="gm-queue-notice">{queueNotice}</p> : null}
+
+        <section className="gm-token-strip" aria-label="Métricas de token e custo">
+          <article>
+            <span>Tokens hoje (SP)</span>
+            <strong>{Math.round(readNumber(usageSummary.daily_tokens)).toLocaleString("pt-BR")}</strong>
+          </article>
+          <article>
+            <span>Input hoje (SP)</span>
+            <strong>{Math.round(readNumber(usageSummary.daily_input_tokens)).toLocaleString("pt-BR")}</strong>
+          </article>
+          <article>
+            <span>Output hoje (SP)</span>
+            <strong>{Math.round(readNumber(usageSummary.daily_output_tokens)).toLocaleString("pt-BR")}</strong>
+          </article>
+          <article>
+            <span>Custo hoje (SP)</span>
+            <strong>{formatUsd(readNumber(usageSummary.daily_usd))}</strong>
+          </article>
+          <article>
+            <span>Tokens mês</span>
+            <strong>{Math.round(readNumber(usageSummary.monthly_input_tokens) + readNumber(usageSummary.monthly_output_tokens)).toLocaleString("pt-BR")}</strong>
+          </article>
+          <article>
+            <span>Custo mês</span>
+            <strong>{formatUsd(readNumber(usageSummary.monthly_usd))}</strong>
+          </article>
+        </section>
+        {readNumber(usageSummary.daily_tokens) <= 0 && readNumber(usageSummary.monthly_usd) > 0 ? (
+          <p className="gm-meta">Sem lançamentos no dia atual (São Paulo). Último registro: {formatDateTime(usageLastAt)}</p>
+        ) : null}
 
         <div className="gm-metrics">
           {metrics.map((item) => (
@@ -1343,7 +2918,7 @@ export default function GovManagerPage() {
                   <strong>{botSummary.blocked}</strong>
                 </article>
               </div>
-              <p className="gm-meta">Último status UTC: {formatDateTime(botStatusUpdatedAt)}</p>
+              <p className="gm-meta">Último status BR (São Paulo): {formatDateTime(botStatusUpdatedAt)}</p>
               <div className="gm-bot-list">
                 {botRows.length === 0 ? (
                   <p className="gm-empty">Sem status registrado dos bots ainda.</p>
@@ -1372,11 +2947,32 @@ export default function GovManagerPage() {
 
         {section === "missoes" ? (
           <section className="gm-card">
+            <div className="gm-subtabs">
+              <button
+                type="button"
+                className={missionsTab === "cadastro" ? "active" : ""}
+                onClick={() => setMissionsTab("cadastro")}
+              >
+                Cadastro
+              </button>
+              <button
+                type="button"
+                className={missionsTab === "gestao" ? "active" : ""}
+                onClick={() => setMissionsTab("gestao")}
+              >
+                Gestão
+              </button>
+            </div>
+            {missionsTab === "cadastro" ? (
+              <>
             <h2>Criar Missão</h2>
             <label>
               Mission ID
               <input value={mission.id} onChange={(e) => setMission({ ...mission, id: e.target.value })} />
             </label>
+            <p className="gm-meta">
+              Próximo código automático: {nextMissionCode}.
+            </p>
             <label>
               Objetivo
               <input value={mission.target} onChange={(e) => setMission({ ...mission, target: e.target.value })} />
@@ -1389,8 +2985,7 @@ export default function GovManagerPage() {
               <label>
                 Agente
                 <select value={mission.agent_id} onChange={(e) => setMission({ ...mission, agent_id: e.target.value })}>
-                  <option value="CPP">CPP</option>
-                  <option value="CPP-IA">CPP-IA</option>
+                  <option value={MISSION_INTAKE_AGENT}>Principal Architect</option>
                 </select>
               </label>
             </div>
@@ -1398,6 +2993,26 @@ export default function GovManagerPage() {
               Criado por
               <input value={createdBy} onChange={(e) => setCreatedBy(e.target.value)} />
             </label>
+            <label className="gm-mission-paste">
+              Missão / UDN (V2 compacto)
+              <textarea
+                rows={7}
+                value={udn}
+                onChange={(e) => setUdn(e.target.value)}
+                placeholder="Cole o UDN mínimo (!MIS|id, #μ, #τ). Defaults (#σ, !OUT, #af) são aplicados no backend."
+              />
+            </label>
+            {missingMissionFields.length > 0 ? (
+              <p className="gm-form-warning">
+                Preencha para habilitar envio: {missingMissionFields.join(", ")}.
+              </p>
+            ) : (
+              <p className={missionReadyToRegister ? "gm-form-ok" : "gm-form-warning"}>
+                {missionReadyToRegister
+                  ? "Validação concluída. Pode registrar no HUB."
+                  : "Campos preenchidos. Clique em Validar missão para liberar o registro."}
+              </p>
+            )}
 
             <div className="gm-row">
               <label>
@@ -1502,6 +3117,9 @@ export default function GovManagerPage() {
                 />
               </label>
             </div>
+            <p className="gm-meta">
+              Métrica de consumo: <strong>Inbound (Input)</strong> = Max Input Tokens, <strong>Outbound (Output)</strong> = Max Output Tokens.
+            </p>
 
             <div className="gm-row">
               <button onClick={() => setTokenControl({ ...tokenControl, enabled: !tokenControl.enabled })}>
@@ -1514,12 +3132,191 @@ export default function GovManagerPage() {
 
             <div className="gm-row">
               <button onClick={estimateCost}>Prospecção de Custo</button>
-              <button className="gm-primary" onClick={registerMission} disabled={!udn}>Registrar no HUB</button>
+              <button type="button" onClick={validateMission}>Validar missão</button>
+            </div>
+            <div className="gm-row">
+              <button className="gm-primary" onClick={registerMission} disabled={!missionReadyToRegister}>Registrar no HUB</button>
+              <button type="button" onClick={() => setMission((prev) => ({ ...prev, id: nextMissionCode }))}>
+                Auto Mission ID
+              </button>
             </div>
             <div className="gm-row">
               <button onClick={createExecutionPlan}>Gerar Fila Staff/CPP/CPP-IA</button>
               <button onClick={() => goToSection("orquestracao")}>Abrir Orquestração</button>
             </div>
+              </>
+            ) : (
+              <>
+                <h2>Gestão de Missões</h2>
+                <p className="gm-meta">
+                  Operações permitidas enquanto a missão estiver em progresso: agrupar, editar e incluir execuções.
+                </p>
+
+                <div className="gm-row">
+                  <button type="button" onClick={startAllNonPausedMissions}>
+                    Iniciar todas não pausadas
+                  </button>
+                  <button type="button" onClick={() => void loadMissionManage()}>
+                    Atualizar gestão
+                  </button>
+                </div>
+
+                <section className="gm-manage-block">
+                  <h3>Agrupar Missões (Pacote)</h3>
+                  <div className="gm-row">
+                    <label>
+                      Código do pacote
+                      <input value={groupPackageId} onChange={(e) => setGroupPackageId(e.target.value)} placeholder="ex.: PACOTE-Q2-ARQ" />
+                    </label>
+                    <label>
+                      Missões (IDs)
+                      <input
+                        value={groupMissionIdsRaw}
+                        onChange={(e) => setGroupMissionIdsRaw(e.target.value)}
+                        placeholder="ex.: GOV-MANAGER-V1-00010, GOV-MANAGER-V1-00011"
+                      />
+                    </label>
+                  </div>
+                  <label>
+                    Nota do pacote
+                    <input value={groupNote} onChange={(e) => setGroupNote(e.target.value)} placeholder="Contexto do pacote" />
+                  </label>
+                  <button type="button" onClick={groupMissions}>Salvar pacote</button>
+                </section>
+
+                <section className="gm-manage-block">
+                  <h3>Editar Missão em Progresso</h3>
+                  <div className="gm-row">
+                    <label>
+                      Missão
+                      <input
+                        value={manageEdit.mission_id}
+                        onChange={(e) => setManageEdit((prev) => ({ ...prev, mission_id: e.target.value.toUpperCase() }))}
+                        placeholder="ex.: GOV-MANAGER-V1-00015"
+                      />
+                    </label>
+                    <label>
+                      Executor
+                      <select value={manageEdit.assignee} onChange={(e) => setManageEdit((prev) => ({ ...prev, assignee: e.target.value }))}>
+                        <option value="STAFF">STAFF</option>
+                        <option value="CPP">CPP</option>
+                        <option value="CPP-IA">CPP-IA</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div className="gm-row">
+                    <label>
+                      Prioridade
+                      <select value={manageEdit.priority} onChange={(e) => setManageEdit((prev) => ({ ...prev, priority: e.target.value }))}>
+                        <option value="P0">P0</option>
+                        <option value="P1">P1</option>
+                        <option value="P2">P2</option>
+                        <option value="P3">P3</option>
+                      </select>
+                    </label>
+                    <label>
+                      Objetivo
+                      <input value={manageEdit.objective} onChange={(e) => setManageEdit((prev) => ({ ...prev, objective: e.target.value }))} />
+                    </label>
+                  </div>
+                  <label>
+                    Notas
+                    <textarea rows={3} value={manageEdit.notes} onChange={(e) => setManageEdit((prev) => ({ ...prev, notes: e.target.value }))} />
+                  </label>
+                  <button type="button" onClick={editMissionInProgress}>Salvar edição</button>
+                </section>
+
+                <section className="gm-manage-block">
+                  <h3>+ Execução na Missão</h3>
+                  <div className="gm-row">
+                    <label>
+                      Missão
+                      <input
+                        value={manageExecution.mission_id}
+                        onChange={(e) => setManageExecution((prev) => ({ ...prev, mission_id: e.target.value.toUpperCase() }))}
+                        placeholder="ex.: GOV-MANAGER-V1-00015"
+                      />
+                    </label>
+                    <label>
+                      Título da execução
+                      <input value={manageExecution.title} onChange={(e) => setManageExecution((prev) => ({ ...prev, title: e.target.value }))} />
+                    </label>
+                  </div>
+                  <label>
+                    Descrição
+                    <input value={manageExecution.description} onChange={(e) => setManageExecution((prev) => ({ ...prev, description: e.target.value }))} />
+                  </label>
+                  <div className="gm-row">
+                    <label>
+                      Executor
+                      <select value={manageExecution.assignee} onChange={(e) => setManageExecution((prev) => ({ ...prev, assignee: e.target.value }))}>
+                        <option value="STAFF">STAFF</option>
+                        <option value="CPP">CPP</option>
+                        <option value="CPP-IA">CPP-IA</option>
+                      </select>
+                    </label>
+                    <label>
+                      Prioridade
+                      <select value={manageExecution.priority} onChange={(e) => setManageExecution((prev) => ({ ...prev, priority: e.target.value }))}>
+                        <option value="P0">P0</option>
+                        <option value="P1">P1</option>
+                        <option value="P2">P2</option>
+                        <option value="P3">P3</option>
+                      </select>
+                    </label>
+                  </div>
+                  <button type="button" onClick={addExecutionToMission}>Adicionar execução</button>
+                </section>
+
+                {missionManageNotice ? <p className="gm-chat-notice">{missionManageNotice}</p> : null}
+
+                <div className="gm-mini-metrics">
+                  <article>
+                    <span>Missões em progresso</span>
+                    <strong>{queueInProgressMissionIds.length}</strong>
+                  </article>
+                  <article>
+                    <span>Pacotes</span>
+                    <strong>{missionPackages.length}</strong>
+                  </article>
+                  <article>
+                    <span>Missões gerenciadas</span>
+                    <strong>{managedMissionRows.length}</strong>
+                  </article>
+                  <article>
+                    <span>Atualização</span>
+                    <strong>{formatDateTime(missionManageUpdatedAt)}</strong>
+                  </article>
+                </div>
+
+                <div className="gm-manage-list">
+                  <article>
+                    <h3>Missões em progresso</h3>
+                    {queueInProgressRows.length === 0 ? (
+                      <p className="gm-empty">Sem missão em progresso no momento.</p>
+                    ) : (
+                      queueInProgressRows.slice(0, 8).map((row) => (
+                        <button key={String(row.queue_id || `${row.mission_id}-${row.title}`)} type="button" onClick={() => loadMissionIntoManageForms(row)}>
+                          {String(row.mission_id || "-")} · {String(row.title || "Sem título")}
+                        </button>
+                      ))
+                    )}
+                  </article>
+                  <article>
+                    <h3>Pacotes</h3>
+                    {missionPackages.length === 0 ? (
+                      <p className="gm-empty">Sem pacotes registrados.</p>
+                    ) : (
+                      missionPackages.slice(0, 8).map((pack) => (
+                        <p key={String(pack.package_id || "")}>
+                          <strong>{pack.package_id || "-"}</strong> · {Array.isArray(pack.mission_ids) ? pack.mission_ids.length : 0} missão(ões)
+                        </p>
+                      ))
+                    )}
+                  </article>
+                </div>
+              </>
+            )}
           </section>
         ) : null}
 
@@ -1537,14 +3334,14 @@ export default function GovManagerPage() {
                   <option value={120}>120s</option>
                 </select>
               </label>
-              <button type="button" onClick={() => setQueueRefreshNonce((prev) => prev + 1)}>
-                Atualizar agora
+              <button type="button" onClick={() => { void pullQueueNow(); }}>
+                {queueLoading ? "Atualizando..." : "Atualizar agora"}
               </button>
             </div>
             <div className="gm-mini-metrics">
               <article>
                 <span>Total aberto</span>
-                <strong>{Math.round(readNumber(queueSummary.total)).toLocaleString("pt-BR")}</strong>
+                <strong>{Math.round(queueOpenRows.length).toLocaleString("pt-BR")}</strong>
               </article>
               <article>
                 <span>Staff</span>
@@ -1559,14 +3356,138 @@ export default function GovManagerPage() {
                 <strong>{Math.round(readNumber((queueSummary.by_assignee as Record<string, unknown> | undefined)?.["CPP-IA"])).toLocaleString("pt-BR")}</strong>
               </article>
             </div>
-            <p className="gm-meta">Última sincronização UTC: {formatDateTime(queueUpdatedAt)}</p>
+            <p className="gm-meta">Última sincronização BR (São Paulo): {formatDateTime(queueUpdatedAt)}</p>
+            <div className="gm-kanban-toolbar">
+              <label>
+                Executor
+                <select value={queueAssigneeFilter} onChange={(e) => setQueueAssigneeFilter(e.target.value as "all" | PartExecutor)}>
+                  <option value="all">Todos</option>
+                  <option value="STAFF">STAFF</option>
+                  <option value="CPP">CPP</option>
+                  <option value="CPP-IA">CPP-IA</option>
+                </select>
+              </label>
+              <label>
+                Prioridade
+                <select value={queuePriorityFilter} onChange={(e) => setQueuePriorityFilter(e.target.value as "all" | "P0" | "P1" | "P2" | "P3")}>
+                  <option value="all">Todas</option>
+                  <option value="P0">P0</option>
+                  <option value="P1">P1</option>
+                  <option value="P2">P2</option>
+                  <option value="P3">P3</option>
+                </select>
+              </label>
+              <label>
+                Buscar missão/título
+                <input value={queueMissionFilter} onChange={(e) => setQueueMissionFilter(e.target.value)} placeholder="ex.: GOV-MANAGER-V1-00017" />
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setQueueAssigneeFilter("all");
+                  setQueuePriorityFilter("all");
+                  setQueueMissionFilter("");
+                }}
+              >
+                Limpar filtros
+              </button>
+            </div>
+            <div className="gm-kanban-board">
+              {KANBAN_COLUMNS.map((column) => {
+                const rows = queueRowsByStatus[column.status] || [];
+                return (
+                  <section
+                    key={column.status}
+                    className="gm-kanban-column"
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      const dropped = String(event.dataTransfer.getData("text/plain") || queueDragId || "").trim();
+                      setQueueDragId("");
+                      if (dropped) void moveQueueCard(dropped, column.status);
+                    }}
+                  >
+                    <header className="gm-kanban-column-head">
+                      <h3>{column.label}</h3>
+                      <span>{rows.length}</span>
+                    </header>
+                    <div className="gm-kanban-cards">
+                      {rows.length === 0 ? (
+                        <p className="gm-empty">Sem itens.</p>
+                      ) : (
+                        rows.map((row) => {
+                          const queueId = String(row.queue_id || `${row.mission_id}-${row.title}`);
+                          const eta = queueEtaById.get(queueId) || estimateQueueEta(row, Date.now());
+                          const statusValue = String(row.status || "").toLowerCase();
+                          return (
+                            <article
+                              key={queueId}
+                              className={queueFocusedId && queueFocusedId === queueId ? "gm-kanban-card is-focused" : "gm-kanban-card"}
+                              draggable
+                              onDragStart={(event) => {
+                                event.dataTransfer.setData("text/plain", queueId);
+                                setQueueDragId(queueId);
+                              }}
+                              onDragEnd={() => setQueueDragId("")}
+                            >
+                              <div className="gm-kanban-card-head">
+                                <strong>{row.title || "Sem título"}</strong>
+                                <small>{row.priority || "-"}</small>
+                              </div>
+                              <p>Missão: {row.mission_id || "-"}</p>
+                              <p>Executor: {row.assignee || "-"}</p>
+                              <p>Status: {queueStatusLabel(String(row.status || ""))}</p>
+                              <p>ETA: {eta.label}</p>
+                              <small>Atualizado: {formatDateTime(String(row.updated_at_utc || ""))}</small>
+                              <div className="gm-kanban-actions">
+                                {statusValue === "open" ? (
+                                  <button type="button" onClick={() => { void moveQueueCard(queueId, "in_progress"); }}>Iniciar</button>
+                                ) : null}
+                                {statusValue === "in_progress" ? (
+                                  <>
+                                    <button type="button" onClick={() => { void moveQueueCard(queueId, "paused_waiting_owner"); }}>Pausar</button>
+                                    <button type="button" onClick={() => { void moveQueueCard(queueId, "done"); }}>Concluir</button>
+                                  </>
+                                ) : null}
+                                {statusValue === "paused_waiting_owner" ? (
+                                  <button type="button" onClick={() => { void moveQueueCard(queueId, "in_progress"); }}>Retomar</button>
+                                ) : null}
+                                {statusValue === "done" ? (
+                                  <button type="button" onClick={() => { void moveQueueCard(queueId, "open"); }}>Reabrir</button>
+                                ) : null}
+                              </div>
+                            </article>
+                          );
+                        })
+                      )}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
             <div className="gm-queue-list">
-              {queueRows.length === 0 ? (
+              {queueOrderedRows.length === 0 ? (
                 <p className="gm-empty">Sem itens em aberto na fila.</p>
               ) : (
-                queueRows.map((row) => (
-                  <article key={row.queue_id || `${row.mission_id}-${row.title}`}>
-                    <strong>{row.title || "Sem título"}</strong>
+                queueOrderedRows.map((row) => (
+                  <article
+                    key={row.queue_id || `${row.mission_id}-${row.title}`}
+                    className={queueFocusedId && queueFocusedId === String(row.queue_id || "") ? "gm-queue-item-active" : ""}
+                  >
+                    {(() => {
+                      const key = String(row.queue_id || `${row.mission_id}-${row.title}`);
+                      const eta = queueEtaById.get(key) || estimateQueueEta(row, Date.now());
+                      const deviationLabel = `${eta.deviation_min > 0 ? "+" : ""}${eta.deviation_min} min`;
+                      return (
+                        <div className="gm-queue-item-head">
+                          <strong>{row.title || "Sem título"}</strong>
+                          <span className="gm-queue-eta-chip">{eta.label}</span>
+                          <small className={`gm-queue-eta-meta gm-queue-eta-${eta.confidence}`}>
+                            Confiança: {eta.confidence.toUpperCase()} | Desvio: {deviationLabel}
+                          </small>
+                        </div>
+                      );
+                    })()}
                     <span>Missão: {row.mission_id || "-"}</span>
                     <span>Executor: {row.assignee || "-"}</span>
                     <span>Prioridade: {row.priority || "-"}</span>
@@ -1610,7 +3531,7 @@ export default function GovManagerPage() {
                 Ação
                 <select value={chatAction} onChange={(e) => setChatAction(e.target.value as ChatUiAction)}>
                   {chatActionOptions.map((action) => (
-                    <option key={action} value={action}>{action}</option>
+                    <option key={action} value={action}>{chatActionUiLabel(action)}</option>
                   ))}
                 </select>
               </label>
@@ -1628,6 +3549,21 @@ export default function GovManagerPage() {
                 </select>
               </label>
             </div>
+            {chatAction === "MSG" ? (
+              <div className={`gm-conversation-status ${chatConversationIsOnline ? "gm-conversation-status-online" : "gm-conversation-status-offline"}`}>
+                {chatTargetIsPrincipalArchitect ? (
+                  <>
+                    <strong>{chatConversationIsOnline ? "Principal Architect online" : "Principal Architect offline"}</strong>
+                    <small>Último ping BR (São Paulo): {formatDateTime(chatPingAt)}</small>
+                  </>
+                ) : (
+                  <>
+                    <strong>Conversa interna com {formatChatIdentity(chatTarget)}</strong>
+                    <small>Para falar comigo, selecione Destino: Principal Architect.</small>
+                  </>
+                )}
+              </div>
+            ) : null}
             <label>
               Mensagem
               <textarea
@@ -1647,54 +3583,101 @@ export default function GovManagerPage() {
                 Atualizar agora
               </button>
             </div>
+            {chatUnread > 0 ? (
+              <div className="gm-chat-alert" role="status" aria-live="polite">
+                <span>Vc tem {chatUnread} nova(s) msg.</span>
+                <button type="button" onClick={() => setChatUnread(0)}>Marcar lidas</button>
+              </div>
+            ) : null}
             <div className="gm-row">
               <button onClick={() => { setChatAction("MSG"); setChatMessage("Recebido. Seguimos no fluxo normal."); }}>Preset: MSG</button>
               {currentRole === "admin" ? <button onClick={() => { setChatAction("OK"); setChatMessage("OK. Prosseguir com a execução."); }}>Preset: OK</button> : null}
               {currentRole === "admin" ? <button onClick={() => { setChatAction("PAUSAR"); setChatMessage("Pausar execução e aguardar owner."); }}>Preset: PAUSAR</button> : null}
             </div>
-            <div className="gm-mini-metrics">
-              <article>
-                <span>Total</span>
-                <strong>{chatSummary.total}</strong>
-              </article>
-              <article>
-                <span>Dispatched</span>
-                <strong>{chatSummary.dispatched}</strong>
-              </article>
-              <article>
-                <span>Inbound</span>
-                <strong>{chatSummary.inbound}</strong>
-              </article>
-              <article>
-                <span>Queued/Failed</span>
-                <strong>{chatSummary.queued + chatSummary.failed}</strong>
-              </article>
-            </div>
-            <p className="gm-meta">Última sincronização UTC: {formatDateTime(chatUpdatedAt)}</p>
-            <div className="gm-queue-list">
-              {chatRows.length === 0 ? (
+            <p className="gm-meta">Última sincronização BR (São Paulo): {formatDateTime(chatUpdatedAt)}</p>
+            <div className="gm-chat-feed">
+              {chatTopRows.length === 0 ? (
                 <p className="gm-empty">Sem mensagens no chat operacional.</p>
               ) : (
-                chatRows.slice(0, 20).map((row) => (
-                  <article key={row.message_id || `${row.mission_id}-${row.created_at_utc}`}>
-                    <strong>{row.action || "ACTION"}</strong>
-                    <span>Missão: {row.mission_id || "-"}</span>
-                    <span>Direção: {row.direction || "outbound"}</span>
-                    <span>Ator: {formatChatIdentity(String(row.actor || "-"))}</span>
-                    <span>Destino: {formatChatIdentity(String(row.target || "-"))}</span>
-                    <span>Status: {row.delivery_status || "-"}</span>
-                    <span>HTTP: {row.dispatch_http ?? "-"}</span>
-                    <span>Fonte: {row.source || "-"}</span>
-                    <small>UTC: {formatDateTime(String(row.created_at_utc || ""))}</small>
-                    <small>{row.message || "-"}</small>
-                  </article>
-                ))
+                chatTopRows.map((row, index) => {
+                  const rowId = String(row.message_id || `${row.created_at_utc || "row"}-${index}`);
+                  const opened = chatReplyOpenId === rowId;
+                  const missionFormatted = isMissionFormattedRow(row);
+                  const rowLabel = missionFormatted && String(row.action || "").trim().toUpperCase() === "MSG"
+                    ? "Confirmação de Missão"
+                    : chatActionUiLabel(String(row.action || "MSG"));
+                  const replyRows = chatReplyRowsByParentId.get(rowId) || [];
+                  const replyCount = replyRows.length;
+                  return (
+                    <article key={rowId} className={`gm-chat-item ${missionFormatted ? "gm-chat-item-mission" : "gm-chat-item-simple"}`}>
+                      {missionFormatted ? (
+                        <>
+                          <div className="gm-chat-item-head">
+                            <strong>{rowLabel}</strong>
+                            <span>
+                              Missão: {row.mission_id || "-"} - Direção: {row.direction || "outbound"} - Ator: {formatChatIdentity(String(row.actor || "-"))} - Destino: {formatChatIdentity(String(row.target || "-"))} - Status: {deliveryStatusLabel(String(row.delivery_status || ""))} - Fonte: {row.source || "-"}
+                            </span>
+                            <small>BR: {formatDateTime(String(row.created_at_utc || ""))}</small>
+                          </div>
+                          <p className="gm-chat-mission-text"><strong>Mensagem completa:</strong> {row.message || "-"}</p>
+                        </>
+                      ) : (
+                        <div className="gm-chat-simple-body">
+                          <strong>{formatChatIdentity(String(row.actor || "-"))}</strong>
+                          <p>{row.message || chatRowSummary(row)}</p>
+                          <small>BR: {formatDateTime(String(row.created_at_utc || ""))}</small>
+                        </div>
+                      )}
+                      {replyCount > 0 ? (
+                        <>
+                          <button
+                            type="button"
+                            className="gm-reply-toggle"
+                            onClick={() => {
+                              const nextOpen = opened ? "" : rowId;
+                              setChatReplyOpenId(nextOpen);
+                              if (nextOpen) {
+                                const mine = String(createdBy || "").trim().toLowerCase();
+                                const inboundReplies = replyRows.filter((reply) => {
+                                  const actor = String(reply.actor || "").trim().toLowerCase();
+                                  return actor && actor !== mine;
+                                }).length;
+                                if (inboundReplies > 0) {
+                                  setChatUnread((prev) => Math.max(0, prev - inboundReplies));
+                                  setChatNotice("");
+                                  const newest = String(chatRows[0]?.message_id || "").trim();
+                                  if (newest) {
+                                    chatSeenMessageIdRef.current = newest;
+                                    chatInitRef.current = true;
+                                  }
+                                }
+                              }
+                            }}
+                          >
+                            {opened ? "Fechar resposta" : replyCountLabel(replyCount)}
+                          </button>
+                          {opened ? (
+                            <div className="gm-chat-replies">
+                              {replyRows.map((reply, replyIndex) => {
+                                const replyId = String(reply.message_id || `${rowId}-reply-${replyIndex}`);
+                                return (
+                                  <article key={replyId} className="gm-chat-reply-item">
+                                    <small>
+                                      {formatChatIdentity(String(reply.actor || "-"))} · BR: {formatDateTime(String(reply.created_at_utc || ""))}
+                                    </small>
+                                    <p><strong>Resposta:</strong> {reply.message || "-"}</p>
+                                  </article>
+                                );
+                              })}
+                            </div>
+                          ) : null}
+                        </>
+                      ) : null}
+                    </article>
+                  );
+                })
               )}
             </div>
-            <details className="gm-debug">
-              <summary>Chat detalhado (diagnóstico)</summary>
-              <pre>{chatText || "Sem dados do chat no momento..."}</pre>
-            </details>
           </section>
         ) : null}
 
@@ -1742,7 +3725,7 @@ export default function GovManagerPage() {
                 <strong>{formatUsd(missionForecastUsd)}</strong>
               </article>
             </div>
-            <p className="gm-meta">Último monitor UTC: {formatDateTime(monitorUpdatedAt)}</p>
+            <p className="gm-meta">Último monitor BR (São Paulo): {formatDateTime(monitorUpdatedAt)}</p>
             <textarea value={udn} onChange={(e) => setUdn(e.target.value)} rows={8} />
             {ackRequired ? (
               <div className="gm-ack">
@@ -1921,6 +3904,18 @@ export default function GovManagerPage() {
                   <strong>{Math.round(readNumber(usageSummary.daily_tokens)).toLocaleString("pt-BR")}</strong>
                 </article>
                 <article>
+                  <span>Input hoje</span>
+                  <strong>{Math.round(readNumber(usageSummary.daily_input_tokens)).toLocaleString("pt-BR")}</strong>
+                </article>
+                <article>
+                  <span>Output hoje</span>
+                  <strong>{Math.round(readNumber(usageSummary.daily_output_tokens)).toLocaleString("pt-BR")}</strong>
+                </article>
+                <article>
+                  <span>Missões hoje</span>
+                  <strong>{Math.round(readNumber(usageSummary.daily_count)).toLocaleString("pt-BR")}</strong>
+                </article>
+                <article>
                   <span>USD hoje</span>
                   <strong>{formatUsd(readNumber(usageSummary.daily_usd))}</strong>
                 </article>
@@ -1928,12 +3923,8 @@ export default function GovManagerPage() {
                   <span>USD mês</span>
                   <strong>{formatUsd(readNumber(usageSummary.monthly_usd))}</strong>
                 </article>
-                <article>
-                  <span>Missões hoje</span>
-                  <strong>{Math.round(readNumber(usageSummary.daily_count)).toLocaleString("pt-BR")}</strong>
-                </article>
               </div>
-              <p className="gm-meta">Último uso UTC: {formatDateTime(usageUpdatedAt)}</p>
+              <p className="gm-meta">Último uso BR (São Paulo): {formatDateTime(usageUpdatedAt)}</p>
               <div className="gm-usage-list">
                 {topMissionUsage.length === 0 ? (
                   <p className="gm-empty">Sem missões consumindo tokens no momento.</p>
@@ -1942,9 +3933,10 @@ export default function GovManagerPage() {
                     <article key={item.mission_id}>
                       <strong>{item.mission_id}</strong>
                       <span>{item.tokens.toLocaleString("pt-BR")} tokens</span>
+                      <span>in/out: {item.input.toLocaleString("pt-BR")} / {item.output.toLocaleString("pt-BR")}</span>
                       <span>{formatUsd(item.usd)}</span>
                       <span>{item.count} lançamentos</span>
-                      <span>UTC {formatDateTime(item.last_at)}</span>
+                      <span>BR {formatDateTime(item.last_at)}</span>
                     </article>
                   ))
                 )}
@@ -2066,7 +4058,7 @@ export default function GovManagerPage() {
                 Atualizar lista
               </button>
             </div>
-            <p className="gm-meta">Última sincronização UTC: {formatDateTime(usersUpdatedAt)}</p>
+            <p className="gm-meta">Última sincronização BR (São Paulo): {formatDateTime(usersUpdatedAt)}</p>
             <p className="gm-meta">Status: {userStatus || "idle"}</p>
             <div className="gm-queue-list">
               {usersRows.length === 0 ? (

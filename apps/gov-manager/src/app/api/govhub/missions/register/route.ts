@@ -18,6 +18,16 @@ import {
   renderPromptTemplate,
   sanitizePromptLibraryState
 } from "../../../../../core/prompt-library";
+import {
+  createQueueId,
+  defaultQueueState,
+  sanitizeQueueState,
+  upsertQueueItems,
+  type QueueAssignee,
+  type QueueItem,
+  type QueuePriority,
+  type QueueStatus
+} from "../../../../../core/execution-queue";
 
 function resolveGovhubConfig() {
   const baseUrl = String(process.env.GOVHUB_BASE_URL || "").trim();
@@ -29,6 +39,155 @@ function resolveGovhubConfig() {
 const POLICY_SNAPSHOT_TYPE = String(process.env.GOVHUB_TOKEN_POLICY_SNAPSHOT_TYPE || "gov_manager_token_policy_v1").trim();
 const USAGE_SNAPSHOT_TYPE = String(process.env.GOVHUB_TOKEN_USAGE_SNAPSHOT_TYPE || "gov_manager_token_usage_v1").trim();
 const PROMPT_SNAPSHOT_TYPE = String(process.env.GOVHUB_PROMPTS_SNAPSHOT_TYPE || "gov_manager_prompt_library_v1").trim();
+const QUEUE_SNAPSHOT_TYPE = String(process.env.GOVHUB_EXECUTION_QUEUE_SNAPSHOT_TYPE || "gov_manager_execution_queue_v1").trim();
+const MISSION_INTAKE_AGENT = "PRINCIPAL_ARCHITECT";
+const MISSION_ID_PREFIX = String(process.env.GOV_MANAGER_MISSION_ID_PREFIX || "GOV-MANAGER-V1-").trim().toUpperCase();
+const MISSION_ID_DIGITS = Number.parseInt(String(process.env.GOV_MANAGER_MISSION_ID_DIGITS || "5"), 10) || 5;
+
+interface UdnDefaults {
+  taskDefault: string;
+  stateDefault: string;
+  outputDefault: string;
+  autofixLine: string;
+}
+
+function canonicalizeMissionUdn(raw: string): { udn: string; strippedPrefix: boolean } | null {
+  const lines = String(raw || "").replace(/\r\n/g, "\n").split("\n");
+  const markerIndex = lines.findIndex((line) => line.trimStart().startsWith("!MIS|"));
+  if (markerIndex < 0) return null;
+  const udn = lines.slice(markerIndex).join("\n").trim();
+  return { udn, strippedPrefix: markerIndex > 0 };
+}
+
+function missionIdFromUdn(udn: string): string | null {
+  const firstLine = String(udn || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .find(Boolean);
+  if (!firstLine || !firstLine.startsWith("!MIS|")) return null;
+  const parts = firstLine.split("|");
+  if (parts.length < 2) return null;
+  const missionId = String(parts[1] || "").trim().toUpperCase();
+  return missionId || null;
+}
+
+function resolveFullMissionIdFromUdnToken(token: string, payloadMissionId: string): string {
+  const cleanToken = String(token || "").trim().toUpperCase();
+  const cleanPayload = String(payloadMissionId || "").trim().toUpperCase();
+  if (!cleanToken) return "";
+  if (cleanToken === cleanPayload) return cleanPayload;
+
+  if (/^\d{1,10}$/.test(cleanToken)) {
+    const payloadMatch = cleanPayload.match(/^(.*-)(\d{1,10})$/);
+    if (payloadMatch && payloadMatch[1] && payloadMatch[2]) {
+      const prefix = payloadMatch[1];
+      const width = payloadMatch[2].length;
+      return `${prefix}${cleanToken.padStart(width, "0")}`;
+    }
+    return `${MISSION_ID_PREFIX}${cleanToken.padStart(Math.max(1, MISSION_ID_DIGITS), "0")}`;
+  }
+
+  return cleanToken;
+}
+
+function shortMissionToken(fullMissionId: string): string {
+  const clean = String(fullMissionId || "").trim().toUpperCase();
+  const match = clean.match(/-(\d{1,10})$/);
+  if (!match || !match[1]) return clean;
+  return match[1].padStart(Math.max(1, MISSION_ID_DIGITS), "0");
+}
+
+function buildUdnDefaults(autofixControl?: {
+  enabled?: boolean;
+  max_rounds?: 1 | 2;
+  on_exhaust?: "pause_owner";
+}): UdnDefaults {
+  const enabled = autofixControl?.enabled ?? true;
+  const maxRounds = autofixControl?.max_rounds ?? 2;
+  const onExhaust = autofixControl?.on_exhaust || "pause_owner";
+  return {
+    taskDefault: "#τ:registrar_missao;monitorar_execucao",
+    stateDefault: "#σ:READY",
+    outputDefault: "!OUT:JSON_ONLY.NO_MD.NO_TXT.",
+    autofixLine: `#af:enabled=${String(enabled)};max_rounds=${String(maxRounds)};on_exhaust=${onExhaust}`
+  };
+}
+
+function enrichMissionUdnWithDefaults(input: string, missionToken: string, defaults: UdnDefaults): { udn: string; applied: string[] } {
+  const applied: string[] = [];
+  const lines = String(input || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const out: string[] = [];
+  let misSeen = false;
+  let muSeen = false;
+  let tauSeen = false;
+  let sigmaSeen = false;
+  let outSeen = false;
+  let afSeen = false;
+
+  for (const line of lines) {
+    if (line.startsWith("!MIS|")) {
+      if (!misSeen) {
+        out.push(`!MIS|${missionToken}`);
+        misSeen = true;
+        continue;
+      }
+      continue;
+    }
+    if (line.startsWith("#μ:")) muSeen = true;
+    if (line.startsWith("#τ:")) tauSeen = true;
+    if (line.startsWith("#σ:")) sigmaSeen = true;
+    if (line.startsWith("!OUT:")) outSeen = true;
+    if (line.startsWith("#af:")) {
+      if (!afSeen) {
+        out.push(defaults.autofixLine);
+        afSeen = true;
+      }
+      continue;
+    }
+    out.push(line);
+  }
+
+  if (!misSeen) {
+    out.unshift(`!MIS|${missionToken}`);
+    applied.push("!MIS");
+  }
+  if (!muSeen) {
+    out.push("#μ:Missão registrada no GOV-HUB.");
+    applied.push("#μ");
+  }
+  if (!tauSeen) {
+    out.push(defaults.taskDefault);
+    applied.push("#τ");
+  }
+  if (!sigmaSeen) {
+    out.push(defaults.stateDefault);
+    applied.push("#σ");
+  }
+  if (!outSeen) {
+    out.push(defaults.outputDefault);
+    applied.push("!OUT");
+  }
+  if (!afSeen) {
+    out.push(defaults.autofixLine);
+    applied.push("#af");
+  }
+
+  return { udn: out.join("\n"), applied };
+}
+
+function normalizeQueuePriority(value: unknown): QueuePriority {
+  const clean = String(value || "").trim().toUpperCase();
+  if (clean === "P0" || clean === "P1" || clean === "P2" || clean === "P3") return clean;
+  return "P2";
+}
+
+function toQueueStatus(priority: QueuePriority): QueueStatus {
+  return priority === "P3" ? "paused_waiting_owner" : "open";
+}
 
 export async function POST(request: Request) {
   if (!hasSessionCookie(request)) {
@@ -69,6 +228,9 @@ export async function POST(request: Request) {
   const snapshotConfig = resolveGovhubSnapshotConfig();
   let effectiveUdn = validated.data.udn;
   let promptResolution: Record<string, unknown> | null = null;
+  let udnCanonicalized = false;
+  const udnDefaults = buildUdnDefaults(validated.data.autofix_control);
+  const udnDefaultsApplied: string[] = [];
 
   if (validated.data.prompt_ref) {
     if (!snapshotConfig.baseUrl || !snapshotConfig.token) {
@@ -136,6 +298,54 @@ export async function POST(request: Request) {
     };
   }
 
+  const canonical = canonicalizeMissionUdn(effectiveUdn);
+  if (!canonical) {
+    return NextResponse.json(
+      {
+        status: "invalid_request",
+        error_code: "UDN_CANONICAL_MIS_REQUIRED",
+        message: "UDN must contain !MIS|<MISSION_ID>|... as first semantic line"
+      },
+      { status: 422 }
+    );
+  }
+  effectiveUdn = canonical.udn;
+  udnCanonicalized = canonical.strippedPrefix;
+
+  const missionTokenFromBlock = missionIdFromUdn(effectiveUdn);
+  const missionIdFromPayload = String(validated.data.mission.id || "").trim().toUpperCase();
+  if (!missionTokenFromBlock) {
+    return NextResponse.json(
+      {
+        status: "invalid_request",
+        error_code: "UDN_MIS_INVALID",
+        message: "Unable to parse mission id from !MIS line"
+      },
+      { status: 422 }
+    );
+  }
+  const missionIdFromBlock = resolveFullMissionIdFromUdnToken(missionTokenFromBlock, missionIdFromPayload);
+  if (missionIdFromBlock !== missionIdFromPayload) {
+    return NextResponse.json(
+      {
+        status: "invalid_request",
+        error_code: "UDN_MISSION_ID_MISMATCH",
+        message: "mission_id mismatch between payload and UDN !MIS line",
+        mission_id_payload: missionIdFromPayload,
+        mission_id_udn: missionIdFromBlock
+      },
+      { status: 409 }
+    );
+  }
+
+  const compactToken = shortMissionToken(missionIdFromPayload);
+  const enrichedUdn = enrichMissionUdnWithDefaults(effectiveUdn, compactToken, udnDefaults);
+  effectiveUdn = enrichedUdn.udn;
+  if (enrichedUdn.applied.length > 0) {
+    udnCanonicalized = true;
+    udnDefaultsApplied.push(...enrichedUdn.applied);
+  }
+
   const tdv = validateTDVSignal(effectiveUdn);
   if (!tdv.valid) {
     return NextResponse.json(
@@ -145,9 +355,11 @@ export async function POST(request: Request) {
   }
 
   const ownerId = validated.data.created_by || "staff@gov-manager";
+  const requestedAgentId = validated.data.mission.agent_id || "CPP";
+  const effectiveAgentId = MISSION_INTAKE_AGENT;
   const preview = buildCostPreview({
     mission_id: validated.data.mission.id,
-    agent_id: validated.data.mission.agent_id || "CPP",
+    agent_id: effectiveAgentId,
     udn: effectiveUdn,
     objective: validated.data.mission.target || "",
     token_control: validated.data.token_control || null
@@ -203,7 +415,7 @@ export async function POST(request: Request) {
     tdv_version: "1.0",
     created_by: ownerId,
     branch: validated.data.mission.branch || "main",
-    agent_id: validated.data.mission.agent_id || "CPP",
+    agent_id: effectiveAgentId,
     ...(validated.data.autofix_control ? { autofix_control: validated.data.autofix_control } : {}),
     ...(validated.data.token_control ? { token_control: validated.data.token_control } : {}),
     ...(validated.data.parts ? { parts: validated.data.parts } : {}),
@@ -238,11 +450,14 @@ export async function POST(request: Request) {
   }
 
   let tokenUsageSync: Record<string, unknown> = { status: "skipped" };
+  let queueSync: Record<string, unknown> = { status: "skipped" };
   if (upstreamResponse.ok && snapshotConfig.baseUrl && snapshotConfig.token) {
     const nextUsage = appendUsageReservation(usageState, {
       mission_id: validated.data.mission.id,
       owner_id: ownerId,
-      agent_id: validated.data.mission.agent_id || "CPP",
+      agent_id: effectiveAgentId,
+      projected_input_tokens: preview.projected_input_tokens,
+      projected_output_tokens: preview.projected_output_tokens,
       projected_total_tokens: preview.projected_total_tokens,
       projected_cost_usd: preview.projected_cost_usd,
       projected_cost_brl: preview.projected_cost_brl
@@ -261,6 +476,71 @@ export async function POST(request: Request) {
       govhub_http: savedUsage.status,
       payload_sha256: savedUsage.payload_sha256
     };
+
+    const queueLoaded = await loadSnapshotPayload(snapshotConfig, QUEUE_SNAPSHOT_TYPE);
+    const queueState = queueLoaded.found && queueLoaded.payload ? sanitizeQueueState(queueLoaded.payload) : defaultQueueState();
+    const missionId = validated.data.mission.id;
+    const nowUtc = new Date().toISOString();
+    const hasPending = queueState.rows.some((row) => {
+      if (row.mission_id !== missionId) return false;
+      return row.status === "open" || row.status === "in_progress";
+    });
+
+    if (hasPending) {
+      queueSync = {
+        status: "already_exists",
+        inserted: 0,
+        snapshot_type: QUEUE_SNAPSHOT_TYPE
+      };
+    } else {
+      const fallbackPriority = normalizeQueuePriority(validated.data.mission.level);
+      const parts = Array.isArray(validated.data.parts) && validated.data.parts.length > 0
+        ? validated.data.parts
+        : [
+            {
+              part_id: "P1",
+              goal: validated.data.mission.target || "Classificar escopo e preparar distribuição inicial",
+              executor: "STAFF" as const,
+              priority: fallbackPriority
+            }
+          ];
+
+      const items: QueueItem[] = parts.map((part, index) => {
+        const partPriority = normalizeQueuePriority(part.priority || fallbackPriority);
+        const assignee = (String(part.executor || "STAFF").toUpperCase() as QueueAssignee);
+        const safeAssignee: QueueAssignee = assignee === "CPP" || assignee === "CPP-IA" ? assignee : "STAFF";
+        const title = String(part.goal || `Parte ${index + 1}`).trim() || `Parte ${index + 1}`;
+        return {
+          queue_id: createQueueId(missionId, title, index + 1),
+          mission_id: missionId,
+          title,
+          description: title,
+          kind: safeAssignee,
+          priority: partPriority,
+          assignee: safeAssignee,
+          status: toQueueStatus(partPriority),
+          created_at_utc: nowUtc,
+          updated_at_utc: nowUtc
+        };
+      });
+
+      const queueNext = upsertQueueItems(queueState, items);
+      const queueSaved = await saveSnapshotPayload(snapshotConfig, {
+        snapshotType: QUEUE_SNAPSHOT_TYPE,
+        payload: queueNext,
+        createdBy: ownerId,
+        sourceRepo: "gov-manager",
+        sourceRef: "missions-register-auto-queue"
+      });
+
+      queueSync = {
+        status: queueSaved.ok ? "saved" : "upstream_error",
+        inserted: items.length,
+        snapshot_type: QUEUE_SNAPSHOT_TYPE,
+        govhub_http: queueSaved.status,
+        payload_sha256: queueSaved.payload_sha256
+      };
+    }
   }
 
   return NextResponse.json(
@@ -268,6 +548,8 @@ export async function POST(request: Request) {
       status: upstreamResponse.ok ? "registered" : "upstream_error",
       govhub_http: upstreamResponse.status,
       mission_id: validated.data.mission.id,
+      requested_agent_id: requestedAgentId,
+      effective_agent_id: effectiveAgentId,
       token_control: validated.data.token_control || null,
       token_preview: preview,
       token_governance: {
@@ -275,7 +557,11 @@ export async function POST(request: Request) {
         ...governanceDecision
       },
       token_usage_sync: tokenUsageSync,
+      queue_sync: queueSync,
       prompt_ref: promptResolution,
+      udn_version: "2.0_compact",
+      udn_canonicalized: udnCanonicalized,
+      udn_defaults_applied: udnDefaultsApplied,
       govhub_response: upstreamJson
     },
     { status: upstreamResponse.ok ? 200 : 502 }

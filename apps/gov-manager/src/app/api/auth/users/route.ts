@@ -9,6 +9,17 @@ function isAllowedRole(role: string): role is GovManagerRole {
   return role === "admin" || role === "engineer" || role === "viewer";
 }
 
+function normalizeUsernameInput(value: unknown): string {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 32);
+}
+
 export async function GET(request: Request) {
   if (!hasSessionCookie(request)) {
     return NextResponse.json({ status: "unauthorized", error_code: "AUTH_REQUIRED" }, { status: 401 });
@@ -62,7 +73,8 @@ export async function POST(request: Request) {
   }
 
   const data = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
-  const username = String(data.username || "").trim();
+  const rawUsername = String(data.username || "").trim();
+  const username = normalizeUsernameInput(rawUsername);
   const password = String(data.password || "");
   const roleRaw = String(data.role || "engineer").trim().toLowerCase();
   const active = data.active !== false;
@@ -122,6 +134,7 @@ export async function POST(request: Request) {
     {
       status: saved.ok ? "ok" : "upstream_error",
       mode: existing ? "updated" : "created",
+      normalized_username: username,
       govhub_http: saved.status,
       snapshot_type: USERS_SNAPSHOT_TYPE,
       row,

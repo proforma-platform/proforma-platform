@@ -18,6 +18,9 @@
 - Rota proxy de decisao do Owner: `src/app/api/govhub/missions/owner-ack/route.ts`
 - Versão de contrato retornada: `v7-baseline`
 - Adaptador aceita envelope legado e normaliza para o contrato V7
+- Intake operacional:
+  - o recebedor inicial da missão é fixado em `PRINCIPAL_ARCHITECT` no registro;
+  - a resposta do endpoint inclui `requested_agent_id` e `effective_agent_id` para auditoria do roteamento.
 
 ## Controles Operacionais (V7)
 - O payload de missão aceita `autofix_control`:
@@ -81,10 +84,28 @@
   - `POST /api/govhub/operations/queue` com:
     - `action=create_item` para item único.
     - `action=create_plan` para gerar plano completo da missão.
+    - `action=update_status` com gate de saúde do executor ao entrar em `in_progress`.
 - Regras de distribuição automática:
   - análise/especificação/risco -> `CPP-IA`
   - implementação/runtime/deploy -> `CPP`
   - triagem/coordenação -> `STAFF`
+
+## Control Plane Enterprise (Governança ativa)
+- Registro de agentes:
+  - `GET/POST /api/govhub/operations/agents`
+  - heartbeat, carga, saúde e estado derivado (`running`, `idle`, `stale`, `down`).
+- Watchdog:
+  - `GET/POST /api/govhub/operations/watchdog`
+  - retry limitado em item travado e pausa automática em exaustão.
+- Alertas:
+  - `GET/POST /api/govhub/operations/alerts`
+  - ações: `create`, `ack`, `resolve`.
+- Auditoria:
+  - `GET /api/govhub/operations/audit`
+  - trilha por ação crítica (fila/missão/agente/watchdog/alerta).
+- Segurança:
+  - rotas de escrita críticas com RBAC (`engineer/admin`);
+  - leitura operacional com RBAC (`viewer+`).
 
 ## Chat HUB Operacional (mensagens + comandos)
 - Snapshot dedicado: `gov_manager_ops_chat_v1` (configurável por `GOVHUB_CHAT_SNAPSHOT_TYPE`).
@@ -115,3 +136,13 @@
 ## Observações
 - Não usar timestamps dinâmicos em identificadores determinísticos de contrato
 - A verificação de reprodutibilidade de build ainda depende de `npm ci` com rede
+
+## Entrega GOV-MANAGER-V1-00017 (FOCO)
+- Kanban operacional por estágios no módulo `Orquestração`:
+  - colunas: `A fazer`, `Em progresso`, `Pausadas`, `Concluídas`;
+  - mover card por drag-and-drop com persistência de status em `operations/queue`;
+  - ações rápidas por card: iniciar, pausar, retomar, concluir e reabrir.
+- Filtros de operação no Kanban:
+  - por executor (`STAFF`, `CPP`, `CPP-IA`);
+  - por prioridade (`P0` a `P3`);
+  - por missão/título.

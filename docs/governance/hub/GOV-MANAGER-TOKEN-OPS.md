@@ -10,6 +10,7 @@ Operar custo de token com visibilidade em tempo real no `gov-manager`, com gover
 - Politica de limite por owner (snapshot) com bloqueio automatico em `paused_waiting_owner`.
 - Registro de uso projetado por missao (snapshot de uso).
 - Biblioteca de prompts por referencia (`prompt_ref`) para reduzir payload repetido.
+- Evolucao UDN V2 compacto (menos verbosidade no cliente, defaults no backend).
 - Painel operacional v2:
   - KPIs de monitor (`progresso`, `status/fase`, `risco de limite`, `tokens usados/restantes`, `custo da missao`).
   - Uso em tempo real com ranking de missoes por custo (top consumo).
@@ -39,6 +40,23 @@ Operar custo de token com visibilidade em tempo real no `gov-manager`, com gover
 - Custo:
   - `usd = input/1000 * GOV_MANAGER_USD_PER_1K_INPUT + output/1000 * GOV_MANAGER_USD_PER_1K_OUTPUT`
   - `brl = usd * GOV_MANAGER_USD_TO_BRL`
+
+## Evolucao V2 (redução de tokens)
+- Padrao novo de emissao no cliente:
+  - `!MIS|<token>`
+  - `#μ:<objetivo>`
+  - `#τ:<tarefas>`
+- Itens removidos do prompt (agora defaults de backend):
+  - `|PLAN|REGISTRAR`
+  - `#σ:READY`
+  - `!OUT:JSON_ONLY.NO_MD.NO_TXT.`
+  - `#af:enabled=true;max_rounds=2;on_exhaust=pause_owner` (quando nao houver override)
+- Regras de canonicalizacao no register:
+  - rejeita UDN sem `!MIS`
+  - rejeita divergencia entre token em `!MIS` e `mission.id`
+  - corta texto livre antes do bloco UDN
+- Resultado esperado:
+  - reducao media por missao entre ~25% e ~45%, dependendo do tamanho do texto livre eliminado.
 
 ## Variaveis de ambiente opcionais
 - `GOV_MANAGER_USD_PER_1K_INPUT` (default `0.003`)
