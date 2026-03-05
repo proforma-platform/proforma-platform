@@ -41,6 +41,7 @@ Use environment variables in the n8n runtime (container/env file/secrets manager
 - `GOVHUB_TOKEN_SCOPES_JSON`
   - JSON map of token -> scopes used by scoped endpoints.
   - `snapshot-update` requires scope `s:w` (or `snapshots:write`).
+  - `missions-owner-ack`: if this map is empty/unset, token-only auth is used (scope gate skipped). If configured, requires `m:w`/`missions:write`/`s:w`.
   - `missions-autofix-limited`: if this map is empty/unset, token-only auth is used (scope gate skipped). If configured, requires `m:w`/`missions:write`/`s:w`.
   - Example: `{"token_agent_a":["s:w","snapshots:read"],"token_agent_b":["snapshots:read"]}`
 
