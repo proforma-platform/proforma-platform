@@ -12,6 +12,7 @@ These workflows implement:
 - report ingest with idempotency and hashing
 - decision aggregation
 - snapshot update (mission run upsert + mission_runs_v1 snapshot publishing)
+- XBO watchdog 24x7 (detecção de travas em `in_progress` + auto-recuperação limitada)
 
 The objective is auditable, reproducible governance execution that remains aligned with GOV-0070 and in-repo artifacts.
 
@@ -65,6 +66,7 @@ Mission partitioning (staff-first triage):
 Optional:
 - `N8N_LOG_LEVEL=info`
 - `N8N_ENCRYPTION_KEY` (recommended for credential protection)
+- `GOV_MANAGER_BASE_URL` (default recomendado para o watchdog: `http://127.0.0.1:3000`)
 
 ## Local test (curl examples)
 No secrets are embedded below. Replace placeholders at runtime.
