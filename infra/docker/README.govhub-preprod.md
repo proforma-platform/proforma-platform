@@ -13,9 +13,7 @@ docker compose -p tmp -f /opt/proforma/proforma-platform/infra/docker/govhub-com
 ## 2) Backup rápido do banco (antes de mudanças)
 
 ```bash
-mkdir -p /opt/proforma/backups/govhub
-ts=$(date -u +%Y%m%dT%H%M%SZ)
-docker exec govhub-db pg_dump -U postgres -d govhub_n8n > "/opt/proforma/backups/govhub/govhub_n8n_${ts}.sql"
+bash /opt/proforma/proforma-platform/infra/docker/govhub-db-backup.sh
 ```
 
 ## 3) Verificação pré-prod (1 comando)
@@ -47,7 +45,7 @@ docker compose -p tmp -f /opt/proforma/proforma-platform/infra/docker/govhub-com
 ## 5) Rollback de banco (somente sob aprovação)
 
 ```bash
-cat /opt/proforma/backups/govhub/<arquivo>.sql | docker exec -i govhub-db psql -U postgres -d govhub_n8n
+bash /opt/proforma/proforma-platform/infra/docker/govhub-db-restore.sh --file /opt/proforma/backups/govhub/<arquivo>.sql --yes
 ```
 
 ## 6) Evidências mínimas para Go/No-Go
