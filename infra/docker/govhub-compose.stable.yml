@@ -1,0 +1,95 @@
+services:
+  govhub-db:
+    image: postgres:15-alpine
+    container_name: govhub-db
+    restart: always
+    environment:
+      POSTGRES_DB: govhub_n8n
+      POSTGRES_PASSWORD: govhub_root_2026
+    ports:
+      - "15432:5432"
+    volumes:
+      - tmp_govhub_db_data:/var/lib/postgresql/data
+    networks:
+      - govhub-network
+
+  govhub-n8n:
+    image: n8nio/n8n:latest
+    container_name: govhub-n8n
+    restart: always
+    depends_on:
+      - govhub-db
+    environment:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: govhub-db
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: govhub_n8n
+      DB_POSTGRESDB_USER: postgres
+      DB_POSTGRESDB_PASSWORD: govhub_root_2026
+      N8N_ENCRYPTION_KEY: govhub_secret_key_2026
+      N8N_SECURE_COOKIE: "false"
+      N8N_DEFAULT_LOCALE: pt-BR
+      N8N_RELEASE_TYPE: stable
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      NODE_FUNCTION_ALLOW_BUILTIN: crypto
+      GOVHUB_TOKENS: govhub_local_token_2026
+      GOVHUB_PARTNER_HMAC_SECRET: pfp_76dbc00df76ddf41d2dfe25e2b8ee8d1a65b91f4c39457d1
+    ports:
+      - "15678:5678"
+    volumes:
+      - tmp_govhub_n8n_data:/home/node/.n8n
+    networks:
+      - govhub-network
+
+  govhub-cpp-worker:
+    image: govhub-cpp-ia-worker:local
+    container_name: govhub-cpp-worker
+    restart: unless-stopped
+    environment:
+      WORKER_ID: CPP
+      WORKER_ROLE: execution
+      WORKER_SERVICE: govhub-cpp-worker
+      GITOPS_ENABLED: "true"
+      GITOPS_ALLOWED_BASE: /workspace
+      GITOPS_DEFAULT_REMOTE: origin
+      GITOPS_DEFAULT_BASE_BRANCH: main
+      GITOPS_TIMEOUT_SECONDS: "20"
+      PORT: "8080"
+    ports:
+      - "15711:8080"
+    volumes:
+      - /opt/proforma:/workspace
+    networks:
+      - govhub-network
+
+  govhub-cpp-ia-worker:
+    image: govhub-cpp-ia-worker:local
+    container_name: govhub-cpp-ia-worker
+    restart: unless-stopped
+    environment:
+      WORKER_ID: CPP-IA
+      WORKER_ROLE: analysis
+      WORKER_SERVICE: govhub-cpp-ia-worker
+      GITOPS_ENABLED: "true"
+      GITOPS_ALLOWED_BASE: /workspace
+      GITOPS_DEFAULT_REMOTE: origin
+      GITOPS_DEFAULT_BASE_BRANCH: main
+      GITOPS_TIMEOUT_SECONDS: "20"
+      PORT: "8080"
+    ports:
+      - "15710:8080"
+    volumes:
+      - /opt/proforma:/workspace
+    networks:
+      - govhub-network
+
+networks:
+  govhub-network:
+    external: true
+    name: tmp_govhub-network
+
+volumes:
+  tmp_govhub_db_data:
+    external: true
+  tmp_govhub_n8n_data:
+    external: true
