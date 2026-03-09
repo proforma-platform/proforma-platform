@@ -77,6 +77,13 @@ jobs:
           npm ls next --workspace=apps/web-portal
           npm ls astro --workspace=apps/web-public
 
+      - name: GOV Manager Canonical Transition Gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run typecheck --workspace=apps/gov-manager
+          npm run test --workspace=apps/gov-manager -- canonical-transition-e2e transition-validator
+
       - name: Build workspaces (no turbo dependency)
         shell: bash
         run: |

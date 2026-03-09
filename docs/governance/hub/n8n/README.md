@@ -185,3 +185,29 @@ docs/governance/hub/n8n/tests/validate_missions_next_contract.sh
 - Report and decision artifacts are hash-addressed.
 - Hashes are persisted in Postgres (governance schema).
 - GitHub Evidence PR remains a secondary historical source in disaster recovery posture.
+
+## GOV Memory / RAG operacional
+Endpoint GOV:
+- `GET/POST /api/govhub/operations/memory`
+
+Ações:
+- `store`: salva contexto particionado em `gov_manager_context_memory_v1`
+- `retrieve`: recupera chunks relevantes por `namespace/query/tags/mission_id`
+- `starter`: devolve pacote UDN curto para novo chat
+
+Uso recomendado no n8n:
+1. final de sessão -> `store`
+2. novo chat/missão -> `starter`
+3. consultas específicas -> `retrieve`
+
+Namespaces recomendados:
+- `gov_principal_architect`
+- `gov_manager`
+- `gov_operating_model`
+- `n8n`
+- `infra`
+
+Templates:
+- `docs/governance/hub/n8n/workflows/gov-memory-store.json`
+- `docs/governance/hub/n8n/workflows/gov-memory-starter.json`
+- `docs/governance/hub/n8n/workflows/gov-memory-retrieve.json`

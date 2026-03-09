@@ -71,6 +71,69 @@ Runtime gate (mandatory):
 - Set `GOVHUB_RUNTIME_MODE=LOCAL_ONLY` unless a mission explicitly requires remote snapshot sync.
 - In `LOCAL_ONLY`, do not perform outbound calls to `govhub.proforma.net.br`.
 
+## OPERATIONAL MEMORY ACCESS RULE
+Operational Memory must be treated as a first-class subsystem.
+
+Before reading database tables directly, first discover:
+1. the official API contract
+2. the application service responsible for memory access
+3. the repository/query layer
+4. the persistence model behind it
+
+Do not assume direct database access is the canonical read path.
+
+Always identify:
+- how memory is written
+- how memory is retrieved
+- how namespaces are filtered
+- how snapshots are assembled
+- how integrity is validated
+- whether DB tables are raw persistence only or the official source of operational retrieval
+
+Current known clue:
+- likely endpoint: `/api/govhub/operations/memory`
+
+Verification objective:
+- confirm whether `/api/govhub/operations/memory` is the canonical operational access path for memory.
+
+## OPERATIONAL MEMORY RULE
+Before starting any architectural diagnosis, retrieve operational context from GOV Operational Memory.
+
+Use the operational memory subsystem as the primary retrieval mechanism for:
+- role identity
+- current governance rules
+- mission context
+- architectural continuity
+- prior validated operational decisions
+
+Operational Memory is an active RAG subsystem inside GOV, not passive chat history.
+
+Identify and use, whenever available:
+- namespace
+- topic
+- role
+- tags
+- snapshot
+- memory payload
+
+Do not rely on raw conversation continuity when Operational Memory is available.
+Retrieve first, reason after.
+
+## REAL CHANNEL GOVERNANCE RULE
+Distinguish between:
+- visible orchestration paths
+- real execution paths
+
+Do not assume that a workflow, UI action or dispatch component is a real executor bridge unless verified in code and runtime behavior.
+
+Current known constraint:
+- `operations/chat` is the real executor consumption path
+- `operations-chat-dispatch` is not a validated real bridge
+- assisted execution capability exists
+- full autonomous E2E execution is not yet proven
+
+Diagnose the system based on real runtime behavior, not apparent UI flow.
+
 1. Retrieve latest snapshot from `GET /webhook/govhub/snapshots/latest?snapshot_type=state_inventory_v1`.
 2. Decode payload locally and verify `payload_sha256`.
 3. Start mission execution only after snapshot verification succeeds.
