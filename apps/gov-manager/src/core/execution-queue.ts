@@ -10,6 +10,32 @@ export interface QueueItem {
   kind: string;
   priority: QueuePriority;
   assignee: QueueAssignee;
+  assignee_agent_id?: string;
+  execution_session_id?: string;
+  execution_agent_id?: string;
+  execution_trace_id?: string;
+  execution_job_id?: string;
+  execution_run_id?: string;
+  last_start_request_id?: string;
+  last_start_attempt_at_utc?: string;
+  last_start_ack_at_utc?: string;
+  last_start_error_code?: string;
+  last_start_error_message?: string;
+  last_start_ack_source?: string;
+  last_start_ack_http?: number;
+  last_executor_heartbeat_at_utc?: string;
+  last_transition_reason_code?: string;
+  last_transition_reason_message?: string;
+  last_transition_source?: string;
+  last_transition_actor?: string;
+  last_transition_at_utc?: string;
+  execution_progress_pct?: number;
+  execution_progress_label?: string;
+  eta_adjustment_min?: number;
+  completion_note?: string;
+  completion_request_id?: string;
+  completion_report_by?: string;
+  completion_report_at_utc?: string;
   status: QueueStatus;
   created_at_utc: string;
   updated_at_utc: string;
@@ -78,6 +104,34 @@ export function sanitizeQueueState(input: unknown): QueueState {
       const missionId = clampText(src.mission_id, 120);
       const title = clampText(src.title, 180);
       if (!queueId || !missionId || !title) return null;
+      const assigneeAgentId = clampText(src.assignee_agent_id, 80);
+      const executionSessionId = clampText(src.execution_session_id, 180);
+      const executionAgentId = clampText(src.execution_agent_id, 120);
+      const executionTraceId = clampText(src.execution_trace_id, 180);
+      const executionJobId = clampText(src.execution_job_id, 180);
+      const executionRunId = clampText(src.execution_run_id, 180);
+      const lastStartRequestId = clampText(src.last_start_request_id, 120);
+      const lastStartErrorCode = clampText(src.last_start_error_code, 80).toUpperCase();
+      const lastStartErrorMessage = clampText(src.last_start_error_message, 240);
+      const lastStartAckSource = clampText(src.last_start_ack_source, 80);
+      const lastStartAckHttpRaw = Number(src.last_start_ack_http);
+      const lastStartAckHttp = Number.isFinite(lastStartAckHttpRaw) ? Math.max(0, Math.trunc(lastStartAckHttpRaw)) : null;
+      const lastTransitionReasonCode = clampText(src.last_transition_reason_code, 80).toUpperCase();
+      const lastTransitionReasonMessage = clampText(src.last_transition_reason_message, 280);
+      const lastTransitionSource = clampText(src.last_transition_source, 80);
+      const lastTransitionActor = clampText(src.last_transition_actor, 120).toLowerCase();
+      const executionProgressRaw = Number(src.execution_progress_pct);
+      const executionProgressPct = Number.isFinite(executionProgressRaw)
+        ? Math.max(0, Math.min(100, Math.trunc(executionProgressRaw)))
+        : null;
+      const executionProgressLabel = clampText(src.execution_progress_label, 180);
+      const etaAdjustmentRaw = Number(src.eta_adjustment_min);
+      const etaAdjustmentMin = Number.isFinite(etaAdjustmentRaw)
+        ? Math.max(-120, Math.min(360, Math.trunc(etaAdjustmentRaw)))
+        : 0;
+      const completionNote = clampText(src.completion_note, 1400);
+      const completionRequestId = clampText(src.completion_request_id, 180);
+      const completionReportBy = clampText(src.completion_report_by, 120).toLowerCase();
       return {
         queue_id: queueId,
         mission_id: missionId,
@@ -86,6 +140,36 @@ export function sanitizeQueueState(input: unknown): QueueState {
         kind: clampText(src.kind, 60) || "general",
         priority: normPriority(src.priority),
         assignee: normAssignee(src.assignee),
+        ...(assigneeAgentId ? { assignee_agent_id: assigneeAgentId } : {}),
+        ...(executionSessionId ? { execution_session_id: executionSessionId } : {}),
+        ...(executionAgentId ? { execution_agent_id: executionAgentId } : {}),
+        ...(executionTraceId ? { execution_trace_id: executionTraceId } : {}),
+        ...(executionJobId ? { execution_job_id: executionJobId } : {}),
+        ...(executionRunId ? { execution_run_id: executionRunId } : {}),
+        ...(lastStartRequestId ? { last_start_request_id: lastStartRequestId } : {}),
+        ...(clampText(src.last_start_attempt_at_utc, 64) ? { last_start_attempt_at_utc: normIso(src.last_start_attempt_at_utc) } : {}),
+        ...(clampText(src.last_start_ack_at_utc, 64) ? { last_start_ack_at_utc: normIso(src.last_start_ack_at_utc) } : {}),
+        ...(lastStartErrorCode ? { last_start_error_code: lastStartErrorCode } : {}),
+        ...(lastStartErrorMessage ? { last_start_error_message: lastStartErrorMessage } : {}),
+        ...(lastStartAckSource ? { last_start_ack_source: lastStartAckSource } : {}),
+        ...(lastStartAckHttp !== null ? { last_start_ack_http: lastStartAckHttp } : {}),
+        ...(clampText(src.last_executor_heartbeat_at_utc, 64)
+          ? { last_executor_heartbeat_at_utc: normIso(src.last_executor_heartbeat_at_utc) }
+          : {}),
+        ...(lastTransitionReasonCode ? { last_transition_reason_code: lastTransitionReasonCode } : {}),
+        ...(lastTransitionReasonMessage ? { last_transition_reason_message: lastTransitionReasonMessage } : {}),
+        ...(lastTransitionSource ? { last_transition_source: lastTransitionSource } : {}),
+        ...(lastTransitionActor ? { last_transition_actor: lastTransitionActor } : {}),
+        ...(clampText(src.last_transition_at_utc, 64) ? { last_transition_at_utc: normIso(src.last_transition_at_utc) } : {}),
+        ...(executionProgressPct !== null ? { execution_progress_pct: executionProgressPct } : {}),
+        ...(executionProgressLabel ? { execution_progress_label: executionProgressLabel } : {}),
+        ...(etaAdjustmentMin !== 0 ? { eta_adjustment_min: etaAdjustmentMin } : {}),
+        ...(completionNote ? { completion_note: completionNote } : {}),
+        ...(completionRequestId ? { completion_request_id: completionRequestId } : {}),
+        ...(completionReportBy ? { completion_report_by: completionReportBy } : {}),
+        ...(clampText(src.completion_report_at_utc, 64)
+          ? { completion_report_at_utc: normIso(src.completion_report_at_utc) }
+          : {}),
         status: normStatus(src.status),
         created_at_utc: normIso(src.created_at_utc),
         updated_at_utc: normIso(src.updated_at_utc)

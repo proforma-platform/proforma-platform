@@ -39,6 +39,7 @@
 - Plano de comunicação externa de crise para canais web em `docs/runbooks/external-crisis-communication-plan.md`.
 - Runbook de simulação anual integrada de continuidade e recuperação em `docs/runbooks/annual-integrated-continuity-dr-drill.md`.
 - Runbook de treinamento de porta-voz técnico para crises em `docs/runbooks/technical-spokesperson-crisis-training.md`.
+- Documento técnico da governança de fila do GOV Manager com Reviewer Guard e matriz de autoridade em `docs/governance/hub/GOV-MANAGER-QUEUE-GOVERNANCA-V1.md`.
 
 ### Changed
 
@@ -56,6 +57,14 @@
 - `ROADMAP.md` atualizado na Fase 2 com itens de identidade (logo SVG, kit de banners e aplicação no `web-public`).
 - `README.md` atualizado com arquitetura de marca e localização de tokens/guidelines.
 - `ROADMAP.md` e `docs/roadmap/platform-roadmap.md` atualizados para concluir `GOV-0007` até `GOV-0024` e avançar fila para `GOV-0025`.
+- Endpoints do GOV Manager reforçados com governança operacional:
+  - `POST /api/govhub/operations/queue` agora exige Reviewer Guard para `done` (default ligado) e bloqueia ações sensíveis para perfil `engineer`.
+  - `POST /api/govhub/missions/manage` agora aplica matriz de autoridade por papel funcional (Owner/Principal Architect/Tech Lead/Executor).
+  - UI de Orquestração/Detalhes agora exibe ação de `Concluir` apenas para `admin`, alinhada ao gate de governança.
+- Aba de Escritórios Operacionais evoluída para board de agentes com drag-and-drop governado:
+  - escritórios dinâmicos (escala para novos escritórios);
+  - onboarding de funcionário IA com criação automática de item em `A fazer`;
+  - bloqueios operacionais para agente em execução e líder de escritório.
 
 ### Fixed
 

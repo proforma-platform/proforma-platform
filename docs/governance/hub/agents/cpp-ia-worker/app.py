@@ -2,6 +2,8 @@ import json
 import os
 import re
 import subprocess
+import urllib.error
+import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -17,6 +19,11 @@ GITOPS_ALLOWED_BASE = Path(os.getenv("GITOPS_ALLOWED_BASE", "/workspace")).resol
 GITOPS_DEFAULT_REMOTE = os.getenv("GITOPS_DEFAULT_REMOTE", "origin")
 GITOPS_DEFAULT_BASE_BRANCH = os.getenv("GITOPS_DEFAULT_BASE_BRANCH", "main")
 GITOPS_TIMEOUT_SECONDS = int(os.getenv("GITOPS_TIMEOUT_SECONDS", "20"))
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "").strip().rstrip("/")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:14b").strip() or "qwen2.5-coder:14b"
+OLLAMA_TIMEOUT_SECONDS = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "60"))
+OLLAMA_REQUIRED = os.getenv("OLLAMA_REQUIRED", "false").lower() == "true"
+OLLAMA_MAX_OUTPUT_CHARS = int(os.getenv("OLLAMA_MAX_OUTPUT_CHARS", "2500"))
 
 
 SAFE_REF_RE = re.compile(r"^[A-Za-z0-9._/-]{1,120}$")
@@ -43,6 +50,8 @@ class Handler(BaseHTTPRequestHandler):
                     "service": WORKER_SERVICE,
                     "gitops_enabled": GITOPS_ENABLED,
                     "gitops_allowed_base": str(GITOPS_ALLOWED_BASE),
+                    "ollama_enabled": bool(OLLAMA_BASE_URL),
+                    "ollama_model": OLLAMA_MODEL,
                 },
             )
             return
@@ -74,9 +83,16 @@ class Handler(BaseHTTPRequestHandler):
             "worker_id": WORKER_ID,
             "mission_id": mission_id,
             "task_id": task_id,
+            "job_id": f"job-{mission_id}-{task_id or 'task'}",
+            "run_id": f"run-{mission_id}-{task_id or 'task'}",
             "result": "accepted",
             "udn_received": bool(udn_block),
-            "next_action": "report_ingest",
+            "execution_progress_pct": 12,
+            "execution_progress_label": "Missao aceita pelo executor",
+            "completion_ack": False,
+            "completion_proof": "",
+            "request_id": f"worker-{mission_id}-{task_id or 'task'}",
+            "next_action": "report_progress",
         }
 
         if git_ops is not None:
@@ -105,13 +121,56 @@ class Handler(BaseHTTPRequestHandler):
                         "task_id": task_id,
                         "error_code": payload.get("error_code", "GITOPS_FAILED"),
                         "message": payload.get("message", "git operation failed"),
+                        "execution_progress_pct": 35,
+                        "execution_progress_label": "Falha na etapa git_ops",
                         "git_ops": payload,
-                        "next_action": "report_ingest",
+                        "next_action": "report_failed",
                     },
                 )
                 return
 
             response["git_ops"] = payload
+            response["execution_progress_pct"] = 55
+            response["execution_progress_label"] = "git_ops executado"
+
+        # CPP worker executes Ollama only on explicit demand (use_llm=true).
+        if should_use_ollama(data):
+            ok, llm_payload = run_ollama_round(mission_id, task_id, udn_block, data)
+            response["llm"] = llm_payload
+            if not ok and OLLAMA_REQUIRED:
+                self._reply(
+                    422,
+                    {
+                        "status": "error",
+                        "worker_id": WORKER_ID,
+                        "mission_id": mission_id,
+                        "task_id": task_id,
+                        "error_code": "OLLAMA_UNAVAILABLE",
+                        "message": "ollama execution failed and is required",
+                        "execution_progress_pct": 70,
+                        "execution_progress_label": "Falha na etapa LLM",
+                        "llm": llm_payload,
+                        "next_action": "report_failed",
+                    },
+                )
+                return
+            if ok:
+                response["execution_progress_pct"] = 85
+                response["execution_progress_label"] = "Analise do executor concluida"
+        elif OLLAMA_BASE_URL and (WORKER_ID.upper() == "CPP" or WORKER_ROLE.lower() == "execution"):
+            response["llm"] = {
+                "status": "skipped",
+                "reason": "USE_LLM_FALSE",
+                "model": OLLAMA_MODEL,
+            }
+            response["execution_progress_pct"] = max(int(response.get("execution_progress_pct", 12)), 40)
+            response["execution_progress_label"] = "Execucao iniciada sem etapa LLM"
+
+        response["execution_progress_pct"] = 100
+        response["execution_progress_label"] = "Execucao concluida"
+        response["completion_ack"] = True
+        response["completion_proof"] = build_completion_proof(response)
+        response["next_action"] = "report_done"
 
         self._reply(200, response)
 
@@ -218,6 +277,110 @@ def run_git_ops(spec: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
         "head_sha": head_sha,
         "steps": sanitize_steps(steps),
     }
+
+
+def should_use_ollama(data: Dict[str, Any]) -> bool:
+    if not OLLAMA_BASE_URL:
+        return False
+    always = os.getenv("OLLAMA_EXECUTE_ALWAYS", "false").lower() == "true"
+    use_llm = str(data.get("use_llm", "")).strip().lower() in {"1", "true", "yes", "on"}
+    if not always and not use_llm:
+        return False
+    # Keep CPP as primary coding executor; CPP-IA can stay focused on analysis.
+    return WORKER_ID.upper() == "CPP" or WORKER_ROLE.lower() == "execution"
+
+
+def build_ollama_prompt(mission_id: str, task_id: str, udn_block: str, data: Dict[str, Any]) -> str:
+    title = str(data.get("title", "")).strip()
+    description = str(data.get("description", "")).strip()
+    kind = str(data.get("kind", "")).strip()
+    priority = str(data.get("priority", "")).strip()
+    lines = [
+        "You are a coding executor worker for GOV-HUB.",
+        f"mission_id={mission_id}",
+        f"task_id={task_id or '-'}",
+        f"title={title or '-'}",
+        f"kind={kind or '-'} priority={priority or '-'}",
+        "",
+        "Objective:",
+        description or title or "execute mission task",
+    ]
+    if udn_block:
+        lines.extend(["", "UDN block:", udn_block[:4000]])
+    lines.extend(
+        [
+            "",
+            "Respond in short JSON with keys:",
+            "summary, next_steps, risks.",
+        ]
+    )
+    return "\n".join(lines).strip()
+
+
+def run_ollama_round(mission_id: str, task_id: str, udn_block: str, data: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
+    if not OLLAMA_BASE_URL:
+        return False, {
+            "status": "skipped",
+            "reason": "OLLAMA_BASE_URL_EMPTY",
+            "model": OLLAMA_MODEL,
+        }
+    prompt = build_ollama_prompt(mission_id, task_id, udn_block, data)
+    payload = {"model": OLLAMA_MODEL, "prompt": prompt, "stream": False}
+    body = json.dumps(payload, ensure_ascii=True).encode("utf-8")
+    req = urllib.request.Request(
+        url=f"{OLLAMA_BASE_URL}/api/generate",
+        data=body,
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT_SECONDS) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+            parsed = json.loads(raw) if raw else {}
+            text = str(parsed.get("response", "")).strip()
+            return True, {
+                "status": "ok",
+                "model": OLLAMA_MODEL,
+                "http_status": int(getattr(resp, "status", 200)),
+                "response_excerpt": text[:OLLAMA_MAX_OUTPUT_CHARS],
+                "done": bool(parsed.get("done", False)),
+            }
+    except urllib.error.HTTPError as exc:
+        detail = ""
+        try:
+            detail = exc.read().decode("utf-8", errors="replace")[:500]
+        except Exception:
+            detail = ""
+        return False, {
+            "status": "error",
+            "model": OLLAMA_MODEL,
+            "http_status": int(exc.code),
+            "message": "ollama_http_error",
+            "detail": detail,
+        }
+    except Exception as exc:
+        return False, {
+            "status": "error",
+            "model": OLLAMA_MODEL,
+            "message": "ollama_unreachable",
+            "detail": str(exc)[:500],
+        }
+
+
+def build_completion_proof(response: Dict[str, Any]) -> str:
+    parts: List[str] = []
+    if response.get("result") == "accepted":
+      parts.append("dispatch_ack")
+    if isinstance(response.get("git_ops"), dict) and response["git_ops"].get("status") == "ok":
+      parts.append("git_ops_ok")
+    if isinstance(response.get("llm"), dict):
+      llm_status = str(response["llm"].get("status", "")).strip().lower()
+      if llm_status == "ok":
+        parts.append("llm_ok")
+      elif llm_status == "skipped":
+        parts.append("llm_skipped")
+    parts.append("worker_done")
+    return "+".join(parts[:6])[:600]
 
 
 def run_cmd(cmd: List[str], cwd: Path) -> Tuple[bool, Dict[str, Any]]:

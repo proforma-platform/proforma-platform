@@ -9,7 +9,8 @@ import {
   upsertQueueItems,
   type QueueAssignee,
   type QueueItem,
-  type QueuePriority
+  type QueuePriority,
+  type QueueState
 } from "../../../../../core/execution-queue";
 import { requireRole } from "../../../../../core/rbac";
 import { recordAuditEvent } from "../../../../../core/audit-store";
@@ -17,6 +18,41 @@ import { recordAuditEvent } from "../../../../../core/audit-store";
 const BOARD_SNAPSHOT_TYPE = String(process.env.GOVHUB_MISSIONS_MANAGE_SNAPSHOT_TYPE || "gov_manager_mission_board_v1").trim();
 const QUEUE_SNAPSHOT_TYPE = String(process.env.GOVHUB_EXECUTION_QUEUE_SNAPSHOT_TYPE || "gov_manager_execution_queue_v1").trim();
 const AGENTS_SNAPSHOT_TYPE = String(process.env.GOVHUB_AGENT_REGISTRY_SNAPSHOT_TYPE || "gov_manager_agent_registry_v1").trim();
+
+function normalizeActor(value: unknown): string {
+  return String(value || "").trim().toLowerCase().slice(0, 120);
+}
+
+function isAdmin(role: string): boolean {
+  return String(role || "").trim().toLowerCase() === "admin";
+}
+
+function isPrincipalArchitect(actor: string): boolean {
+  const normalized = normalizeActor(actor).replace(/[^a-z0-9]+/g, "");
+  return normalized === "principalarchitect" || normalized === "parq";
+}
+
+function isTechLead(actor: string): boolean {
+  const normalized = normalizeActor(actor).replace(/[^a-z0-9]+/g, "");
+  return normalized === "cpp" || normalized === "staff" || normalized === "techlead" || normalized === "cpptechlead";
+}
+
+function isExecutor(actor: string): boolean {
+  const normalized = normalizeActor(actor).replace(/[^a-z0-9]+/g, "");
+  return normalized === "cppia" || normalized.startsWith("executor");
+}
+
+function canGroupMissions(role: string, actor: string): boolean {
+  return isAdmin(role) || isPrincipalArchitect(actor) || isTechLead(actor);
+}
+
+function canAddExecution(role: string, actor: string): boolean {
+  return isAdmin(role) || isPrincipalArchitect(actor) || isTechLead(actor);
+}
+
+function canStartAllNonPaused(role: string, actor: string): boolean {
+  return isAdmin(role) || isPrincipalArchitect(actor) || isTechLead(actor);
+}
 
 interface MissionPackage {
   package_id: string;
@@ -125,7 +161,7 @@ function sanitizeMissionBoardState(input: unknown): MissionBoardState {
       assignee: normalizeAssignee(row.assignee),
       priority: normalizePriority(row.priority),
       status: trimText(row.status, 40) || "in_progress",
-      notes: trimText(row.notes, 500),
+      notes: trimText(row.notes, 4000),
       updated_at_utc: trimText(row.updated_at_utc, 64) || nowUtc(),
       updated_by: trimText(row.updated_by, 120) || "staff@gov-manager"
     });
@@ -160,6 +196,15 @@ function upsertPackage(state: MissionBoardState, entry: MissionPackage): Mission
   };
 }
 
+function appendMatrixInheritanceNotes(current: string, block: string): string {
+  const base = trimText(current, 3200);
+  const nextBlock = trimText(block, 700);
+  if (!nextBlock) return base;
+  if (base.includes(nextBlock)) return trimText(base, 4000);
+  const merged = [base, nextBlock].filter(Boolean).join("\n\n---\n");
+  return trimText(merged, 4000);
+}
+
 async function loadBoardAndQueue(config: ReturnType<typeof resolveGovhubSnapshotConfig>) {
   const [boardLoaded, queueLoaded] = await Promise.all([
     loadSnapshotPayload(config, BOARD_SNAPSHOT_TYPE),
@@ -171,6 +216,46 @@ async function loadBoardAndQueue(config: ReturnType<typeof resolveGovhubSnapshot
   const queueState = queueLoaded.found && queueLoaded.payload ? sanitizeQueueState(queueLoaded.payload) : defaultQueueState();
 
   return { boardLoaded, queueLoaded, boardState, queueState };
+}
+
+function mergeBoardWithQueue(boardState: MissionBoardState, queueState: QueueState): ManagedMission[] {
+  const queueByMission = new Map<string, QueueItem[]>();
+  for (const row of queueState.rows) {
+    const missionId = normalizeMissionId(row.mission_id);
+    if (!missionId) continue;
+    const current = queueByMission.get(missionId) || [];
+    current.push(row);
+    queueByMission.set(missionId, current);
+  }
+
+  const merged = new Map<string, ManagedMission>();
+
+  for (const row of boardState.missions) {
+    const missionId = normalizeMissionId(row.mission_id);
+    if (!missionId) continue;
+    merged.set(missionId, row);
+  }
+
+  for (const [missionId, queueRows] of queueByMission.entries()) {
+    const preferred =
+      queueRows.find((row) => row.status === "in_progress") ||
+      queueRows.find((row) => row.status === "open") ||
+      queueRows[0];
+    if (!preferred) continue;
+    const current = merged.get(missionId);
+    merged.set(missionId, {
+      mission_id: missionId,
+      objective: trimText(current?.objective, 240) || trimText(preferred.title || preferred.description, 240),
+      assignee: normalizeAssignee(current?.assignee || preferred.assignee),
+      priority: normalizePriority(current?.priority || preferred.priority),
+      status: trimText(current?.status, 40) || trimText(preferred.status, 40) || "in_progress",
+      notes: trimText(current?.notes, 4000),
+      updated_at_utc: trimText(current?.updated_at_utc, 64) || trimText(preferred.updated_at_utc, 64) || nowUtc(),
+      updated_by: trimText(current?.updated_by, 120) || "queue-sync"
+    });
+  }
+
+  return Array.from(merged.values()).sort((a, b) => String(b.updated_at_utc).localeCompare(String(a.updated_at_utc)));
 }
 
 export async function GET(request: Request) {
@@ -200,6 +285,8 @@ export async function GET(request: Request) {
     new Set(queueState.rows.map((row) => normalizeMissionId(row.mission_id)).filter(Boolean))
   );
 
+  const mergedMissions = mergeBoardWithQueue(boardState, queueState);
+
   return NextResponse.json(
     {
       status: "ok",
@@ -207,7 +294,7 @@ export async function GET(request: Request) {
       queue_snapshot_type: QUEUE_SNAPSHOT_TYPE,
       updated_at_utc: boardState.updated_at_utc,
       packages: boardState.packages,
-      missions: boardState.missions,
+      missions: mergedMissions,
       queue: {
         summary: summarizeQueue(queueState.rows),
         in_progress_mission_ids: inProgressMissionIds,
@@ -243,35 +330,108 @@ export async function POST(request: Request) {
   const data = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
   const action = trimText(data.action, 40).toLowerCase();
   const actor = auth.session.username;
+  const actorId = normalizeActor(auth.session.username);
   const now = nowUtc();
   const { boardState, queueState } = await loadBoardAndQueue(config);
 
   if (action === "group_missions") {
-    const packageId = trimText(data.package_id, 120) || `PACOTE-${Date.now()}`;
+    if (!canGroupMissions(auth.session.role, actorId)) {
+      return NextResponse.json(
+        { status: "forbidden", error_code: "MISSIONS_ACTION_FORBIDDEN", message: "Perfil sem permissão para agrupar missões." },
+        { status: 403 }
+      );
+    }
+    const matrixMissionId = normalizeMissionId(data.matrix_mission_id ?? data.package_id);
+    if (!matrixMissionId) {
+      return NextResponse.json(
+        { status: "invalid_request", error_code: "MATRIX_MISSION_ID_REQUIRED", message: "Missão matriz é obrigatória." },
+        { status: 400 }
+      );
+    }
     const missionIdsRaw = Array.isArray(data.mission_ids) ? data.mission_ids : [];
-    const missionIds = Array.from(
+    const groupedMissionIds = Array.from(
       new Set(
         missionIdsRaw
           .map((missionId) => normalizeMissionId(missionId))
+          .filter((missionId) => missionId !== matrixMissionId)
           .filter(Boolean)
       )
     );
-    if (missionIds.length === 0) {
-      return NextResponse.json({ status: "invalid_request", error_code: "MISSION_IDS_REQUIRED" }, { status: 400 });
+    if (groupedMissionIds.length === 0) {
+      return NextResponse.json(
+        { status: "invalid_request", error_code: "GROUPED_MISSION_IDS_REQUIRED", message: "Informe ao menos uma missão para herdar na matriz." },
+        { status: 400 }
+      );
     }
+    const packageId = matrixMissionId;
+    const packageMissionIds = [matrixMissionId, ...groupedMissionIds].slice(0, 100);
 
     const existing = boardState.packages.find((row) => row.package_id === packageId);
     const nextPackage: MissionPackage = {
       package_id: packageId,
-      mission_ids: missionIds.slice(0, 100),
-      note: trimText(data.note, 500),
+      mission_ids: packageMissionIds,
+      note: trimText(data.note, 1000),
       status: trimText(data.status, 16).toLowerCase() === "closed" ? "closed" : "active",
       created_by: existing?.created_by || actor,
       created_at_utc: existing?.created_at_utc || now,
       updated_at_utc: now
     };
 
-    const nextBoard = upsertPackage(boardState, nextPackage);
+    const inheritedRows = queueState.rows
+      .filter((row) => groupedMissionIds.includes(normalizeMissionId(row.mission_id)))
+      .map((row) => ({
+        mission_id: normalizeMissionId(row.mission_id),
+        title: trimText(row.title, 120),
+        assignee: row.assignee,
+        priority: row.priority,
+        status: row.status
+      }));
+    const inheritedPartLines = inheritedRows.length
+      ? inheritedRows
+          .slice(0, 10)
+          .map(
+            (row) =>
+              `- ${row.mission_id}: ${row.title || "parte sem título"} [${row.assignee}/${row.priority}/${row.status}]`
+          )
+      : ["- sem partes em fila detectadas nas missões herdadas."];
+    const matrixBlock = [
+      `[Matriz ${matrixMissionId}] Herdanças: ${groupedMissionIds.join(", ")}`,
+      ...inheritedPartLines,
+      trimText(data.note, 280) ? `Obs: ${trimText(data.note, 280)}` : ""
+    ]
+      .filter(Boolean)
+      .join("\n");
+    const matrixCurrent =
+      boardState.missions.find((row) => row.mission_id === matrixMissionId) ||
+      ({
+        mission_id: matrixMissionId,
+        objective:
+          trimText(
+            queueState.rows.find((row) => normalizeMissionId(row.mission_id) === matrixMissionId)?.title,
+            240
+          ) || "Missão matriz",
+        assignee: normalizeAssignee(
+          queueState.rows.find((row) => normalizeMissionId(row.mission_id) === matrixMissionId)?.assignee
+        ),
+        priority: normalizePriority(
+          queueState.rows.find((row) => normalizeMissionId(row.mission_id) === matrixMissionId)?.priority
+        ),
+        status:
+          trimText(queueState.rows.find((row) => normalizeMissionId(row.mission_id) === matrixMissionId)?.status, 40) || "in_progress",
+        notes: "",
+        updated_at_utc: now,
+        updated_by: actor
+      } satisfies ManagedMission);
+
+    const matrixUpdated: ManagedMission = {
+      ...matrixCurrent,
+      notes: appendMatrixInheritanceNotes(matrixCurrent.notes, matrixBlock),
+      updated_at_utc: now,
+      updated_by: actor
+    };
+
+    let nextBoard = upsertPackage(boardState, nextPackage);
+    nextBoard = upsertMissionEntry(nextBoard, matrixUpdated);
     const saved = await saveSnapshotPayload(config, {
       snapshotType: BOARD_SNAPSHOT_TYPE,
       payload: nextBoard,
@@ -284,8 +444,13 @@ export async function POST(request: Request) {
       actor: auth.session.username,
       role: auth.session.role,
       action: "missions.group_missions",
-      target: packageId,
-      after_state: JSON.stringify({ mission_ids: missionIds, status: nextPackage.status }),
+      target: matrixMissionId,
+      after_state: JSON.stringify({
+        matrix_mission_id: matrixMissionId,
+        grouped_mission_ids: groupedMissionIds,
+        inherited_parts: inheritedRows.length,
+        status: nextPackage.status
+      }),
       correlation_id: `missions-group-${Date.now()}`,
       source: "missions-manage",
       createdBy: auth.session.username
@@ -295,7 +460,11 @@ export async function POST(request: Request) {
       {
         status: saved.ok ? "ok" : "upstream_error",
         action,
+        matrix_mission_id: matrixMissionId,
+        grouped_mission_ids: groupedMissionIds,
+        inherited_parts: inheritedRows.length,
         package: nextPackage,
+        matrix_mission: matrixUpdated,
         govhub_http: saved.status,
         payload_sha256: saved.payload_sha256
       },
@@ -309,15 +478,54 @@ export async function POST(request: Request) {
       return NextResponse.json({ status: "invalid_request", error_code: "MISSION_ID_REQUIRED" }, { status: 400 });
     }
 
-    const missionInProgress = queueState.rows.some((row) => normalizeMissionId(row.mission_id) === missionId && row.status === "in_progress");
-    if (!missionInProgress) {
+    const missionEditable = queueState.rows.some((row) => {
+      const sameMission = normalizeMissionId(row.mission_id) === missionId;
+      if (!sameMission) return false;
+      return row.status === "in_progress" || row.status === "done";
+    });
+    if (!missionEditable) {
       return NextResponse.json(
-        { status: "conflict", error_code: "MISSION_NOT_IN_PROGRESS", message: "Missão só pode ser editada em progresso." },
+        { status: "conflict", error_code: "MISSION_NOT_EDITABLE", message: "Missão só pode ser editada em progresso ou concluída." },
         { status: 409 }
       );
     }
 
     const current = boardState.missions.find((row) => row.mission_id === missionId);
+    const canEdit = isAdmin(auth.session.role) || isPrincipalArchitect(actorId) || isTechLead(actorId) || isExecutor(actorId);
+    if (!canEdit) {
+      return NextResponse.json(
+        { status: "forbidden", error_code: "MISSIONS_ACTION_FORBIDDEN", message: "Perfil sem permissão para editar missão." },
+        { status: 403 }
+      );
+    }
+    if (isExecutor(actorId)) {
+      if (!current) {
+        return NextResponse.json(
+          { status: "forbidden", error_code: "MISSIONS_ACTION_FORBIDDEN", message: "Executor só pode complementar notas em missão existente." },
+          { status: 403 }
+        );
+      }
+      const requestedObjective = trimText(data.objective, 240);
+      const requestedAssignee = normalizeAssignee(data.assignee ?? current.assignee);
+      const requestedPriority = normalizePriority(data.priority ?? current.priority);
+      const requestedStatus = trimText(data.status, 40) || current.status;
+      if (
+        (requestedObjective && requestedObjective !== current.objective) ||
+        requestedAssignee !== current.assignee ||
+        requestedPriority !== current.priority ||
+        requestedStatus !== current.status
+      ) {
+        return NextResponse.json(
+          {
+            status: "forbidden",
+            error_code: "MISSIONS_EXECUTOR_EDIT_RESTRICTED",
+            message: "Executor pode apenas registrar notas técnicas."
+          },
+          { status: 403 }
+        );
+      }
+    }
+
     const nextMission: ManagedMission = {
       mission_id: missionId,
       objective: trimText(data.objective, 240) || current?.objective || "",
@@ -329,13 +537,102 @@ export async function POST(request: Request) {
       updated_by: actor
     };
 
+    const missionQueueRows = queueState.rows.filter((row) => normalizeMissionId(row.mission_id) === missionId);
+    const hasActiveQueueRows = missionQueueRows.some((row) => row.status === "in_progress" || row.status === "open");
+    if (hasActiveQueueRows) {
+      const assigneeChangedInQueue = missionQueueRows.some((row) => row.status !== "done" && row.assignee !== nextMission.assignee);
+      if (assigneeChangedInQueue) {
+        const agentsLoaded = await loadSnapshotPayload(config, AGENTS_SNAPSHOT_TYPE);
+        const agentState = agentsLoaded.found && agentsLoaded.payload
+          ? sanitizeAgentRegistryState(agentsLoaded.payload)
+          : defaultAgentRegistryState();
+        if (!hasHealthyAssigneeAgent(agentState, nextMission.assignee)) {
+          return NextResponse.json(
+            {
+              status: "conflict",
+              error_code: "ASSIGNEE_NOT_HEALTHY",
+              message: `Nenhum worker saudável para ${nextMission.assignee}.`
+            },
+            { status: 409 }
+          );
+        }
+      }
+    }
+
     const nextBoard = upsertMissionEntry(boardState, nextMission);
+    const nextQueueRows = queueState.rows.map((row) => {
+      if (normalizeMissionId(row.mission_id) !== missionId) return row;
+      if (row.status === "done") return row;
+
+      const assigneeChanged = row.assignee !== nextMission.assignee;
+      if (row.status === "in_progress" && assigneeChanged) {
+        const {
+          assignee_agent_id: _dropAssigneeAgentId,
+          last_start_ack_at_utc: _dropLastStartAckAtUtc,
+          last_start_ack_http: _dropLastStartAckHttp,
+          ...rowWithoutRuntimeStart
+        } = row;
+        return {
+          ...rowWithoutRuntimeStart,
+          assignee: nextMission.assignee,
+          priority: nextMission.priority,
+          status: "open",
+          last_transition_reason_code: "MISSION_EDIT_REQUEUE",
+          last_transition_reason_message: `Item reaberto por troca de executor durante in_progress (${actor}).`,
+          last_transition_source: "missions-manage",
+          last_transition_actor: actor,
+          last_transition_at_utc: now,
+          last_start_error_code: "MISSION_EDIT_REQUEUE",
+          last_start_error_message: "Troca de executor exige novo start com ACK obrigatório.",
+          updated_at_utc: now
+        };
+      }
+
+      if (row.status === "in_progress") {
+        return {
+          ...row,
+          assignee: nextMission.assignee,
+          priority: nextMission.priority,
+          last_transition_reason_code: "MISSION_EDIT_SYNC",
+          last_transition_reason_message: `Fila sincronizada por edição de missão (${actor}).`,
+          last_transition_source: "missions-manage",
+          last_transition_actor: actor,
+          last_transition_at_utc: now,
+          updated_at_utc: now
+        };
+      }
+
+      const { assignee_agent_id: _dropAssigneeAgentId, ...rowWithoutAssigneeAgent } = row;
+      return {
+        ...rowWithoutAssigneeAgent,
+        assignee: nextMission.assignee,
+        priority: nextMission.priority,
+        last_transition_reason_code: "MISSION_EDIT_SYNC",
+        last_transition_reason_message: `Fila sincronizada por edição de missão (${actor}).`,
+        last_transition_source: "missions-manage",
+        last_transition_actor: actor,
+        last_transition_at_utc: now,
+        updated_at_utc: now
+      };
+    });
+    const nextQueue = sanitizeQueueState({
+      ...queueState,
+      updated_at_utc: now,
+      rows: nextQueueRows
+    });
     const saved = await saveSnapshotPayload(config, {
       snapshotType: BOARD_SNAPSHOT_TYPE,
       payload: nextBoard,
       createdBy: actor,
       sourceRepo: "gov-manager",
       sourceRef: "missions-manage-edit"
+    });
+    const queueSaved = await saveSnapshotPayload(config, {
+      snapshotType: QUEUE_SNAPSHOT_TYPE,
+      payload: nextQueue,
+      createdBy: actor,
+      sourceRepo: "gov-manager",
+      sourceRef: "missions-manage-edit-queue-sync"
     });
 
     await recordAuditEvent(config, {
@@ -352,17 +649,28 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        status: saved.ok ? "ok" : "upstream_error",
+        status: saved.ok && queueSaved.ok ? "ok" : "upstream_error",
         action,
         mission: nextMission,
+        queue_sync: {
+          status: queueSaved.ok ? "ok" : "upstream_error",
+          govhub_http: queueSaved.status,
+          payload_sha256: queueSaved.payload_sha256
+        },
         govhub_http: saved.status,
         payload_sha256: saved.payload_sha256
       },
-      { status: saved.ok ? 200 : 502 }
+      { status: saved.ok && queueSaved.ok ? 200 : 502 }
     );
   }
 
   if (action === "add_execution") {
+    if (!canAddExecution(auth.session.role, actorId)) {
+      return NextResponse.json(
+        { status: "forbidden", error_code: "MISSIONS_ACTION_FORBIDDEN", message: "Perfil sem permissão para adicionar execução." },
+        { status: 403 }
+      );
+    }
     const missionId = normalizeMissionId(data.mission_id);
     const title = trimText(data.title, 180);
     if (!missionId || !title) {
@@ -440,66 +748,20 @@ export async function POST(request: Request) {
   }
 
   if (action === "start_all_non_paused") {
-    const agentsLoaded = await loadSnapshotPayload(config, AGENTS_SNAPSHOT_TYPE);
-    const agentState = agentsLoaded.found && agentsLoaded.payload
-      ? sanitizeAgentRegistryState(agentsLoaded.payload)
-      : defaultAgentRegistryState();
-
-    const changed = queueState.rows.reduce<QueueItem[]>((acc, row) => {
-      if (row.status !== "open") return acc;
-      if (!hasHealthyAssigneeAgent(agentState, row.assignee)) return acc;
-      acc.push({ ...row, status: "in_progress", updated_at_utc: now });
-      return acc;
-    }, []);
-    const skippedUnhealthy = queueState.rows.filter(
-      (row) => row.status === "open" && !hasHealthyAssigneeAgent(agentState, row.assignee)
-    ).length;
-
-    if (changed.length === 0) {
+    if (!canStartAllNonPaused(auth.session.role, actorId)) {
       return NextResponse.json(
-        {
-          status: "ok",
-          action,
-          changed: 0,
-          skipped_unhealthy: skippedUnhealthy,
-          summary: summarizeQueue(queueState.rows.filter((row) => row.status !== "done")),
-          message: "Nenhum item elegível para iniciar."
-        },
-        { status: 200 }
+        { status: "forbidden", error_code: "MISSIONS_ACTION_FORBIDDEN", message: "Perfil sem permissão para iniciar itens em lote." },
+        { status: 403 }
       );
     }
-
-    const nextQueue = upsertQueueItems(queueState, changed);
-    const saved = await saveSnapshotPayload(config, {
-      snapshotType: QUEUE_SNAPSHOT_TYPE,
-      payload: nextQueue,
-      createdBy: actor,
-      sourceRepo: "gov-manager",
-      sourceRef: "missions-manage-start-bulk"
-    });
-
-    await recordAuditEvent(config, {
-      actor: auth.session.username,
-      role: auth.session.role,
-      action: "missions.start_all_non_paused",
-      target: "execution-queue",
-      after_state: JSON.stringify({ changed: changed.length, skipped_unhealthy: skippedUnhealthy }),
-      correlation_id: `missions-start-bulk-${Date.now()}`,
-      source: "missions-manage",
-      createdBy: auth.session.username
-    });
-
     return NextResponse.json(
       {
-        status: saved.ok ? "ok" : "upstream_error",
+        status: "conflict",
         action,
-        changed: changed.length,
-        skipped_unhealthy: skippedUnhealthy,
-        summary: summarizeQueue(nextQueue.rows.filter((row) => row.status !== "done")),
-        govhub_http: saved.status,
-        payload_sha256: saved.payload_sha256
+        error_code: "START_ACK_REQUIRED",
+        message: "Início em lote via missions/manage foi bloqueado para garantir ACK obrigatório. Use operations/queue item a item."
       },
-      { status: saved.ok ? 200 : 502 }
+      { status: 409 }
     );
   }
 

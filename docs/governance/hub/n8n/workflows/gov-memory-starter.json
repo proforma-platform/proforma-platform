@@ -1,0 +1,92 @@
+{
+  "id": "govhub-v7-memory-starter",
+  "name": "govhub-memory-starter",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "govhub/memory/starter",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "Webhook_MemoryStarter",
+      "name": "Webhook Memory Starter",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "59686842-ac1b-47cf-88c6-bb3fe369fb38",
+      "position": [
+        220,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{(String($env.GOV_MANAGER_BASE_URL || 'http://127.0.0.1:3000').replace(/\\/+$/,'')) + '/api/govhub/operations/memory'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-govhub-token",
+              "value": "={{String($env.GOVHUB_TOKEN || '').trim() || String($env.GOVHUB_TOKENS || '').split(',')[0]?.trim() || ''}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { action: 'starter', query: $json.body?.query || $json.query, namespace: $json.body?.namespace || $json.namespace, mission_id: $json.body?.mission_id || $json.mission_id, role: $json.body?.role || $json.role, tags: $json.body?.tags || $json.tags, limit: $json.body?.limit || $json.limit || 5 } }}"
+      },
+      "id": "Http_MemoryStarter",
+      "name": "Memory Starter",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        500,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 200,
+        "responseBody": "={{$json}}"
+      },
+      "id": "Respond_MemoryStarter",
+      "name": "Respond Memory Starter",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        760,
+        260
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Memory Starter": {
+      "main": [
+        [
+          {
+            "node": "Memory Starter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memory Starter": {
+      "main": [
+        [
+          {
+            "node": "Respond Memory Starter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

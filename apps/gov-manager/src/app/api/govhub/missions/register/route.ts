@@ -19,6 +19,10 @@ import {
   sanitizePromptLibraryState
 } from "../../../../../core/prompt-library";
 import {
+  defaultAgentRegistryState,
+  sanitizeAgentRegistryState,
+} from "../../../../../core/agent-registry";
+import {
   createQueueId,
   defaultQueueState,
   sanitizeQueueState,
@@ -40,9 +44,11 @@ const POLICY_SNAPSHOT_TYPE = String(process.env.GOVHUB_TOKEN_POLICY_SNAPSHOT_TYP
 const USAGE_SNAPSHOT_TYPE = String(process.env.GOVHUB_TOKEN_USAGE_SNAPSHOT_TYPE || "gov_manager_token_usage_v1").trim();
 const PROMPT_SNAPSHOT_TYPE = String(process.env.GOVHUB_PROMPTS_SNAPSHOT_TYPE || "gov_manager_prompt_library_v1").trim();
 const QUEUE_SNAPSHOT_TYPE = String(process.env.GOVHUB_EXECUTION_QUEUE_SNAPSHOT_TYPE || "gov_manager_execution_queue_v1").trim();
+const AGENTS_SNAPSHOT_TYPE = String(process.env.GOVHUB_AGENT_REGISTRY_SNAPSHOT_TYPE || "gov_manager_agent_registry_v1").trim();
 const MISSION_INTAKE_AGENT = "PRINCIPAL_ARCHITECT";
 const MISSION_ID_PREFIX = String(process.env.GOV_MANAGER_MISSION_ID_PREFIX || "GOV-MANAGER-V1-").trim().toUpperCase();
 const MISSION_ID_DIGITS = Number.parseInt(String(process.env.GOV_MANAGER_MISSION_ID_DIGITS || "5"), 10) || 5;
+const PREFERRED_CPP_AGENT_ID = "gov-codex-01";
 
 interface UdnDefaults {
   taskDefault: string;
@@ -95,6 +101,19 @@ function shortMissionToken(fullMissionId: string): string {
   const match = clean.match(/-(\d{1,10})$/);
   if (!match || !match[1]) return clean;
   return match[1].padStart(Math.max(1, MISSION_ID_DIGITS), "0");
+}
+
+function syncMissionTokenInUdn(udn: string, missionToken: string): string {
+  const lines = String(udn || "").split(/\r?\n/);
+  let replaced = false;
+  const out = lines.map((line) => {
+    if (!replaced && line.trimStart().startsWith("!MIS|")) {
+      replaced = true;
+      return `!MIS|${missionToken}`;
+    }
+    return line;
+  });
+  return out.join("\n");
 }
 
 function buildUdnDefaults(autofixControl?: {
@@ -189,6 +208,19 @@ function toQueueStatus(priority: QueuePriority): QueueStatus {
   return priority === "P3" ? "paused_waiting_owner" : "open";
 }
 
+function resolvePreferredQueueAgent(
+  assignee: QueueAssignee,
+  agentsState: ReturnType<typeof sanitizeAgentRegistryState>
+): string {
+  if (assignee === "STAFF") return "";
+  if (assignee === "CPP") {
+    const preferred = agentsState.rows.find((row) => String(row.agent_id || "").trim().toLowerCase() === PREFERRED_CPP_AGENT_ID);
+    if (preferred) return preferred.agent_id;
+  }
+  const fallback = agentsState.rows.find((row) => String(row.role || "").trim().toUpperCase() === assignee);
+  return String(fallback?.agent_id || "").trim();
+}
+
 export async function POST(request: Request) {
   if (!hasSessionCookie(request)) {
     return NextResponse.json({ status: "unauthorized", error_code: "AUTH_REQUIRED" }, { status: 401 });
@@ -205,98 +237,106 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-
-  let body: unknown;
   try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json(
-      { status: "invalid_request", error_code: "JSON_INVALID", message: "invalid json body" },
-      { status: 400 }
-    );
-  }
-
-  const adapted = adaptLegacyMissionEnvelope(body);
-  const validated = validateMissionRequest(adapted ?? body);
-  if (!validated.valid || !validated.data) {
-    return NextResponse.json(
-      { status: "invalid_request", error_code: "MISSION_CONTRACT_INVALID", errors: validated.errors },
-      { status: 400 }
-    );
-  }
-
-  const snapshotConfig = resolveGovhubSnapshotConfig();
-  let effectiveUdn = validated.data.udn;
-  let promptResolution: Record<string, unknown> | null = null;
-  let udnCanonicalized = false;
-  const udnDefaults = buildUdnDefaults(validated.data.autofix_control);
-  const udnDefaultsApplied: string[] = [];
-
-  if (validated.data.prompt_ref) {
-    if (!snapshotConfig.baseUrl || !snapshotConfig.token) {
-      return NextResponse.json(
-        {
-          status: "misconfigured",
-          error_code: "GOVHUB_ENV_REQUIRED",
-          message: "GOVHUB_BASE_URL and GOVHUB_TOKEN are required for prompt_ref"
-        },
-        { status: 500 }
-      );
-    }
-
-    const promptLoaded = await loadSnapshotPayload(snapshotConfig, PROMPT_SNAPSHOT_TYPE);
-    const promptState = promptLoaded.found && promptLoaded.payload
-      ? sanitizePromptLibraryState(promptLoaded.payload)
-      : defaultPromptLibraryState();
-    const prompt = promptState.prompts.find((item) => item.prompt_id === validated.data!.prompt_ref!.prompt_id);
-    if (!prompt) {
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
       return NextResponse.json(
         {
           status: "invalid_request",
-          error_code: "PROMPT_REF_NOT_FOUND",
-          message: "prompt_ref.prompt_id not found in library"
+          error_code: "JSON_INVALID",
+          message: "invalid json body"
         },
-        { status: 404 }
+        { status: 400 }
       );
     }
 
-    if (validated.data.prompt_ref.prompt_hash && validated.data.prompt_ref.prompt_hash !== prompt.prompt_hash) {
+    const adapted = adaptLegacyMissionEnvelope(body);
+    const validated = validateMissionRequest(adapted ?? body);
+    if (!validated.valid || !validated.data) {
       return NextResponse.json(
         {
           status: "invalid_request",
-          error_code: "PROMPT_REF_HASH_MISMATCH",
-          message: "prompt_ref hash mismatch"
+          error_code: "MISSION_CONTRACT_INVALID",
+          errors: validated.errors
         },
-        { status: 409 }
+        { status: 400 }
       );
     }
 
-    const vars = validated.data.prompt_ref.variables || {};
-    if (validated.data.prompt_ref.inject_mode === "replace_udn") {
-      const rendered = renderPromptTemplate(prompt.template, vars).trim();
-      if (!rendered) {
+    const snapshotConfig = resolveGovhubSnapshotConfig();
+    let effectiveUdn = validated.data.udn;
+    let promptResolution: Record<string, unknown> | null = null;
+    let udnCanonicalized = false;
+    const udnDefaults = buildUdnDefaults(validated.data.autofix_control);
+    const udnDefaultsApplied: string[] = [];
+
+    if (validated.data.prompt_ref) {
+      if (!snapshotConfig.baseUrl || !snapshotConfig.token) {
+        return NextResponse.json(
+          {
+            status: "misconfigured",
+            error_code: "GOVHUB_ENV_REQUIRED",
+            message: "GOVHUB_BASE_URL and GOVHUB_TOKEN are required for prompt_ref"
+          },
+          { status: 500 }
+        );
+      }
+
+      const promptLoaded = await loadSnapshotPayload(snapshotConfig, PROMPT_SNAPSHOT_TYPE);
+      const promptState = promptLoaded.found && promptLoaded.payload
+        ? sanitizePromptLibraryState(promptLoaded.payload)
+        : defaultPromptLibraryState();
+      const prompt = promptState.prompts.find((item) => item.prompt_id === validated.data!.prompt_ref!.prompt_id);
+      if (!prompt) {
         return NextResponse.json(
           {
             status: "invalid_request",
-            error_code: "PROMPT_REF_RENDER_EMPTY",
-            message: "prompt template resolved to empty content"
+            error_code: "PROMPT_REF_NOT_FOUND",
+            message: "prompt_ref.prompt_id not found in library"
           },
-          { status: 422 }
+          { status: 404 }
         );
       }
-      effectiveUdn = rendered;
-    } else {
-      const varKeys = Object.keys(vars).slice(0, 24).join(",") || "none";
-      effectiveUdn = `${validated.data.udn}\n#ctx_prompt_ref:id=${prompt.prompt_id};hash=${prompt.prompt_hash};vars=${varKeys}`;
-    }
 
-    promptResolution = {
-      prompt_id: prompt.prompt_id,
-      prompt_hash: prompt.prompt_hash,
-      inject_mode: validated.data.prompt_ref.inject_mode || "append_ref",
-      variables: vars
-    };
-  }
+      if (validated.data.prompt_ref.prompt_hash && validated.data.prompt_ref.prompt_hash !== prompt.prompt_hash) {
+        return NextResponse.json(
+          {
+            status: "invalid_request",
+            error_code: "PROMPT_REF_HASH_MISMATCH",
+            message: "prompt_ref hash mismatch"
+          },
+          { status: 409 }
+        );
+      }
+
+      const vars = validated.data.prompt_ref.variables || {};
+      if (validated.data.prompt_ref.inject_mode === "replace_udn") {
+        const rendered = renderPromptTemplate(prompt.template, vars).trim();
+        if (!rendered) {
+          return NextResponse.json(
+            {
+              status: "invalid_request",
+              error_code: "PROMPT_REF_RENDER_EMPTY",
+              message: "prompt template resolved to empty content"
+            },
+            { status: 422 }
+          );
+        }
+        effectiveUdn = rendered;
+      } else {
+        const varKeys = Object.keys(vars).slice(0, 24).join(",") || "none";
+        effectiveUdn = `${validated.data.udn}\n#ctx_prompt_ref:id=${prompt.prompt_id};hash=${prompt.prompt_hash};vars=${varKeys}`;
+      }
+
+      promptResolution = {
+        prompt_id: prompt.prompt_id,
+        prompt_hash: prompt.prompt_hash,
+        inject_mode: validated.data.prompt_ref.inject_mode || "append_ref",
+        variables: vars
+      };
+    }
 
   const canonical = canonicalizeMissionUdn(effectiveUdn);
   if (!canonical) {
@@ -326,16 +366,9 @@ export async function POST(request: Request) {
   }
   const missionIdFromBlock = resolveFullMissionIdFromUdnToken(missionTokenFromBlock, missionIdFromPayload);
   if (missionIdFromBlock !== missionIdFromPayload) {
-    return NextResponse.json(
-      {
-        status: "invalid_request",
-        error_code: "UDN_MISSION_ID_MISMATCH",
-        message: "mission_id mismatch between payload and UDN !MIS line",
-        mission_id_payload: missionIdFromPayload,
-        mission_id_udn: missionIdFromBlock
-      },
-      { status: 409 }
-    );
+    effectiveUdn = syncMissionTokenInUdn(effectiveUdn, shortMissionToken(missionIdFromPayload));
+    udnCanonicalized = true;
+    udnDefaultsApplied.push("!MIS_SYNC");
   }
 
   const compactToken = shortMissionToken(missionIdFromPayload);
@@ -412,6 +445,7 @@ export async function POST(request: Request) {
   const upstreamPayload = {
     mission_id: validated.data.mission.id,
     udn_mission: effectiveUdn,
+    mission_notes: String(validated.data.mission.notes || "").trim() || undefined,
     tdv_version: "1.0",
     created_by: ownerId,
     branch: validated.data.mission.branch || "main",
@@ -479,6 +513,10 @@ export async function POST(request: Request) {
 
     const queueLoaded = await loadSnapshotPayload(snapshotConfig, QUEUE_SNAPSHOT_TYPE);
     const queueState = queueLoaded.found && queueLoaded.payload ? sanitizeQueueState(queueLoaded.payload) : defaultQueueState();
+    const agentsLoaded = await loadSnapshotPayload(snapshotConfig, AGENTS_SNAPSHOT_TYPE);
+    const agentsState = agentsLoaded.found && agentsLoaded.payload
+      ? sanitizeAgentRegistryState(agentsLoaded.payload)
+      : defaultAgentRegistryState();
     const missionId = validated.data.mission.id;
     const nowUtc = new Date().toISOString();
     const hasPending = queueState.rows.some((row) => {
@@ -504,20 +542,32 @@ export async function POST(request: Request) {
               priority: fallbackPriority
             }
           ];
+      const queueMissionUdn = String(effectiveUdn || "").trim();
+      const missionNotes = String(validated.data.mission.notes || "").trim();
+      const queueMissionDescription = missionNotes
+        ? `Solicitação:\n${queueMissionUdn}\n\nNotas:\n${missionNotes}`.slice(0, 800)
+        : queueMissionUdn.slice(0, 800);
 
       const items: QueueItem[] = parts.map((part, index) => {
         const partPriority = normalizeQueuePriority(part.priority || fallbackPriority);
         const assignee = (String(part.executor || "STAFF").toUpperCase() as QueueAssignee);
         const safeAssignee: QueueAssignee = assignee === "CPP" || assignee === "CPP-IA" ? assignee : "STAFF";
+        const preferredAgentId = resolvePreferredQueueAgent(safeAssignee, agentsState);
         const title = String(part.goal || `Parte ${index + 1}`).trim() || `Parte ${index + 1}`;
         return {
           queue_id: createQueueId(missionId, title, index + 1),
           mission_id: missionId,
           title,
-          description: title,
+          description: queueMissionDescription || queueMissionUdn.slice(0, 800) || title,
           kind: safeAssignee,
           priority: partPriority,
           assignee: safeAssignee,
+          ...(preferredAgentId ? { assignee_agent_id: preferredAgentId } : {}),
+          last_transition_reason_code: "MISSION_REGISTERED",
+          last_transition_reason_message: `Item criado automaticamente no registro da missão por ${ownerId}.`,
+          last_transition_source: "missions-register",
+          last_transition_actor: ownerId,
+          last_transition_at_utc: nowUtc,
           status: toQueueStatus(partPriority),
           created_at_utc: nowUtc,
           updated_at_utc: nowUtc
@@ -543,27 +593,39 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json(
-    {
-      status: upstreamResponse.ok ? "registered" : "upstream_error",
-      govhub_http: upstreamResponse.status,
-      mission_id: validated.data.mission.id,
-      requested_agent_id: requestedAgentId,
-      effective_agent_id: effectiveAgentId,
-      token_control: validated.data.token_control || null,
-      token_preview: preview,
-      token_governance: {
-        source: governanceSource,
-        ...governanceDecision
+    return NextResponse.json(
+      {
+        status: upstreamResponse.ok ? "registered" : "upstream_error",
+        govhub_http: upstreamResponse.status,
+        mission_id: validated.data.mission.id,
+        requested_agent_id: requestedAgentId,
+        effective_agent_id: effectiveAgentId,
+        token_control: validated.data.token_control || null,
+        token_preview: preview,
+        token_governance: {
+          source: governanceSource,
+          ...governanceDecision
+        },
+        token_usage_sync: tokenUsageSync,
+        queue_sync: queueSync,
+        prompt_ref: promptResolution,
+        udn_version: "2.0_compact",
+        udn_canonicalized: udnCanonicalized,
+        udn_defaults_applied: udnDefaultsApplied,
+        govhub_response: upstreamJson
       },
-      token_usage_sync: tokenUsageSync,
-      queue_sync: queueSync,
-      prompt_ref: promptResolution,
-      udn_version: "2.0_compact",
-      udn_canonicalized: udnCanonicalized,
-      udn_defaults_applied: udnDefaultsApplied,
-      govhub_response: upstreamJson
-    },
-    { status: upstreamResponse.ok ? 200 : 502 }
-  );
+      { status: upstreamResponse.ok ? 200 : 502 }
+    );
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "unexpected_error";
+    return NextResponse.json(
+      {
+        status: "internal_error",
+        error_code: "MISSION_REGISTER_INTERNAL_ERROR",
+        message: "unexpected internal error while registering mission",
+        detail
+      },
+      { status: 500 }
+    );
+  }
 }

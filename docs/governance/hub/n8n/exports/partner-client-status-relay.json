@@ -1,0 +1,236 @@
+[
+  {
+    "id": "govhub-client-v1-status-relay",
+    "name": "govhub-client-v1-status-relay",
+    "active": false,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "path": "partner/client/status-relay",
+          "httpMethod": "POST",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "Webhook_StatusRelay",
+        "name": "Webhook Status Relay",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "webhookId": "ef73ab9f-f7fe-47fb-a199-e66a02f8433c",
+        "position": [220, 240]
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const asObj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});\nconst clamp = (v, n) => String(v || '').trim().slice(0, n);\nconst truthy = (v) => v === true || ['true','1','yes','ok'].includes(String(v || '').trim().toLowerCase());\nlet body = asObj($json.body);\nif (!Object.keys(body).length && typeof $json.body === 'string') {\n  try { body = asObj(JSON.parse($json.body)); } catch {}\n}\nif (!Object.keys(body).length) body = asObj($json);\nconst jobId = clamp(body.job_id || body.jobId, 160);\nconst status = clamp(body.status, 40);\nif (!jobId || !status) {\n  return [{ json: { route: 'error', statusCode: 400, error_code: 'JOB_ID_STATUS_REQUIRED', message: 'job_id and status are required' } }];\n}\nconst normalizedStatus = status.toLowerCase();\nconst requestId = clamp(body.request_id || body.correlation_id || body.correlationId || body.idempotency_key, 180);\nconst completionProof = clamp(body.completion_proof || body.completionProof || body.proof || body.evidence, 600);\nconst completionAck = truthy(body.completion_ack || body.completionAck || (normalizedStatus === 'done' || normalizedStatus === 'completed' || normalizedStatus === 'success'));\nif ((normalizedStatus === 'done' || normalizedStatus === 'completed' || normalizedStatus === 'success') && (!completionAck || !completionProof || !requestId)) {\n  return [{ json: { route: 'error', statusCode: 422, error_code: 'DONE_REQUIRES_PROOF', message: 'done requires completion_ack, completion_proof and request_id' } }];\n}\nconst base = String($env.GOV_CLIENT_GOVHUB_BASE_URL || 'https://govhub.proforma.net.br').replace(/\\/+$/,'');\nconst partnerId = String($env.GOV_CLIENT_PARTNER_ID || 'proforma-partner-test-001').trim();\nconst statusBody = {\n  job_id: jobId,\n  status,\n  message: clamp(body.message, 280),\n  source: 'medcore-n8n',\n  ...(requestId ? { request_id: requestId, correlation_id: requestId } : {}),\n  ...(completionAck ? { completion_ack: true } : {}),\n  ...(completionProof ? { completion_proof: completionProof } : {})\n};\nreturn [{ json: { route: 'valid', govhub_status_url: `${base}/webhook/govhub-status`, partner_id: partnerId, status_body: statusBody } }];"
+        },
+        "id": "Code_ValidateStatus",
+        "name": "Validate Status",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [460, 240]
+      },
+      {
+        "parameters": {
+          "mode": "expression",
+          "numberOutputs": 2,
+          "output": "={{$json.route === 'error' ? 0 : 1}}"
+        },
+        "id": "Switch_StatusRoute",
+        "name": "Route Status",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
+        "position": [680, 240]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{$json.govhub_status_url}}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "content-type",
+                "value": "application/json"
+              },
+              {
+                "name": "x-partner-id",
+                "value": "={{$json.partner_id}}"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "contentType": "json",
+          "jsonBody": "={{$json.status_body}}",
+          "options": {
+            "ignoreResponseCode": true,
+            "response": {
+              "response": {
+                "fullResponse": true
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "id": "Http_RelayStatus",
+        "name": "Relay Status",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "continueOnFail": true,
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 3000,
+        "position": [900, 180]
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const statusCode = Number($json.statusCode || 0);\nconst body = ($json.body && typeof $json.body === 'object') ? $json.body : {};\nconst ok = !$json.error && statusCode >= 200 && statusCode < 300 && body.ack === true;\nif (ok) {\n  return [{ json: { relay_ok: true, status_code: statusCode, body } }];\n}\nreturn [{ json: { relay_ok: false, statusCode: statusCode || 502, error_code: String(body.error_code || ($json.error ? 'RELAY_HTTP_ERROR' : 'RELAY_REJECTED')), message: String(body.message || $json?.error?.message || 'relay failed').slice(0, 250) } }];"
+        },
+        "id": "Code_ClassifyRelay",
+        "name": "Classify Relay",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1120, 180]
+      },
+      {
+        "parameters": {
+          "mode": "expression",
+          "numberOutputs": 2,
+          "output": "={{$json.relay_ok ? 1 : 0}}"
+        },
+        "id": "Switch_RelayOutcome",
+        "name": "Relay OK?",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
+        "position": [1320, 180]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseCode": 200,
+          "responseBody": "={{ { status: 'ok', relay: 'sent', downstream_http: $json.status_code || 200 } }}"
+        },
+        "id": "Respond_StatusOk",
+        "name": "Respond 200",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [1540, 260]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { status: 'error', relay: 'failed', error_code: ($json.error_code || 'RELAY_FAILED'), message: ($json.message || 'downstream rejected') } }}",
+          "options": {
+            "responseCode": "={{$json.statusCode || 502}}"
+          }
+        },
+        "id": "Respond_StatusFail",
+        "name": "Respond 502",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [1540, 100]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { status: 'error', error_code: ($json.error_code || 'INVALID_REQUEST'), message: ($json.message || 'invalid request') } }}",
+          "options": {
+            "responseCode": "={{$json.statusCode || 400}}"
+          }
+        },
+        "id": "Respond_Invalid",
+        "name": "Respond Invalid",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [900, 340]
+      }
+    ],
+    "connections": {
+      "Webhook Status Relay": {
+        "main": [
+          [
+            {
+              "node": "Validate Status",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Validate Status": {
+        "main": [
+          [
+            {
+              "node": "Route Status",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Route Status": {
+        "main": [
+          [
+            {
+              "node": "Respond Invalid",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Relay Status",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Relay Status": {
+        "main": [
+          [
+            {
+              "node": "Classify Relay",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Classify Relay": {
+        "main": [
+          [
+            {
+              "node": "Relay OK?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Relay OK?": {
+        "main": [
+          [
+            {
+              "node": "Respond 502",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Respond 200",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1"
+    }
+  }
+]

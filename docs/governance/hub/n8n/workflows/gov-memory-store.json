@@ -1,0 +1,92 @@
+{
+  "id": "govhub-v7-memory-store",
+  "name": "govhub-memory-store",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "govhub/memory/store",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "Webhook_MemoryStore",
+      "name": "Webhook Memory Store",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "7f5af9ff-5bc7-4dc7-bf3c-7225ae03a751",
+      "position": [
+        220,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{(String($env.GOV_MANAGER_BASE_URL || 'http://127.0.0.1:3000').replace(/\\/+$/,'')) + '/api/govhub/operations/memory'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-govhub-token",
+              "value": "={{String($env.GOVHUB_TOKEN || '').trim() || String($env.GOVHUB_TOKENS || '').split(',')[0]?.trim() || ''}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { action: 'store', namespace: $json.body?.namespace || $json.namespace, topic: $json.body?.topic || $json.topic, content: $json.body?.content || $json.content, summary: $json.body?.summary || $json.summary, tags: $json.body?.tags || $json.tags, mission_id: $json.body?.mission_id || $json.mission_id, role: $json.body?.role || $json.role, actor: $json.body?.actor || 'n8n', source_type: $json.body?.source_type || 'udn' } }}"
+      },
+      "id": "Http_StoreMemory",
+      "name": "Store Memory",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        500,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 200,
+        "responseBody": "={{$json}}"
+      },
+      "id": "Respond_MemoryStore",
+      "name": "Respond Memory Store",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        760,
+        260
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Memory Store": {
+      "main": [
+        [
+          {
+            "node": "Store Memory",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Memory": {
+      "main": [
+        [
+          {
+            "node": "Respond Memory Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

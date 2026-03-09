@@ -123,6 +123,7 @@ export async function POST(request: Request) {
     role: normalizeRole(data.role),
     group: clampText(data.group, 40) || "default",
     capabilities: normalizeCapabilities(data.capabilities),
+    created_at_utc: now,
     heartbeat_interval_sec: toInt(data.heartbeat_interval_sec, 30, 5, 3600),
     max_concurrency: toInt(data.max_concurrency, 1, 1, 200),
     current_load: 0,
@@ -140,6 +141,7 @@ export async function POST(request: Request) {
       role: normalizeRole(data.role || baseRow.role),
       group: clampText(data.group, 40) || baseRow.group,
       capabilities: normalizeCapabilities(data.capabilities || baseRow.capabilities),
+      created_at_utc: baseRow.created_at_utc || now,
       heartbeat_interval_sec: toInt(data.heartbeat_interval_sec, baseRow.heartbeat_interval_sec, 5, 3600),
       max_concurrency: toInt(data.max_concurrency, baseRow.max_concurrency, 1, 200),
       current_load: toInt(data.current_load, baseRow.current_load, 0, 999),
@@ -151,6 +153,7 @@ export async function POST(request: Request) {
   } else if (action === "heartbeat") {
     next = {
       ...baseRow,
+      created_at_utc: baseRow.created_at_utc || now,
       current_load: toInt(data.current_load, baseRow.current_load, 0, 999),
       health: normalizeHealth(data.health || baseRow.health),
       last_heartbeat_at_utc: now,
@@ -162,6 +165,7 @@ export async function POST(request: Request) {
     const load = mode === "finish" ? 0 : toInt(data.current_load, 1, 0, 999);
     next = {
       ...baseRow,
+      created_at_utc: baseRow.created_at_utc || now,
       current_load: load,
       health: normalizeHealth(data.health || baseRow.health),
       last_job_at_utc: now,
@@ -172,6 +176,7 @@ export async function POST(request: Request) {
   } else if (action === "set_health") {
     next = {
       ...baseRow,
+      created_at_utc: baseRow.created_at_utc || now,
       health: normalizeHealth(data.health),
       last_heartbeat_at_utc: now,
       updated_at_utc: now,

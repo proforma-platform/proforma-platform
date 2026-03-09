@@ -1,0 +1,8 @@
+/opt/proforma/proforma-platform/apps/gov-manager/scripts/run-watchdog.sh: line 21: /opt/proforma/proforma-platform/apps/gov-manager/scripts/healthchecks-ping.sh: Permission denied
+curl: (22) The requested URL returned error: 404
+curl: (22) The requested URL returned error: 404
+curl: (28) Operation timed out after 8001 milliseconds with 0 bytes received
+curl: (28) Failed to connect to hc-ping.com port 443 after 7527 ms: Connection timed out
+curl: (28) Failed to connect to hc-ping.com port 443 after 7527 ms: Connection timed out
+curl: (28) Failed to connect to hc-ping.com port 443 after 7527 ms: Connection timed out
+curl: (28) Resolving timed out after 8000 milliseconds

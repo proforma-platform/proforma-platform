@@ -4,6 +4,7 @@ import { defaultQueueState, sanitizeQueueState, upsertQueueItems, type QueueItem
 import { defaultAgentRegistryState, hasHealthyAssigneeAgent, sanitizeAgentRegistryState } from "../../../../../core/agent-registry";
 import { createAlertId, defaultAlertState, sanitizeAlertState, upsertAlerts, type AlertRow } from "../../../../../core/alerts";
 import { defaultWatchdogState, sanitizeWatchdogState, upsertWatchdogAttempts, type WatchdogAttempt } from "../../../../../core/watchdog-state";
+import { recomputeAndPersistOfficePresence } from "../../../../../core/office-presence";
 import { requireRole } from "../../../../../core/rbac";
 import { recordAuditEvent } from "../../../../../core/audit-store";
 
@@ -11,6 +12,9 @@ const QUEUE_SNAPSHOT_TYPE = String(process.env.GOVHUB_EXECUTION_QUEUE_SNAPSHOT_T
 const AGENTS_SNAPSHOT_TYPE = String(process.env.GOVHUB_AGENT_REGISTRY_SNAPSHOT_TYPE || "gov_manager_agent_registry_v1").trim();
 const ALERTS_SNAPSHOT_TYPE = String(process.env.GOVHUB_ALERTS_SNAPSHOT_TYPE || "gov_manager_alerts_v1").trim();
 const WATCHDOG_SNAPSHOT_TYPE = String(process.env.GOVHUB_WATCHDOG_SNAPSHOT_TYPE || "gov_manager_watchdog_v1").trim();
+const WATCHDOG_REOPEN_ON_STALE = String(process.env.GOVHUB_WATCHDOG_REOPEN_ON_STALE || "true")
+  .trim()
+  .toLowerCase() !== "false";
 
 function hasGovhubToken(request: Request, expectedToken: string): boolean {
   const provided = String(request.headers.get("x-govhub-token") || "").trim();
@@ -31,6 +35,33 @@ function isRowStuck(row: QueueItem, nowEpoch: number, thresholdMin: number): boo
   if (!updatedEpoch) return true;
   const ageMin = Math.max(0, Math.round((nowEpoch - updatedEpoch) / 60000));
   return ageMin >= thresholdMin;
+}
+
+function hasRecentAssigneeHeartbeat(
+  agentsState: ReturnType<typeof sanitizeAgentRegistryState>,
+  row: QueueItem,
+  nowEpoch: number
+): boolean {
+  const assignee = String(row.assignee || "").trim().toUpperCase();
+  if (!assignee || assignee === "STAFF") return true;
+
+  const preferredAgentId = String(row.assignee_agent_id || "").trim();
+  const candidates = agentsState.rows
+    .filter((agent) => String(agent.role || "").trim().toUpperCase() === assignee)
+    .sort((a, b) => String(b.last_heartbeat_at_utc || "").localeCompare(String(a.last_heartbeat_at_utc || "")));
+
+  const chosen =
+    (preferredAgentId ? candidates.find((agent) => agent.agent_id === preferredAgentId) : null) ||
+    candidates[0];
+  if (!chosen) return false;
+
+  const hbEpoch = toEpoch(chosen.last_heartbeat_at_utc);
+  if (!hbEpoch) return false;
+  const ageSec = Math.max(0, Math.round((nowEpoch - hbEpoch) / 1000));
+
+  const intervalSec = Math.max(5, Math.min(3600, Number(chosen.heartbeat_interval_sec || 30)));
+  const staleAfterSec = Math.max(120, intervalSec * 4);
+  return ageSec <= staleAfterSec;
 }
 
 export async function GET(request: Request) {
@@ -127,16 +158,18 @@ export async function POST(request: Request) {
   const changedRows: QueueItem[] = [];
   const alertRows: AlertRow[] = [];
   const attemptRows: WatchdogAttempt[] = [];
-  const openAlertKeys = new Set(
+  const openAlertByQueue = new Map(
     alertsState.rows
-      .filter((row) => row.status === "open" || row.status === "ack")
-      .map((row) => `${row.type}|${row.queue_id}|${row.source}`)
+      .filter((row) => (row.status === "open" || row.status === "ack") && row.type === "watchdog" && row.source === "watchdog")
+      .map((row) => [row.queue_id, row] as const)
   );
+  const activeIssueQueues = new Set<string>();
 
   for (const row of queueState.rows) {
     if (row.status !== "in_progress") continue;
 
-    const stuck = isRowStuck(row, nowEpoch, staleThresholdMin);
+    const heartbeatRecent = hasRecentAssigneeHeartbeat(agentState, row, nowEpoch);
+    const stuck = isRowStuck(row, nowEpoch, staleThresholdMin) && !heartbeatRecent;
     const healthy = hasHealthyAssigneeAgent(agentState, row.assignee);
     if (!stuck && healthy) continue;
 
@@ -144,44 +177,86 @@ export async function POST(request: Request) {
     const prevAttempt = attemptMap.get(row.queue_id);
     const currentAttempt = prevAttempt ? Math.max(0, prevAttempt.count) : 0;
 
-    let nextStatus: QueueItem["status"] = "open";
-    let nextAttempt = currentAttempt + 1;
-    if (nextAttempt > 2) {
-      nextStatus = "paused_waiting_owner";
-      nextAttempt = 2;
-    }
+    let nextStatus: QueueItem["status"] = row.status;
+    let nextAttempt = currentAttempt;
+    let shouldChangeStatus = false;
 
-    changedRows.push({
-      ...row,
-      status: nextStatus,
-      updated_at_utc: now
-    });
+    const shouldDemoteByStale = stuck && WATCHDOG_REOPEN_ON_STALE;
 
-    attemptRows.push({
-      queue_id: row.queue_id,
-      count: nextAttempt,
-      last_reason: reason,
-      updated_at_utc: now
-    });
-
-    const alertKey = `watchdog|${row.queue_id}|watchdog`;
-    if (!openAlertKeys.has(alertKey)) {
-      alertRows.push({
-        alert_id: createAlertId("WD"),
-        type: "watchdog",
-        severity: nextStatus === "paused_waiting_owner" ? "high" : "medium",
-        mission_id: row.mission_id,
+    // Governança operacional: ausência de heartbeat/progresso por tempo acima do limiar
+    // deve reabrir e, após tentativas, pausar aguardando owner.
+    if (!healthy || shouldDemoteByStale) {
+      nextStatus = "open";
+      nextAttempt = currentAttempt + 1;
+      if (nextAttempt > 2) {
+        nextStatus = "paused_waiting_owner";
+        nextAttempt = 2;
+      }
+      shouldChangeStatus = true;
+      attemptRows.push({
         queue_id: row.queue_id,
-        message: nextStatus === "paused_waiting_owner"
-          ? `Item pausado por watchdog após tentativas: ${row.title}`
-          : `Retry automático ${nextAttempt}/2 por watchdog: ${row.title}`,
-        status: "open",
-        source: "watchdog",
-        created_at_utc: now,
+        count: nextAttempt,
+        last_reason: reason,
         updated_at_utc: now
       });
-      openAlertKeys.add(alertKey);
     }
+
+    if (shouldChangeStatus) {
+      const transitionCode = !healthy
+        ? (nextStatus === "paused_waiting_owner" ? "WATCHDOG_WORKER_UNAVAILABLE_PAUSE" : "WATCHDOG_WORKER_UNAVAILABLE_RETRY")
+        : (nextStatus === "paused_waiting_owner" ? "WATCHDOG_STALE_PROGRESS_PAUSE" : "WATCHDOG_STALE_PROGRESS_RETRY");
+      const transitionMessage = !healthy
+        ? (nextStatus === "paused_waiting_owner"
+          ? "Watchdog pausou o item por indisponibilidade do executor após tentativas."
+          : "Watchdog reabriu o item por indisponibilidade do executor (retry automático).")
+        : (nextStatus === "paused_waiting_owner"
+          ? "Watchdog pausou o item por ausência de progresso/heartbeat após tentativas."
+          : "Watchdog reabriu o item por ausência de progresso/heartbeat (retry automático).");
+      changedRows.push({
+        ...row,
+        status: nextStatus,
+        last_transition_reason_code: transitionCode,
+        last_transition_reason_message: transitionMessage,
+        last_transition_source: "watchdog",
+        last_transition_actor: actor,
+        last_transition_at_utc: now,
+        updated_at_utc: now
+      });
+    }
+
+    activeIssueQueues.add(row.queue_id);
+    const existingAlert = openAlertByQueue.get(row.queue_id);
+    alertRows.push({
+      ...(existingAlert ? existingAlert : { alert_id: createAlertId("WD"), created_at_utc: now }),
+      type: "watchdog",
+      severity: nextStatus === "paused_waiting_owner" ? "high" : "medium",
+      mission_id: row.mission_id,
+      queue_id: row.queue_id,
+      message: !healthy
+        ? nextStatus === "paused_waiting_owner"
+          ? `Item pausado por watchdog após tentativas (worker indisponível): ${row.title}`
+          : `Retry automático ${nextAttempt}/2 por watchdog (worker indisponível): ${row.title}`
+        : nextStatus === "paused_waiting_owner"
+          ? `Item pausado por watchdog após tentativas (stale >= ${staleThresholdMin} min): ${row.title}`
+          : `Retry automático ${nextAttempt}/2 por watchdog (stale >= ${staleThresholdMin} min): ${row.title}`,
+      status: "open",
+      source: "watchdog",
+      updated_at_utc: now
+    });
+  }
+
+  const resolvedWatchdogAlerts = alertsState.rows
+    .filter((row) => row.type === "watchdog" && row.source === "watchdog" && (row.status === "open" || row.status === "ack"))
+    .filter((row) => !activeIssueQueues.has(row.queue_id))
+    .map((row) => ({
+      ...row,
+      status: "resolved" as const,
+      message: `Condição normalizada: ${clampText(row.message, 240)}`,
+      updated_at_utc: now
+    } satisfies AlertRow));
+
+  if (resolvedWatchdogAlerts.length > 0) {
+    alertRows.push(...resolvedWatchdogAlerts);
   }
 
   const nextQueue = changedRows.length > 0 ? upsertQueueItems(queueState, changedRows) : queueState;
@@ -230,6 +305,12 @@ export async function POST(request: Request) {
   });
 
   const hasUpstreamError = saveOps.some((row) => row && row.ok === false);
+  const presence = await recomputeAndPersistOfficePresence(config, {
+    actor,
+    sourceRef: "watchdog-run",
+    queueState: nextQueue,
+    agentState
+  });
   return NextResponse.json(
     {
       status: hasUpstreamError ? "upstream_error" : "ok",
@@ -237,8 +318,16 @@ export async function POST(request: Request) {
       changed: changedRows.length,
       reopened: changedRows.filter((row) => row.status === "open").length,
       paused_waiting_owner: changedRows.filter((row) => row.status === "paused_waiting_owner").length,
-      alerts_opened: alertRows.length,
-      watchdog_attempts_updated: attemptRows.length
+      alerts_opened: alertRows.filter((row) => row.status === "open").length,
+      alerts_resolved: resolvedWatchdogAlerts.length,
+      watchdog_attempts_updated: attemptRows.length,
+      presence: {
+        status: presence.status,
+        changed: presence.changed,
+        persisted: presence.persisted,
+        updated_at_utc: presence.state.updated_at_utc
+      },
+      warnings: presence.status !== "ok" ? ["PRESENCE_REFRESH_FAILED"] : []
     },
     { status: hasUpstreamError ? 502 : 200 }
   );

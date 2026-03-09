@@ -6,6 +6,7 @@ export interface AgentRow {
   role: string;
   group: string;
   capabilities: string[];
+  created_at_utc: string;
   heartbeat_interval_sec: number;
   max_concurrency: number;
   current_load: number;
@@ -106,6 +107,7 @@ export function sanitizeAgentRegistryState(input: unknown): AgentRegistryState {
         role: clampText(row.role, 24) || "worker",
         group: clampText(row.group, 40) || "default",
         capabilities: sanitizeCapabilities(row.capabilities),
+        created_at_utc: toIso(row.created_at_utc || row.updated_at_utc || row.last_heartbeat_at_utc),
         heartbeat_interval_sec: toInt(row.heartbeat_interval_sec, 30, 5, 3600),
         max_concurrency: toInt(row.max_concurrency, 1, 1, 200),
         current_load: currentLoad,
