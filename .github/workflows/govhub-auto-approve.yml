@@ -43,16 +43,6 @@ jobs:
             const title = pr.data.title || '';
             const headSha = pr.data.head.sha;
 
-            let mergeableState = pr.data.mergeable_state;
-            if (!mergeableState) {
-              for (let i = 0; i < 5; i++) {
-                await new Promise((r) => setTimeout(r, 1500));
-                const refresh = await github.rest.pulls.get({ owner, repo, pull_number });
-                mergeableState = refresh.data.mergeable_state;
-                if (mergeableState) break;
-              }
-            }
-
             const files = await github.paginate(github.rest.pulls.listFiles, {
               owner,
               repo,
@@ -70,6 +60,7 @@ jobs:
             if (touchesRestricted) {
               core.notice('Restricted path changed. Auto-approval skipped.');
               core.setOutput('approve', 'false');
+              core.setOutput('reason', 'restricted_path');
               return;
             }
 
@@ -91,6 +82,7 @@ jobs:
             if (!hasValidTitle) {
               core.notice('Title prefix invalid. Auto-approval skipped.');
               core.setOutput('approve', 'false');
+              core.setOutput('reason', 'invalid_title');
               return;
             }
 
@@ -98,39 +90,12 @@ jobs:
             if (totalChangedLines > 1000) {
               core.notice('Soft limit exceeded (>1000 changed lines). Auto-approval skipped.');
               core.setOutput('approve', 'false');
-              return;
-            }
-
-            const checks = await github.rest.checks.listForRef({
-              owner,
-              repo,
-              ref: headSha,
-              per_page: 100,
-            });
-
-            const status = await github.rest.repos.getCombinedStatusForRef({
-              owner,
-              repo,
-              ref: headSha,
-            });
-
-            const checkRuns = checks.data.check_runs || [];
-            const hasFailedChecks = checkRuns.some(
-              (c) => c.status === 'completed' && !['success', 'neutral', 'skipped'].includes(c.conclusion || '')
-            );
-            if (status.data.state === 'failure' || hasFailedChecks) {
-              core.notice('Status checks with failure. Auto-approval skipped.');
-              core.setOutput('approve', 'false');
-              return;
-            }
-
-            if (mergeableState === 'behind' || mergeableState === 'dirty') {
-              core.notice(`Branch not up-to-date/mergeable (${mergeableState}). Auto-approval skipped.`);
-              core.setOutput('approve', 'false');
+              core.setOutput('reason', 'too_many_changes');
               return;
             }
 
             core.setOutput('approve', 'true');
+            core.setOutput('reason', 'eligible');
             core.info('All criteria met. PR eligible for auto-approval.');
 
       - name: Resolve approver token state
@@ -164,6 +129,11 @@ jobs:
         if: steps.evaluate.outputs.approve == 'true' && steps.approver_token_state.outputs.has_token != 'true'
         run: |
           echo "GOVHUB_APPROVER_TOKEN ausente. Sem bot aprovador dedicado, o requisito de review continuara manual."
+
+      - name: Auto-approve skipped notice
+        if: steps.evaluate.outputs.approve != 'true'
+        run: |
+          echo "Auto-approve skipped. reason=${{ steps.evaluate.outputs.reason }}"
 
       - name: Enable auto-merge (squash) with retry x3
         id: automerge
