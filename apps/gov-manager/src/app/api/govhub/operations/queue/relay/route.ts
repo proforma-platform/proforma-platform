@@ -28,7 +28,7 @@ function clampProgressPct(value: unknown): number | null {
 }
 
 function isStatus(value: string): value is QueueStatus {
-  return value === "open" || value === "in_progress" || value === "done" || value === "paused_waiting_owner";
+  return value === "staff_validation_gate" || value === "open" || value === "in_progress" || value === "done" || value === "paused_waiting_owner";
 }
 
 function normStatus(value: unknown): QueueStatus | null {
@@ -131,7 +131,7 @@ export async function POST(request: Request) {
       {
         status: "invalid_request",
         error_code: "STATUS_INVALID",
-        message: "Relay status inválido. Use: open|in_progress|paused_waiting_owner|done."
+        message: "Relay status inválido. Use: staff_validation_gate|open|in_progress|paused_waiting_owner|done."
       },
       { status: 422 }
     );
@@ -174,6 +174,17 @@ export async function POST(request: Request) {
   const current = resolveTargetRow(queueState.rows, { queueId, missionId, assignee });
   if (!current) {
     return NextResponse.json({ status: "not_found", error_code: "QUEUE_ITEM_NOT_FOUND" }, { status: 404 });
+  }
+
+  if (nextStatusResolved === "in_progress" && !clampText(current.execution_session_id, 180)) {
+    return NextResponse.json(
+      {
+        status: "conflict",
+        error_code: "MISSION_SESSION_BIND_REQUIRED",
+        message: "Relay bloqueado: item em progresso sem execution_session_id vinculado."
+      },
+      { status: 409 }
+    );
   }
 
   if (jobId && current.execution_job_id && current.execution_job_id !== jobId) {

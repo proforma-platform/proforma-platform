@@ -24,3 +24,6 @@ curl: (28) Operation timed out after 8001 milliseconds with 0 bytes received
 curl: (28) Operation timed out after 8001 milliseconds with 0 bytes received
 curl: (28) Operation timed out after 8000 milliseconds with 0 bytes received
 curl: (28) Operation timed out after 8001 milliseconds with 0 bytes received
+curl: (7) Failed to connect to 127.0.0.1 port 3000 after 0 ms: Connection refused
+kill: (2411492): No such process
+curl: (7) Failed to connect to 127.0.0.1 port 3000 after 0 ms: Connection refused

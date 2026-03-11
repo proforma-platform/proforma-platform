@@ -383,11 +383,12 @@ function computeAssigneeRows(
 
   for (const assignee of assignees) {
     const queueRows = queueState.rows.filter((row) => row.assignee === assignee);
+    const gate_count = queueRows.filter((row) => row.status === "staff_validation_gate").length;
     const open_count = queueRows.filter((row) => row.status === "open").length;
     const in_progress_count = queueRows.filter((row) => row.status === "in_progress").length;
     const paused_count = queueRows.filter((row) => row.status === "paused_waiting_owner").length;
     const done_count = queueRows.filter((row) => row.status === "done").length;
-    const demand_total = open_count + in_progress_count;
+    const demand_total = gate_count + open_count + in_progress_count;
 
     const roleAgents = agentState.rows.filter((row) => String(row.role || "").trim().toUpperCase() === assignee);
     const healthy = assignee === "STAFF" || roleAgents.some((row) => row.state === "idle" || row.state === "running");
@@ -430,6 +431,10 @@ function computeAssigneeRows(
         online = false;
         staleFlag = stale;
       }
+    } else if (gate_count > 0) {
+      state = "AWAITING_OWNER";
+      source = "queue";
+      online = false;
     } else if (demand_total > 0) {
       if (healthy) {
         state = "READY";

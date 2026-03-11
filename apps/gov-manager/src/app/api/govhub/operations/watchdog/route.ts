@@ -166,11 +166,29 @@ export async function POST(request: Request) {
   const activeIssueQueues = new Set<string>();
 
   for (const row of queueState.rows) {
+    const assignee = String(row.assignee || "").trim().toUpperCase();
+    const executorBound = assignee === "CPP" || assignee === "CPP-IA";
+    const healthy = hasHealthyAssigneeAgent(agentState, row.assignee);
+    if ((row.status === "open" || row.status === "staff_validation_gate") && executorBound && !healthy) {
+      activeIssueQueues.add(row.queue_id);
+      const existingAlert = openAlertByQueue.get(row.queue_id);
+      alertRows.push({
+        ...(existingAlert ? existingAlert : { alert_id: createAlertId("WD"), created_at_utc: now }),
+        type: "watchdog",
+        severity: "critical",
+        mission_id: row.mission_id,
+        queue_id: row.queue_id,
+        message: `Executor OFF/não vinculável para item em fila: ${row.title}`,
+        status: "open",
+        source: "watchdog",
+        updated_at_utc: now
+      });
+      continue;
+    }
     if (row.status !== "in_progress") continue;
 
     const heartbeatRecent = hasRecentAssigneeHeartbeat(agentState, row, nowEpoch);
     const stuck = isRowStuck(row, nowEpoch, staleThresholdMin) && !heartbeatRecent;
-    const healthy = hasHealthyAssigneeAgent(agentState, row.assignee);
     if (!stuck && healthy) continue;
 
     const reason = !healthy ? "worker_unavailable" : "stale_progress";
@@ -185,7 +203,17 @@ export async function POST(request: Request) {
 
     // Governança operacional: ausência de heartbeat/progresso por tempo acima do limiar
     // deve reabrir e, após tentativas, pausar aguardando owner.
-    if (!healthy || shouldDemoteByStale) {
+    if (!healthy) {
+      nextStatus = "paused_waiting_owner";
+      nextAttempt = 2;
+      shouldChangeStatus = true;
+      attemptRows.push({
+        queue_id: row.queue_id,
+        count: nextAttempt,
+        last_reason: "executor_session_offline",
+        updated_at_utc: now
+      });
+    } else if (shouldDemoteByStale) {
       nextStatus = "open";
       nextAttempt = currentAttempt + 1;
       if (nextAttempt > 2) {
@@ -203,12 +231,10 @@ export async function POST(request: Request) {
 
     if (shouldChangeStatus) {
       const transitionCode = !healthy
-        ? (nextStatus === "paused_waiting_owner" ? "WATCHDOG_WORKER_UNAVAILABLE_PAUSE" : "WATCHDOG_WORKER_UNAVAILABLE_RETRY")
+        ? "EXECUTOR_SESSION_OFFLINE"
         : (nextStatus === "paused_waiting_owner" ? "WATCHDOG_STALE_PROGRESS_PAUSE" : "WATCHDOG_STALE_PROGRESS_RETRY");
       const transitionMessage = !healthy
-        ? (nextStatus === "paused_waiting_owner"
-          ? "Watchdog pausou o item por indisponibilidade do executor após tentativas."
-          : "Watchdog reabriu o item por indisponibilidade do executor (retry automático).")
+        ? "Watchdog pausou o item: executor OFF/sessão indisponível."
         : (nextStatus === "paused_waiting_owner"
           ? "Watchdog pausou o item por ausência de progresso/heartbeat após tentativas."
           : "Watchdog reabriu o item por ausência de progresso/heartbeat (retry automático).");
@@ -229,13 +255,11 @@ export async function POST(request: Request) {
     alertRows.push({
       ...(existingAlert ? existingAlert : { alert_id: createAlertId("WD"), created_at_utc: now }),
       type: "watchdog",
-      severity: nextStatus === "paused_waiting_owner" ? "high" : "medium",
+      severity: !healthy ? "critical" : nextStatus === "paused_waiting_owner" ? "high" : "medium",
       mission_id: row.mission_id,
       queue_id: row.queue_id,
       message: !healthy
-        ? nextStatus === "paused_waiting_owner"
-          ? `Item pausado por watchdog após tentativas (worker indisponível): ${row.title}`
-          : `Retry automático ${nextAttempt}/2 por watchdog (worker indisponível): ${row.title}`
+        ? `Item pausado por watchdog (EXECUTOR_SESSION_OFFLINE): ${row.title}`
         : nextStatus === "paused_waiting_owner"
           ? `Item pausado por watchdog após tentativas (stale >= ${staleThresholdMin} min): ${row.title}`
           : `Retry automático ${nextAttempt}/2 por watchdog (stale >= ${staleThresholdMin} min): ${row.title}`,

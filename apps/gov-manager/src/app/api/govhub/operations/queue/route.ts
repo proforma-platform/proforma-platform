@@ -38,11 +38,13 @@ import { requestQueueStartAck } from "../../../../../core/queue-start-ack";
 import { recomputeAndPersistOfficePresence } from "../../../../../core/office-presence";
 import { defaultMissionBoardState, sanitizeMissionBoardState, syncMissionBoardRelayStatus } from "../../../../../core/mission-board-relay";
 import { validateQueueTransition } from "../../../../../core/transition-validator";
+import { createAlertId, defaultAlertState, sanitizeAlertState, upsertAlerts } from "../../../../../core/alerts";
 
 const QUEUE_SNAPSHOT_TYPE = String(process.env.GOVHUB_EXECUTION_QUEUE_SNAPSHOT_TYPE || "gov_manager_execution_queue_v1").trim();
 const AGENTS_SNAPSHOT_TYPE = String(process.env.GOVHUB_AGENT_REGISTRY_SNAPSHOT_TYPE || "gov_manager_agent_registry_v1").trim();
 const BOARD_SNAPSHOT_TYPE = String(process.env.GOVHUB_MISSIONS_MANAGE_SNAPSHOT_TYPE || "gov_manager_mission_board_v1").trim();
 const SESSIONS_SNAPSHOT_TYPE = String(process.env.GOVHUB_EXECUTION_SESSIONS_SNAPSHOT_TYPE || "gov_manager_execution_sessions_v1").trim();
+const ALERTS_SNAPSHOT_TYPE = String(process.env.GOVHUB_ALERTS_SNAPSHOT_TYPE || "gov_manager_alerts_v1").trim();
 const PREFERRED_EXECUTION_AGENT_BY_ASSIGNEE: Partial<Record<QueueAssignee, string>> = {
   CPP: "gov-codex-01"
 };
@@ -72,7 +74,7 @@ function isPriority(value: unknown): value is QueuePriority {
 }
 
 function isStatus(value: unknown): value is QueueStatus {
-  return value === "open" || value === "in_progress" || value === "done" || value === "paused_waiting_owner";
+  return value === "staff_validation_gate" || value === "open" || value === "in_progress" || value === "done" || value === "paused_waiting_owner";
 }
 
 function normalizePriority(value: unknown): QueuePriority {
@@ -242,6 +244,7 @@ export async function POST(request: Request) {
     const kind = clampText(data.kind, 60) || "general";
     const priority = normalizePriority(data.priority);
     const assignee = normalizeAssignee(data.assignee || decideAssignee(kind));
+    const status = assignee === "STAFF" ? "open" : "staff_validation_gate";
     const item: QueueItem = {
       queue_id: createQueueId(missionId, title),
       mission_id: missionId,
@@ -250,7 +253,7 @@ export async function POST(request: Request) {
       kind,
       priority,
       assignee,
-      status: "open",
+      status,
       execution_progress_pct: 0,
       created_at_utc: now,
       updated_at_utc: now
@@ -269,6 +272,9 @@ export async function POST(request: Request) {
       snapshot_type: QUEUE_SNAPSHOT_TYPE,
       updated_at_utc: next.updated_at_utc,
       inserted: 1,
+      ...(status === "staff_validation_gate"
+        ? { gate_required: true, gate_reason_code: "STAFF_VALIDATION_GATE_REQUIRED" }
+        : {}),
       summary: summarizeQueue(next.rows),
       rows: next.rows.slice(0, 80),
       payload_sha256: saved.payload_sha256,
@@ -293,6 +299,7 @@ export async function POST(request: Request) {
       const kind = clampText(row.kind || row.executor, 60) || "general";
       const priority = normalizePriority(row.priority);
       const assignee = normalizeAssignee(row.assignee || decideAssignee(kind));
+      const status = assignee === "STAFF" ? "open" : "staff_validation_gate";
       acc.push({
         queue_id: createQueueId(missionId, title, idx + 1),
         mission_id: missionId,
@@ -301,7 +308,7 @@ export async function POST(request: Request) {
         kind,
         priority,
         assignee,
-        status: "open",
+        status,
         execution_progress_pct: 0,
         created_at_utc: now,
         updated_at_utc: now
@@ -386,7 +393,7 @@ export async function POST(request: Request) {
   }
 
   const queueId = clampText(data.queue_id, 160);
-  const nextStatus = normalizeStatus(data.status);
+  let nextStatus = normalizeStatus(data.status);
   if (!queueId || !nextStatus) {
     return NextResponse.json({ status: "invalid_request", error_code: "QUEUE_ID_AND_VALID_STATUS_REQUIRED" }, { status: 400 });
   }
@@ -412,10 +419,183 @@ export async function POST(request: Request) {
   let agentsStatus: number | null = null;
   let sessionsStatus: number | null = null;
 
+  const validationDecision = clampText(data.validation_decision, 40).toLowerCase();
+  if ((current.status === "staff_validation_gate") && (nextStatus === "open" || nextStatus === "in_progress")) {
+    if (!validationDecision) {
+      const alertsLoaded = await loadSnapshotPayload(config, ALERTS_SNAPSHOT_TYPE);
+      const alertsState = alertsLoaded.found && alertsLoaded.payload ? sanitizeAlertState(alertsLoaded.payload) : defaultAlertState();
+      const existing = alertsState.rows.find((row) => {
+        return (
+          (row.status === "open" || row.status === "ack") &&
+          String(row.type || "") === "governance" &&
+          String(row.queue_id || "") === current.queue_id &&
+          String(row.mission_id || "") === current.mission_id &&
+          String(row.message || "").includes("STAFF_VALIDATION_DECISION_REQUIRED")
+        );
+      });
+      if (!existing) {
+        const nextAlerts = upsertAlerts(alertsState, [
+          {
+            alert_id: createAlertId("GOV"),
+            type: "governance",
+            severity: "critical",
+            mission_id: current.mission_id,
+            queue_id: current.queue_id,
+            message: `STAFF_VALIDATION_DECISION_REQUIRED: missão bloqueada no gate. Worker deve mobilizar reconexão CPP e vincular sessão antes de progresso.`,
+            status: "open",
+            source: "operations-queue",
+            created_at_utc: now,
+            updated_at_utc: now
+          }
+        ]);
+        await saveSnapshotPayload(config, {
+          snapshotType: ALERTS_SNAPSHOT_TYPE,
+          payload: nextAlerts,
+          createdBy: actor,
+          sourceRepo: "gov-manager",
+          sourceRef: "queue-staff-validation-alert"
+        });
+      }
+
+      const sessionsLoaded = await loadSnapshotPayload(config, SESSIONS_SNAPSHOT_TYPE);
+      let sessionsState = sessionsLoaded.found && sessionsLoaded.payload ? sanitizeExecutionSessionsState(sessionsLoaded.payload) : defaultExecutionSessionsState();
+      const cppRole = normalizeAssignee(current.assignee);
+      const preferredAgentId = PREFERRED_EXECUTION_AGENT_BY_ASSIGNEE[cppRole];
+      const targetSession = sessionsState.sessions.find((session) => {
+        const role = String(session.role || "").trim().toUpperCase();
+        if (role !== cppRole) return false;
+        if (preferredAgentId && String(session.agent_id || "").trim().toLowerCase() !== String(preferredAgentId).toLowerCase()) return false;
+        return true;
+      });
+      if (targetSession) {
+        const traceId = createTraceId(current.mission_id);
+        const runId = createRunId(current.mission_id);
+        sessionsState = appendExecutionEvent(sessionsState, {
+          event_id: createEventId(targetSession.session_id, "warning"),
+          session_id: targetSession.session_id,
+          mission_id: current.mission_id,
+          trace_id: traceId,
+          run_id: runId,
+          event_type: "warning",
+          stage: "governance",
+          message: "Mobilização automática: reconectar CPP e vincular sessão para liberar gate staff.",
+          created_at_utc: now
+        });
+        await saveSnapshotPayload(config, {
+          snapshotType: SESSIONS_SNAPSHOT_TYPE,
+          payload: sessionsState,
+          createdBy: actor,
+          sourceRepo: "gov-manager",
+          sourceRef: "queue-staff-validation-mobilize"
+        });
+      }
+
+      return NextResponse.json(
+        {
+          status: "conflict",
+          error_code: "STAFF_VALIDATION_DECISION_REQUIRED",
+          message: "Gate de validação do Staff exige decision: bind_cpp | reassign_cpp | staff_fallback."
+        },
+        { status: 409 }
+      );
+    }
+    if (validationDecision === "staff_fallback") {
+      const { assignee_agent_id: _dropAssigneeAgentId, execution_session_id: _dropSessionId, execution_agent_id: _dropExecAgent, ...fallbackBase } = current;
+      nextRow = {
+        ...fallbackBase,
+        assignee: "STAFF",
+        status: "open",
+        last_transition_reason_code: "STAFF_FALLBACK_ACTIVE",
+        last_transition_reason_message: `Staff assumiu execução por fallback (${actor}).`,
+        last_transition_source: "operations-queue",
+        last_transition_actor: actor,
+        last_transition_at_utc: now,
+        updated_at_utc: now
+      };
+      nextStatus = "open";
+    } else if (validationDecision === "reassign_cpp") {
+      const requestedAssignee = normalizeAssignee(data.assignee || current.assignee);
+      if (requestedAssignee !== "CPP" && requestedAssignee !== "CPP-IA") {
+        return NextResponse.json(
+          {
+            status: "invalid_request",
+            error_code: "REASSIGN_CPP_REQUIRES_CPP",
+            message: "Reassign CPP exige assignee=CPP ou CPP-IA."
+          },
+          { status: 400 }
+        );
+      }
+      if (!hasHealthyAssigneeAgent(agentState, requestedAssignee)) {
+        return NextResponse.json(
+          { status: "conflict", error_code: "EXECUTOR_NOT_BINDABLE", message: `Sem executor saudável para ${requestedAssignee}.` },
+          { status: 409 }
+        );
+      }
+      nextRow = {
+        ...current,
+        assignee: requestedAssignee,
+        status: "open",
+        last_transition_reason_code: "STAFF_VALIDATION_REASSIGN_CPP",
+        last_transition_reason_message: `Gate validado com reassign para ${requestedAssignee} por ${actor}.`,
+        last_transition_source: "operations-queue",
+        last_transition_actor: actor,
+        last_transition_at_utc: now,
+        updated_at_utc: now
+      };
+      nextStatus = "open";
+    } else if (validationDecision === "bind_cpp") {
+      const requestedAssignee = normalizeAssignee(data.assignee || current.assignee);
+      if (requestedAssignee !== "CPP" && requestedAssignee !== "CPP-IA") {
+        return NextResponse.json(
+          { status: "invalid_request", error_code: "BIND_CPP_REQUIRES_CPP", message: "Bind CPP exige assignee=CPP ou CPP-IA." },
+          { status: 400 }
+        );
+      }
+      if (!hasHealthyAssigneeAgent(agentState, requestedAssignee)) {
+        return NextResponse.json(
+          { status: "conflict", error_code: "EXECUTOR_NOT_BINDABLE", message: `Sem executor saudável para ${requestedAssignee}.` },
+          { status: 409 }
+        );
+      }
+      nextRow = {
+        ...current,
+        assignee: requestedAssignee,
+        status: "open",
+        last_transition_reason_code: "STAFF_VALIDATION_BIND_CPP",
+        last_transition_reason_message: `Gate validado e pronto para esteira A Fazer (${actor}).`,
+        last_transition_source: "operations-queue",
+        last_transition_actor: actor,
+        last_transition_at_utc: now,
+        updated_at_utc: now
+      };
+      nextStatus = "open";
+    } else {
+      return NextResponse.json(
+        {
+          status: "invalid_request",
+          error_code: "STAFF_VALIDATION_DECISION_INVALID",
+          message: "Decision inválida. Use: bind_cpp | reassign_cpp | staff_fallback."
+        },
+        { status: 400 }
+      );
+    }
+  }
+
   if (nextStatus === "in_progress") {
     if (!hasHealthyAssigneeAgent(agentState, current.assignee)) {
       return NextResponse.json(
         { status: "conflict", error_code: "ASSIGNEE_NOT_HEALTHY", message: `Nenhum worker saudável para ${current.assignee}.` },
+        { status: 409 }
+      );
+    }
+
+    if (current.status === "in_progress" && !clampText(current.execution_session_id, 180)) {
+      return NextResponse.json(
+        {
+          status: "conflict",
+          error_code: "MISSION_SESSION_BIND_REQUIRED",
+          message: "Missão em progresso sem execution_session_id. Regularize o vínculo da sessão antes de continuar."
+        },
         { status: 409 }
       );
     }
@@ -492,7 +672,17 @@ export async function POST(request: Request) {
         current.assignee,
         PREFERRED_EXECUTION_AGENT_BY_ASSIGNEE[current.assignee]
       );
-      if (claimableSession) {
+      if (!claimableSession) {
+        return NextResponse.json(
+          {
+            status: "conflict",
+            error_code: "MISSION_SESSION_BIND_REQUIRED",
+            message: `Transição para in_progress bloqueada: não há sessão ativa disponível para ${current.assignee}.`
+          },
+          { status: 409 }
+        );
+      }
+      {
         const traceId = createTraceId(current.mission_id);
         const runId = createRunId(current.mission_id);
         const claimedSession = {
@@ -535,6 +725,18 @@ export async function POST(request: Request) {
           sourceRef: "execution-queue-auto-claim"
         });
         sessionsStatus = sessionSaved.status;
+        if (!sessionSaved.ok) {
+          return NextResponse.json(
+            {
+              status: "upstream_error",
+              error_code: "MISSION_SESSION_BIND_REQUIRED",
+              message: "Transição para in_progress bloqueada: falha ao persistir vínculo da sessão.",
+              govhub_http: sessionSaved.status,
+              govhub_response: sessionSaved.response
+            },
+            { status: 502 }
+          );
+        }
         nextRow = {
           ...nextRow,
           assignee_agent_id: claimedSession.agent_id,

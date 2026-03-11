@@ -1,6 +1,6 @@
 export type QueuePriority = "P0" | "P1" | "P2" | "P3";
 export type QueueAssignee = "STAFF" | "CPP" | "CPP-IA";
-export type QueueStatus = "open" | "in_progress" | "done" | "paused_waiting_owner";
+export type QueueStatus = "staff_validation_gate" | "open" | "in_progress" | "done" | "paused_waiting_owner";
 
 export interface QueueItem {
   queue_id: string;
@@ -49,7 +49,7 @@ export interface QueueState {
 
 const PRIORITY_SET = new Set<QueuePriority>(["P0", "P1", "P2", "P3"]);
 const ASSIGNEE_SET = new Set<QueueAssignee>(["STAFF", "CPP", "CPP-IA"]);
-const STATUS_SET = new Set<QueueStatus>(["open", "in_progress", "done", "paused_waiting_owner"]);
+const STATUS_SET = new Set<QueueStatus>(["staff_validation_gate", "open", "in_progress", "done", "paused_waiting_owner"]);
 
 function nowUtc(): string {
   return new Date().toISOString();
@@ -217,7 +217,7 @@ export function summarizeQueue(rows: QueueItem[]): {
 } {
   const by_assignee: Record<QueueAssignee, number> = { STAFF: 0, CPP: 0, "CPP-IA": 0 };
   const by_priority: Record<QueuePriority, number> = { P0: 0, P1: 0, P2: 0, P3: 0 };
-  const by_status: Record<QueueStatus, number> = { open: 0, in_progress: 0, done: 0, paused_waiting_owner: 0 };
+  const by_status: Record<QueueStatus, number> = { staff_validation_gate: 0, open: 0, in_progress: 0, done: 0, paused_waiting_owner: 0 };
   for (const row of rows) {
     by_assignee[row.assignee] += 1;
     by_priority[row.priority] += 1;

@@ -481,11 +481,11 @@ export async function POST(request: Request) {
     const missionEditable = queueState.rows.some((row) => {
       const sameMission = normalizeMissionId(row.mission_id) === missionId;
       if (!sameMission) return false;
-      return row.status === "in_progress" || row.status === "done";
+      return row.status === "open" || row.status === "paused_waiting_owner" || row.status === "in_progress" || row.status === "done";
     });
     if (!missionEditable) {
       return NextResponse.json(
-        { status: "conflict", error_code: "MISSION_NOT_EDITABLE", message: "Missão só pode ser editada em progresso ou concluída." },
+        { status: "conflict", error_code: "MISSION_NOT_EDITABLE", message: "Missão só pode ser editada em A Fazer, pausada, em progresso ou concluída." },
         { status: 409 }
       );
     }

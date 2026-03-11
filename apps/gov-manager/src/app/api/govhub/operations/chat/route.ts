@@ -600,30 +600,40 @@ export async function DELETE(request: Request) {
   }
 
   const url = new URL(request.url);
+  const deleteAll = String(url.searchParams.get("all") || "").trim().toLowerCase() === "true";
   const messageId = clampChatText(url.searchParams.get("message_id"), 120);
-  if (!messageId) {
+  if (!deleteAll && !messageId) {
     return NextResponse.json({ status: "invalid_request", error_code: "MESSAGE_ID_REQUIRED" }, { status: 400 });
   }
 
   const loaded = await loadSnapshotPayload(config, CHAT_SNAPSHOT_TYPE);
   const state = loaded.found && loaded.payload ? sanitizeChatState(loaded.payload) : sanitizeChatState(null);
 
-  const deleteIds = new Set<string>([messageId]);
-  let changed = true;
-  while (changed) {
-    changed = false;
+  const deleteIds = new Set<string>();
+  let nextRows = state.rows;
+  if (deleteAll) {
     for (const row of state.rows) {
-      const parentId = String(row.in_reply_to || "").trim();
       const rowId = String(row.message_id || "").trim();
-      if (!rowId || !parentId) continue;
-      if (deleteIds.has(parentId) && !deleteIds.has(rowId)) {
-        deleteIds.add(rowId);
-        changed = true;
+      if (rowId) deleteIds.add(rowId);
+    }
+    nextRows = [];
+  } else {
+    deleteIds.add(messageId);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const row of state.rows) {
+        const parentId = String(row.in_reply_to || "").trim();
+        const rowId = String(row.message_id || "").trim();
+        if (!rowId || !parentId) continue;
+        if (deleteIds.has(parentId) && !deleteIds.has(rowId)) {
+          deleteIds.add(rowId);
+          changed = true;
+        }
       }
     }
+    nextRows = state.rows.filter((row) => !deleteIds.has(String(row.message_id || "").trim()));
   }
-
-  const nextRows = state.rows.filter((row) => !deleteIds.has(String(row.message_id || "").trim()));
   if (nextRows.length === state.rows.length) {
     return NextResponse.json({ status: "not_found", error_code: "MESSAGE_NOT_FOUND" }, { status: 404 });
   }

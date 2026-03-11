@@ -15,7 +15,7 @@ type MissionsTab = "cadastro" | "gestao";
 type PartExecutor = "STAFF" | "CPP" | "CPP-IA";
 type PartPriority = "P0" | "P1" | "P2";
 type ChatUiAction = "MSG" | "STATUS" | "OK" | "PAUSAR" | "NEGAR" | "OWNER_CALL" | "NOVA_MISSAO";
-type QueueWorkflowStatus = "open" | "in_progress" | "done" | "paused_waiting_owner";
+type QueueWorkflowStatus = "staff_validation_gate" | "open" | "in_progress" | "done" | "paused_waiting_owner";
 
 interface MissionPart {
   part_id: string;
@@ -258,6 +258,17 @@ interface MissionBoardMission {
   updated_by?: string;
 }
 
+interface MissionAssetRow {
+  asset_id: string;
+  mission_id: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes: number;
+  created_at_utc: string;
+  created_by: string;
+  download_url?: string;
+}
+
 interface ChatRow {
   message_id?: string;
   mission_id?: string;
@@ -320,6 +331,8 @@ interface QueueUpdateExtras {
   etaDeltaMin?: number;
   etaReason?: string;
   completionNote?: string;
+  validationDecision?: "bind_cpp" | "reassign_cpp" | "staff_fallback";
+  assignee?: "STAFF" | "CPP" | "CPP-IA";
 }
 
 interface TopNotice {
@@ -364,6 +377,7 @@ const SECTION_ITEMS: Array<{ id: Section; label: string; icon: string }> = [
   { id: "memoria", label: "Memória", icon: "⧉" }
 ];
 const KANBAN_COLUMNS: Array<{ status: QueueWorkflowStatus; label: string }> = [
+  { status: "staff_validation_gate", label: "Gate Staff" },
   { status: "open", label: "A fazer" },
   { status: "in_progress", label: "Em progresso" },
   { status: "paused_waiting_owner", label: "Pausadas" },
@@ -924,6 +938,11 @@ function formatExecutionMonitorLabel(session: ExecutionSessionRow | null, event:
   return `Monitor: ${eventMessage || "missão recebida"} · sessão ${sessionStatus} · ${heartbeatLabel}`;
 }
 
+function sessionLooksOnline(statusRaw: string): boolean {
+  const status = String(statusRaw || "").trim().toLowerCase();
+  return status === "online" || status === "busy" || status === "registered" || status === "waiting";
+}
+
 function inferRoleFromIdentity(identityRaw: string): string {
   const identity = String(identityRaw || "").trim().toLowerCase();
   if (!identity) return "WORKER";
@@ -1086,6 +1105,7 @@ function queueAssigneeFactor(assignee: string): number {
 
 function queueStatusLabel(status: string): string {
   const normalized = String(status || "").trim().toLowerCase();
+  if (normalized === "staff_validation_gate") return "Gate Staff";
   if (normalized === "open") return "A fazer";
   if (normalized === "in_progress") return "Em progresso";
   if (normalized === "paused_waiting_owner") return "Pausada";
@@ -1095,6 +1115,7 @@ function queueStatusLabel(status: string): string {
 
 function queueStatusLedMeta(status: string): { tone: "open" | "progress" | "paused" | "done" | "unknown"; label: string } {
   const normalized = String(status || "").trim().toLowerCase();
+  if (normalized === "staff_validation_gate") return { tone: "paused", label: "Validação Staff" };
   if (normalized === "open") return { tone: "open", label: "Aguardando início" };
   if (normalized === "in_progress") return { tone: "progress", label: "Executando" };
   if (normalized === "paused_waiting_owner") return { tone: "paused", label: "Pausada" };
@@ -1374,6 +1395,11 @@ export default function GovManagerPage() {
   const [queueDetailsOpen, setQueueDetailsOpen] = useState(false);
   const [queueDetailsRow, setQueueDetailsRow] = useState<QueueRow | null>(null);
   const [missionUdnById, setMissionUdnById] = useState<Record<string, string>>({});
+  const [missionAssets, setMissionAssets] = useState<MissionAssetRow[]>([]);
+  const [missionAssetBusy, setMissionAssetBusy] = useState(false);
+  const [missionAssetNotice, setMissionAssetNotice] = useState("");
+  const [missionAssetPreviewId, setMissionAssetPreviewId] = useState("");
+  const [missionAssetsOpen, setMissionAssetsOpen] = useState(false);
   const [missionManageText, setMissionManageText] = useState("");
   const [missionManageUpdatedAt, setMissionManageUpdatedAt] = useState("");
   const [missionManageNotice, setMissionManageNotice] = useState("");
@@ -3040,9 +3066,9 @@ export default function GovManagerPage() {
     const missionEditable = queueRows.some((row) => {
       const sameMission = String(row.mission_id || "").trim().toUpperCase() === missionId;
       const status = String(row.status || "").toLowerCase();
-      return sameMission && (status === "in_progress" || status === "done");
+      return sameMission && (status === "staff_validation_gate" || status === "open" || status === "paused_waiting_owner" || status === "in_progress" || status === "done");
     });
-    if (missionId && !missionEditable) issues.push("Missão precisa estar em progresso ou concluída");
+    if (missionId && !missionEditable) issues.push("Missão precisa estar em A Fazer, pausada, em progresso ou concluída");
     return issues;
   }
 
@@ -3215,6 +3241,150 @@ export default function GovManagerPage() {
     };
   }
 
+  const missionAssetMissionId = String(mission.id || "").trim().toUpperCase();
+  const missionAssetPreview = missionAssets.find((item) => item.asset_id === missionAssetPreviewId) || null;
+
+  function formatAssetBytes(value: number): string {
+    const bytes = Number(value || 0);
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function missionAssetNotesBlock(): string {
+    if (!missionAssetMissionId || missionAssets.length === 0) return "";
+    const header = `Anexos da missão (${missionAssets.length}):`;
+    const lines = missionAssets.map((item, index) => {
+      const url = `/api/govhub/missions/assets?mission_id=${encodeURIComponent(item.mission_id)}&asset_id=${encodeURIComponent(item.asset_id)}&download=1`;
+      return `${index + 1}. ${item.file_name} (${item.mime_type}, ${formatAssetBytes(item.size_bytes)}) => ${url}`;
+    });
+    return `${header}\n${lines.join("\n")}`;
+  }
+
+  function toBase64(bytes: Uint8Array): string {
+    let binary = "";
+    const chunkSize = 0x8000;
+    for (let index = 0; index < bytes.length; index += chunkSize) {
+      const chunk = bytes.subarray(index, index + chunkSize);
+      binary += String.fromCharCode(...chunk);
+    }
+    return btoa(binary);
+  }
+
+  async function loadMissionAssets() {
+    if (!missionAssetMissionId) {
+      setMissionAssets([]);
+      return;
+    }
+    try {
+      const response = await fetch(`/api/govhub/missions/assets?mission_id=${encodeURIComponent(missionAssetMissionId)}`, { cache: "no-store" });
+      let payload: unknown = null;
+      try {
+        payload = await response.json();
+      } catch {
+        const text = await response.text().catch(() => "");
+        payload = { error_code: "NON_JSON_RESPONSE", message: text.slice(0, 180) || "Resposta não-JSON do backend." };
+      }
+      if (!response.ok) {
+        setMissionAssetNotice(`Falha ao carregar anexos: ${resolveRegisterError(payload)}.`);
+        return;
+      }
+      const payloadObj = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
+      const rows = Array.isArray(payloadObj.rows) ? payloadObj.rows : [];
+      setMissionAssets(rows);
+      setMissionAssetNotice(rows.length > 0 ? `${rows.length} anexo(s) disponível(is).` : "Sem anexos para esta missão.");
+      if (rows.length === 0) setMissionAssetPreviewId("");
+    } catch {
+      setMissionAssetNotice("Falha de rede ao carregar anexos.");
+    }
+  }
+
+  async function uploadMissionFiles(fileList: FileList | null) {
+    const MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
+    const UPLOAD_TIMEOUT_MS = 120000;
+    if (!fileList || fileList.length === 0) return;
+    if (!missionAssetMissionId) {
+      setMissionAssetNotice("Defina o Mission ID antes de anexar arquivos.");
+      return;
+    }
+    setMissionAssetBusy(true);
+    setMissionAssetNotice("Enviando anexos...");
+    try {
+      for (const file of Array.from(fileList)) {
+        if (file.size > MAX_UPLOAD_BYTES) {
+          setMissionAssetNotice(`Falha no upload: ${file.name} excede 12 MB.`);
+          return;
+        }
+        const fileName = String(file.name || "arquivo").trim() || "arquivo";
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
+        const formData = new FormData();
+        formData.append("mission_id", missionAssetMissionId);
+        formData.append("file", file, fileName);
+        const response = await fetch("/api/govhub/missions/assets", {
+          method: "POST",
+          signal: controller.signal,
+          body: formData
+        }).finally(() => window.clearTimeout(timeout));
+        let payload: unknown = null;
+        try {
+          payload = await response.json();
+        } catch {
+          const text = await response.text().catch(() => "");
+          payload = { error_code: "NON_JSON_RESPONSE", message: text.slice(0, 180) || "Resposta não-JSON do backend." };
+        }
+        if (!response.ok) {
+          setMissionAssetNotice(`Falha no upload: ${resolveRegisterError(payload)}.`);
+          return;
+        }
+      }
+      await loadMissionAssets();
+      setMissionAssetNotice("Anexos atualizados.");
+    } catch (error) {
+      const err = error as { name?: string; message?: string } | null;
+      const name = String(err?.name || "").trim();
+      const message = String(err?.message || "").trim();
+      if (name === "AbortError") {
+        setMissionAssetNotice("Falha no upload: tempo limite excedido.");
+      } else if (message) {
+        setMissionAssetNotice(`Falha no upload: ${message}.`);
+      } else {
+        setMissionAssetNotice("Falha no upload: conexão indisponível.");
+      }
+    } finally {
+      setMissionAssetBusy(false);
+    }
+  }
+
+  async function removeMissionAsset(assetId: string) {
+    if (!missionAssetMissionId || !assetId) return;
+    setMissionAssetBusy(true);
+    try {
+      const response = await fetch(
+        `/api/govhub/missions/assets?mission_id=${encodeURIComponent(missionAssetMissionId)}&asset_id=${encodeURIComponent(assetId)}`,
+        { method: "DELETE" }
+      );
+      let payload: unknown = null;
+      try {
+        payload = await response.json();
+      } catch {
+        const text = await response.text().catch(() => "");
+        payload = { error_code: "NON_JSON_RESPONSE", message: text.slice(0, 180) || "Resposta não-JSON do backend." };
+      }
+      if (!response.ok) {
+        setMissionAssetNotice(`Falha ao excluir anexo: ${resolveRegisterError(payload)}.`);
+        return;
+      }
+      await loadMissionAssets();
+      if (missionAssetPreviewId === assetId) setMissionAssetPreviewId("");
+      setMissionAssetNotice("Anexo removido.");
+    } catch {
+      setMissionAssetNotice("Falha de rede ao excluir anexo.");
+    } finally {
+      setMissionAssetBusy(false);
+    }
+  }
+
   function validateMission() {
     const result = validateMissionForSubmit();
     if (!result.ok) {
@@ -3249,6 +3419,8 @@ export default function GovManagerPage() {
       return;
     }
     const { missionPayload, udnPayload, udnAutoRepaired = false, repairedTokens = [] } = validation;
+    const assetBlock = missionAssetNotesBlock();
+    const notesWithAssets = [String(missionPayload.notes || "").trim(), assetBlock].filter(Boolean).join("\n\n");
     setStatus("sending");
     try {
       const { response, payload } = await fetchJsonWithTimeout("/api/govhub/missions/register", {
@@ -3257,7 +3429,8 @@ export default function GovManagerPage() {
         body: JSON.stringify({
           udn: udnPayload,
           mission: {
-            ...missionPayload
+            ...missionPayload,
+            notes: notesWithAssets
           },
           created_by: createdBy,
           token_control: tokenControl,
@@ -3456,6 +3629,40 @@ export default function GovManagerPage() {
     }
   }
 
+  async function deleteAllChatMessages() {
+    if (currentRole !== "admin") {
+      setChatNotice("Ação bloqueada: apenas Admin pode excluir todas as mensagens.");
+      return;
+    }
+    if (chatRows.length === 0) {
+      setChatNotice("Não há mensagens para excluir.");
+      return;
+    }
+    const confirmed = window.confirm("Tem certeza que deseja excluir todas as conversas do Chat HUB?");
+    if (!confirmed) return;
+
+    setStatus("chat_dispatch");
+    try {
+      const response = await fetch("/api/govhub/operations/chat?all=true", {
+        method: "DELETE"
+      });
+      const payload = await response.json();
+      setResponseText(JSON.stringify(payload, null, 2));
+      setStatus(response.ok ? "success" : "error");
+      if (response.ok) {
+        setChatNotice("Todas as mensagens foram excluídas.");
+        setChatUnread(0);
+        setChatRefreshNonce((prev) => prev + 1);
+      } else {
+        setChatNotice(`Falha ao excluir todas: ${resolveRegisterError(payload)}.`);
+      }
+    } catch {
+      setStatus("error");
+      setChatNotice("Falha de rede ao excluir todas as mensagens.");
+      setResponseText(JSON.stringify({ status: "error", error_code: "CHAT_DELETE_ALL_FAILED" }, null, 2));
+    }
+  }
+
   async function handleChatMessageKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key !== "Enter" || event.shiftKey) return;
     if (chatTranscriptionState === "recording" || chatTranscriptionState === "uploading") return;
@@ -3627,7 +3834,7 @@ export default function GovManagerPage() {
 
   async function updateQueueStatus(
     row: QueueRow,
-    nextStatus: "open" | "in_progress" | "done" | "paused_waiting_owner",
+    nextStatus: "staff_validation_gate" | "open" | "in_progress" | "done" | "paused_waiting_owner",
     notice: string,
     extras?: QueueUpdateExtras
   ) {
@@ -3643,6 +3850,8 @@ export default function GovManagerPage() {
         actor: createdBy,
         queue_id: queueId,
         status: nextStatus,
+        ...(extras?.validationDecision ? { validation_decision: extras.validationDecision } : {}),
+        ...(extras?.assignee ? { assignee: extras.assignee } : {}),
         ...(nextStatus === "done" && extras?.reviewerGuard ? extras.reviewerGuard : {}),
         ...(typeof extras?.etaDeltaMin === "number" ? { eta_delta_min: extras.etaDeltaMin } : {}),
         ...(String(extras?.etaReason || "").trim() ? { eta_reason: String(extras?.etaReason || "").trim() } : {}),
@@ -3746,6 +3955,31 @@ export default function GovManagerPage() {
       return;
     }
     await updateQueueStatus(row, nextStatus, `Item movido para ${queueStatusLabel(nextStatus)}.`);
+    setQueueFocusedId(id);
+  }
+
+  async function reconnectQueueBinding(queueId: string) {
+    const id = String(queueId || "").trim();
+    if (!id) return;
+    const row = queueOrderedRows.find((item) => String(item.queue_id || "") === id);
+    if (!row) {
+      setQueueNotice("Item não encontrado para reconectar vínculo.");
+      return;
+    }
+    const assignee = String(row.assignee || "").trim().toUpperCase();
+    if (assignee !== "CPP" && assignee !== "CPP-IA") {
+      setQueueNotice("Reconexão de vínculo disponível apenas para executores CPP.");
+      return;
+    }
+    await updateQueueStatus(
+      row,
+      "open",
+      `Reconexão/vínculo CPP solicitada para ${formatChatIdentity(String(row.assignee || "-"))}.`,
+      {
+        validationDecision: "bind_cpp",
+        assignee: assignee as "CPP" | "CPP-IA"
+      }
+    );
     setQueueFocusedId(id);
   }
 
@@ -3995,6 +4229,16 @@ export default function GovManagerPage() {
       window.clearInterval(interval);
     };
   }, [createdBy, mission.id, mission.agent_id, mission.target, monitorRefreshNonce, monitorRefreshSec, tokenControl, udn]);
+
+  useEffect(() => {
+    if (section !== "missoes" || missionsTab !== "cadastro") return;
+    if (!missionAssetMissionId) {
+      setMissionAssets([]);
+      setMissionAssetPreviewId("");
+      return;
+    }
+    void loadMissionAssets();
+  }, [missionAssetMissionId, missionsTab, section]);
 
   async function ownerAck(decision: "approve" | "deny") {
     setStatus("owner_ack");
@@ -4715,6 +4959,27 @@ export default function GovManagerPage() {
     });
   }, [queueRows]);
 
+  const missionCreateRiskNotice = useMemo(() => {
+    const onlineSessionByAgent = new Map<string, boolean>();
+    for (const row of executionSessionRows) {
+      const agentId = String(row.agent_id || "").trim().toLowerCase();
+      if (!agentId) continue;
+      const status = String(row.status || "").trim().toLowerCase();
+      const online = status === "online" || status === "busy" || status === "registered" || status === "waiting";
+      if (online) onlineSessionByAgent.set(agentId, true);
+    }
+    const risky = agentRows.find((row) => {
+      const role = String(row.role || "").trim().toUpperCase();
+      if (role !== "CPP" && role !== "CPP-IA") return false;
+      const agentId = String(row.agent_id || "").trim().toLowerCase();
+      return !onlineSessionByAgent.get(agentId);
+    });
+    if (!risky) return "";
+    const agentId = String(risky.agent_id || "").trim() || "cpp-unknown";
+    const state = String(agentStateLabel(String(risky.state || "")) || "Off-line").toLowerCase();
+    return `AVISO: Há executor sem vínculo detectado (${agentId} - status ${state}).`;
+  }, [agentRows, executionSessionRows]);
+
   const queueFilteredRows = useMemo(() => {
     const missionNeedle = String(queueMissionFilter || "").trim().toLowerCase();
     return queueOrderedRows.filter((row) => {
@@ -4731,6 +4996,7 @@ export default function GovManagerPage() {
 
   const queueRowsByStatus = useMemo(() => {
     const grouped: Record<QueueWorkflowStatus, QueueRow[]> = {
+      staff_validation_gate: [],
       open: [],
       in_progress: [],
       paused_waiting_owner: [],
@@ -4738,7 +5004,7 @@ export default function GovManagerPage() {
     };
     for (const row of queueFilteredRows) {
       const status = String(row.status || "").toLowerCase();
-      if (status === "open" || status === "in_progress" || status === "paused_waiting_owner" || status === "done") {
+      if (status === "staff_validation_gate" || status === "open" || status === "in_progress" || status === "paused_waiting_owner" || status === "done") {
         grouped[status].push(row);
       }
     }
@@ -4753,6 +5019,19 @@ export default function GovManagerPage() {
       const current = map.get(missionId);
       if (!current || String(row.updated_at_utc || "").localeCompare(String(current.updated_at_utc || "")) > 0) {
         map.set(missionId, row);
+      }
+    }
+    return map;
+  }, [executionSessionRows]);
+
+  const executionSessionByAgentId = useMemo(() => {
+    const map = new Map<string, ExecutionSessionRow>();
+    for (const row of executionSessionRows) {
+      const agentId = String(row.agent_id || "").trim().toLowerCase();
+      if (!agentId) continue;
+      const current = map.get(agentId);
+      if (!current || String(row.updated_at_utc || "").localeCompare(String(current.updated_at_utc || "")) > 0) {
+        map.set(agentId, row);
       }
     }
     return map;
@@ -5569,7 +5848,12 @@ export default function GovManagerPage() {
               <button
                 type="button"
                 className={missionsTab === "cadastro" ? "active" : ""}
-                onClick={() => setMissionsTab("cadastro")}
+                onClick={() => {
+                  setMissionsTab("cadastro");
+                  setQueueRefreshNonce((prev) => prev + 1);
+                  setBotStatusRefreshNonce((prev) => prev + 1);
+                  void pullQueueNow({ silent: true });
+                }}
                 title="Cadastro"
                 aria-label="Cadastro"
               >
@@ -5584,7 +5868,21 @@ export default function GovManagerPage() {
               >
                 ⚙
               </button>
+              <button
+                type="button"
+                onClick={() => setMissionAssetsOpen(true)}
+                title="Imagens e Arquivos"
+                aria-label="Imagens e Arquivos"
+              >
+                🖼
+              </button>
+              {missionsTab === "cadastro" && missionCreateRiskNotice ? (
+                <p className="gm-inline-alert-critical">{missionCreateRiskNotice}</p>
+              ) : null}
             </div>
+            {missionsTab === "cadastro" && missionCreateRiskNotice ? (
+              <p className="gm-inline-alert-critical">{missionCreateRiskNotice}</p>
+            ) : null}
             {missionsTab === "cadastro" ? (
               <>
             <h2>Criar Missão</h2>
@@ -6094,7 +6392,7 @@ export default function GovManagerPage() {
               <p className="gm-meta">Contexto da fila recolhido. Clique em “Abrir” para exibir controles e filtros.</p>
             )}
             <div className="gm-kanban-board">
-              {KANBAN_COLUMNS.map((column) => {
+              {KANBAN_COLUMNS.filter((column) => column.status !== "done").map((column) => {
                 const rows = queueRowsByStatus[column.status] || [];
                 return (
                   <section
@@ -6157,6 +6455,20 @@ export default function GovManagerPage() {
                             ? `Sessão: ${formatChatIdentity(String(executionSession.agent_id || "-"))} · ${String(executionSession.status || "online").toUpperCase()}`
                             : "";
                           const monitorLabel = formatExecutionMonitorLabel(executionSession, latestExecutionEvent);
+                          const fallbackAgentSession = !executionSession && agentRaw
+                            ? executionSessionByAgentId.get(agentRaw.toLowerCase()) || null
+                            : null;
+                          const resolvedMonitorLabel = !executionSession && fallbackAgentSession
+                            ? (
+                              sessionLooksOnline(String(fallbackAgentSession.status || ""))
+                                ? `Monitor: executor online sem vínculo (READY_UNBOUND) · Último heartbeat: ${formatDateTime(String(fallbackAgentSession.last_heartbeat_at_utc || ""))}`
+                                : "Monitor: executor sem sessão ativa vinculada (OFF)"
+                            )
+                            : monitorLabel;
+                          const canReconnectBind =
+                            (statusValue === "open" || statusValue === "staff_validation_gate") &&
+                            (String(row.assignee || "").trim().toUpperCase() === "CPP" || String(row.assignee || "").trim().toUpperCase() === "CPP-IA") &&
+                            (resolvedMonitorLabel.includes("READY_UNBOUND") || resolvedMonitorLabel.includes("(OFF)") || resolvedMonitorLabel.includes("sem sessão ativa"));
                           const priorityAccent = queuePriorityAccent(String(row.priority || ""));
                           return (
                             <article
@@ -6192,7 +6504,7 @@ export default function GovManagerPage() {
                               {reasonLabel && queueReasonOpenId === queueId ? (
                                 <div className="gm-reason-popover" role="status" aria-live="polite">
                                   <div>{reasonLabel}</div>
-                                  <div className="gm-reason-monitor">{monitorLabel}</div>
+                                  <div className="gm-reason-monitor">{resolvedMonitorLabel}</div>
                                 </div>
                               ) : null}
                               <div className="gm-kanban-row gm-kanban-row-4">
@@ -6206,6 +6518,17 @@ export default function GovManagerPage() {
                                 <button type="button" className="gm-icon-action" onClick={() => openQueueDetails(row)} aria-label="Detalhes" title="Detalhes">⌕</button>
                                 {statusValue === "open" ? (
                                   <button type="button" className="gm-icon-action" onClick={() => { void moveQueueCard(queueId, "in_progress"); }} aria-label="Iniciar" title="Iniciar">▶</button>
+                                ) : null}
+                                {canReconnectBind ? (
+                                  <button
+                                    type="button"
+                                    className="gm-icon-action"
+                                    onClick={() => { void reconnectQueueBinding(queueId); }}
+                                    aria-label="Reconectar ou vincular CPP"
+                                    title="Reconectar/Vincular CPP"
+                                  >
+                                    ↻
+                                  </button>
                                 ) : null}
                                 {statusValue === "in_progress" ? (
                                   <>
@@ -6252,6 +6575,183 @@ export default function GovManagerPage() {
                 );
               })}
             </div>
+            <section
+              className="gm-kanban-column gm-kanban-column-done-row"
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={(event) => {
+                event.preventDefault();
+                const dropped = String(event.dataTransfer.getData("text/plain") || queueDragId || "").trim();
+                setQueueDragId("");
+                if (dropped) void moveQueueCard(dropped, "done");
+              }}
+            >
+              <header className="gm-kanban-column-head">
+                <h3>Concluídas</h3>
+                <div className="gm-kanban-column-head-actions">
+                  <span>{(queueRowsByStatus.done || []).length}</span>
+                  {(queueRowsByStatus.done || []).length > 0 ? (
+                    <button type="button" className="gm-icon-action" onClick={() => void clearDoneQueueCards()} aria-label="Limpar concluídas" title="Limpar concluídas">
+                      ⌫
+                    </button>
+                  ) : null}
+                </div>
+              </header>
+              <div className="gm-kanban-cards">
+                {(queueRowsByStatus.done || []).length === 0 ? (
+                  <p className="gm-empty">Sem itens.</p>
+                ) : (
+                  (queueRowsByStatus.done || []).map((row) => {
+                    const queueId = String(row.queue_id || `${row.mission_id}-${row.title}`);
+                    const missionTooltip = `Missão ${row.mission_id || "-"}`;
+                    const eta = queueEtaById.get(queueId) || estimateQueueEta(row, Date.now());
+                    const missionId = String(row.mission_id || "").trim().toUpperCase();
+                    const executionSession = executionSessionByMission.get(missionId) || null;
+                    const latestExecutionEvent = executionLatestEventByMission.get(missionId) || null;
+                    const latestProgressEvent = executionLatestProgressEventByMission.get(missionId) || latestExecutionEvent || null;
+                    const progressPercent = queueExecutionProgressPercent(row, latestProgressEvent);
+                    const progressLabel =
+                      String(latestProgressEvent?.message || latestExecutionEvent?.message || "").trim() ||
+                      String(row.execution_progress_label || "").trim() ||
+                      "Aguardando progresso do executor";
+                    const statusValue = String(row.status || "").toLowerCase();
+                    const statusLed = queueStatusLedMeta(statusValue);
+                    const reasonLabel = queueTransitionReasonLabel(row);
+                    const executorIdentity = String(
+                      row.execution_agent_id ||
+                      executionSession?.agent_id ||
+                      row.assignee_agent_id ||
+                      row.assignee ||
+                      "-"
+                    ).trim();
+                    const executorLabel = formatChatIdentity(executorIdentity);
+                    const agentRaw = String(row.assignee_agent_id || executionSession?.agent_id || "").trim();
+                    const agentLabel = agentRaw ? formatChatIdentity(agentRaw) : formatRoleAlias(String(row.assignee || "-"));
+                    const showAgentLine =
+                      Boolean(agentRaw) &&
+                      !sameIdentityLabel(executorLabel, agentLabel) &&
+                      !sameIdentityLabel(executorLabel, formatRoleAlias(String(row.assignee || "-")));
+                    const sessionLabel = executionSession
+                      ? `Sessão: ${formatChatIdentity(String(executionSession.agent_id || "-"))} · ${String(executionSession.status || "online").toUpperCase()}`
+                      : "";
+                    const monitorLabel = formatExecutionMonitorLabel(executionSession, latestExecutionEvent);
+                    const fallbackAgentSession = !executionSession && agentRaw
+                      ? executionSessionByAgentId.get(agentRaw.toLowerCase()) || null
+                      : null;
+                    const resolvedMonitorLabel = !executionSession && fallbackAgentSession
+                      ? (
+                        sessionLooksOnline(String(fallbackAgentSession.status || ""))
+                          ? `Monitor: executor online sem vínculo (READY_UNBOUND) · Último heartbeat: ${formatDateTime(String(fallbackAgentSession.last_heartbeat_at_utc || ""))}`
+                          : "Monitor: executor sem sessão ativa vinculada (OFF)"
+                      )
+                      : monitorLabel;
+                    const canReconnectBind =
+                      (statusValue === "open" || statusValue === "staff_validation_gate") &&
+                      (String(row.assignee || "").trim().toUpperCase() === "CPP" || String(row.assignee || "").trim().toUpperCase() === "CPP-IA") &&
+                      (resolvedMonitorLabel.includes("READY_UNBOUND") || resolvedMonitorLabel.includes("(OFF)") || resolvedMonitorLabel.includes("sem sessão ativa"));
+                    const priorityAccent = queuePriorityAccent(String(row.priority || ""));
+                    return (
+                      <article
+                        key={queueId}
+                        className={queueFocusedId && queueFocusedId === queueId ? "gm-kanban-card is-focused" : "gm-kanban-card"}
+                        style={{ ["--gm-card-priority" as string]: priorityAccent }}
+                        title={missionTooltip}
+                        draggable
+                        onDragStart={(event) => {
+                          event.dataTransfer.setData("text/plain", queueId);
+                          setQueueDragId(queueId);
+                        }}
+                        onDragEnd={() => setQueueDragId("")}
+                      >
+                        <div className="gm-kanban-row gm-kanban-row-1">
+                          <strong className="gm-kanban-title" title={missionTooltip}>{row.title || "Sem título"}</strong>
+                          <span
+                            className={`gm-card-state-led gm-card-state-led-${statusLed.tone}`}
+                            title={statusLed.label}
+                            aria-label={statusLed.label}
+                          >
+                            <i aria-hidden="true">●</i>
+                          </span>
+                        </div>
+                        <div className="gm-kanban-row gm-kanban-row-2">
+                          <p className="gm-card-cell" title={missionTooltip}>Executor: {executorLabel}</p>
+                          {showAgentLine ? <p className="gm-card-cell">Agente: {agentLabel}</p> : <span className="gm-card-cell gm-card-cell-empty" />}
+                        </div>
+                        <div className="gm-kanban-row gm-kanban-row-3">
+                          <p className="gm-card-cell gm-card-cell-status">Status: {queueStatusLabel(String(row.status || ""))}</p>
+                          <p className="gm-card-cell gm-card-cell-eta">ETA: {eta.label}</p>
+                        </div>
+                        {reasonLabel && queueReasonOpenId === queueId ? (
+                          <div className="gm-reason-popover" role="status" aria-live="polite">
+                            <div>{reasonLabel}</div>
+                            <div className="gm-reason-monitor">{resolvedMonitorLabel}</div>
+                          </div>
+                        ) : null}
+                        <div className="gm-kanban-row gm-kanban-row-4">
+                          <small className="gm-kanban-updated-mini">
+                            Atualizado: {formatDateTime(String(row.updated_at_utc || ""))}
+                            {sessionLabel ? ` · ${sessionLabel}` : ""}
+                          </small>
+                        </div>
+                        <div className="gm-kanban-row gm-kanban-row-5">
+                          <div className="gm-kanban-actions">
+                          <button type="button" className="gm-icon-action" onClick={() => openQueueDetails(row)} aria-label="Detalhes" title="Detalhes">⌕</button>
+                          {statusValue === "open" ? (
+                            <button type="button" className="gm-icon-action" onClick={() => { void moveQueueCard(queueId, "in_progress"); }} aria-label="Iniciar" title="Iniciar">▶</button>
+                          ) : null}
+                          {canReconnectBind ? (
+                            <button
+                              type="button"
+                              className="gm-icon-action"
+                              onClick={() => { void reconnectQueueBinding(queueId); }}
+                              aria-label="Reconectar ou vincular CPP"
+                              title="Reconectar/Vincular CPP"
+                            >
+                              ↻
+                            </button>
+                          ) : null}
+                          {statusValue === "in_progress" ? (
+                            <>
+                              <button type="button" className="gm-icon-action" onClick={() => { void adjustQueueEta(queueId, 5); }} aria-label="Adicionar 5 min ETA" title="Adicionar 5 min ETA">+5</button>
+                              <button type="button" className="gm-icon-action" onClick={() => { void moveQueueCard(queueId, "paused_waiting_owner"); }} aria-label="Pausar" title="Pausar">⏸</button>
+                              {currentRole === "admin" ? (
+                                <button type="button" className="gm-icon-action" onClick={() => { void moveQueueCard(queueId, "done"); }} aria-label="Concluir" title="Concluir">✓</button>
+                              ) : null}
+                            </>
+                          ) : null}
+                          {statusValue === "paused_waiting_owner" ? (
+                            <button type="button" className="gm-icon-action" onClick={() => { void moveQueueCard(queueId, "in_progress"); }} aria-label="Retomar" title="Retomar">▶</button>
+                          ) : null}
+                          {statusValue === "done" ? (
+                            <>
+                              <button type="button" className="gm-icon-action" onClick={() => { void moveQueueCard(queueId, "open"); }} aria-label="Reabrir" title="Reabrir">↺</button>
+                              <button type="button" className="gm-icon-action" onClick={() => { void finalizeQueueCard(queueId); }} aria-label="Finalizar" title="Finalizar">⌫</button>
+                            </>
+                          ) : null}
+                          {reasonLabel ? (
+                            <button
+                              type="button"
+                              className="gm-icon-action gm-reason-toggle"
+                              onClick={() => setQueueReasonOpenId((current) => (current === queueId ? "" : queueId))}
+                              aria-label="Exibir motivo da transição"
+                              title="Exibir motivo da transição"
+                            >
+                              ℹ
+                            </button>
+                          ) : null}
+                          </div>
+                        </div>
+                        <div className="gm-kanban-row gm-kanban-row-6">
+                          <div className="gm-kanban-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressPercent}>
+                            <i style={{ width: `${progressPercent}%` }} />
+                          </div>
+                          <small>{progressLabel}</small>
+                        </div>
+                      </article>
+                    );
+                  })
+                )}
+              </div>
+            </section>
             <details className="gm-debug">
               <summary>Fila detalhada (diagnóstico)</summary>
               <pre>{queueText || "Sem dados de fila no momento..."}</pre>
@@ -7006,6 +7506,7 @@ export default function GovManagerPage() {
               <button type="button" className="gm-icon-action" onClick={() => { setChatAction("MSG"); setChatMessage("Recebido. Seguimos no fluxo normal."); }} aria-label="Preset conversa" title="Preset conversa">💬</button>
               {currentRole === "admin" ? <button type="button" className="gm-icon-action" onClick={() => { setChatAction("OK"); setChatMessage("OK. Prosseguir com a execução."); }} aria-label="Preset OK" title="Preset OK">✓</button> : null}
               {currentRole === "admin" ? <button type="button" className="gm-icon-action" onClick={() => { setChatAction("PAUSAR"); setChatMessage("Pausar execução e aguardar owner."); }} aria-label="Preset pausar" title="Preset pausar">⏸</button> : null}
+              {currentRole === "admin" ? <button type="button" className="gm-icon-action" onClick={() => { void deleteAllChatMessages(); }} aria-label="Excluir todas as mensagens" title="Excluir todas as mensagens">🗑</button> : null}
             </div>
             <p className="gm-meta">Última sincronização BR (São Paulo): {formatDateTime(chatUpdatedAt)}</p>
             <div className="gm-chat-feed">
@@ -7810,6 +8311,98 @@ export default function GovManagerPage() {
                 ))
               )}
             </div>
+          </section>
+        </div>
+      ) : null}
+
+      {missionAssetsOpen ? (
+        <div className="gm-modal-backdrop" onClick={() => setMissionAssetsOpen(false)}>
+          <section className="gm-modal" onClick={(event) => event.stopPropagation()}>
+            <header>
+              <h2>Imagens e Arquivos</h2>
+              <button
+                type="button"
+                className="gm-icon-action"
+                onClick={() => setMissionAssetsOpen(false)}
+                aria-label="Fechar"
+                title="Fechar"
+              >
+                ✕
+              </button>
+            </header>
+            <article className="gm-manage-block">
+              <p className="gm-meta">Anexos vinculados à missão atual e disponíveis como contexto para execução dos agentes.</p>
+              <label>
+                Upload de anexos
+                <input
+                  type="file"
+                  multiple
+                  onChange={(e) => {
+                    void uploadMissionFiles(e.target.files);
+                    e.currentTarget.value = "";
+                  }}
+                  disabled={!missionAssetMissionId || missionAssetBusy}
+                />
+              </label>
+              {missionAssetNotice ? <p className="gm-meta">{missionAssetNotice}</p> : null}
+              <div className="gm-mission-assets-list">
+                {missionAssets.length === 0 ? (
+                  <p className="gm-empty">Sem arquivos anexados.</p>
+                ) : (
+                  missionAssets.map((asset) => (
+                    <article key={asset.asset_id} className={`gm-asset-item ${missionAssetPreviewId === asset.asset_id ? "is-active" : ""}`}>
+                      <div>
+                        <strong>{asset.file_name}</strong>
+                        <small>{asset.mime_type} • {formatAssetBytes(asset.size_bytes)}</small>
+                      </div>
+                      <div className="gm-action-row">
+                        <button
+                          type="button"
+                          className="gm-icon-action"
+                          onClick={() => setMissionAssetPreviewId(asset.asset_id)}
+                          aria-label="Abrir anexo"
+                          title="Abrir anexo"
+                        >
+                          ⌕
+                        </button>
+                        <button
+                          type="button"
+                          className="gm-icon-action"
+                          onClick={() => { void removeMissionAsset(asset.asset_id); }}
+                          aria-label="Excluir anexo"
+                          title="Excluir anexo"
+                        >
+                          ⌫
+                        </button>
+                      </div>
+                    </article>
+                  ))
+                )}
+              </div>
+              <div className="gm-mission-assets-preview">
+                {missionAssetPreview ? (
+                  <>
+                    <p><strong>Visualização:</strong> {missionAssetPreview.file_name}</p>
+                    {missionAssetPreview.mime_type.startsWith("image/") ? (
+                      <img
+                        src={`/api/govhub/missions/assets?mission_id=${encodeURIComponent(missionAssetPreview.mission_id)}&asset_id=${encodeURIComponent(missionAssetPreview.asset_id)}&download=1`}
+                        alt={missionAssetPreview.file_name}
+                      />
+                    ) : (
+                      <a
+                        href={`/api/govhub/missions/assets?mission_id=${encodeURIComponent(missionAssetPreview.mission_id)}&asset_id=${encodeURIComponent(missionAssetPreview.asset_id)}&download=1`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Abrir arquivo
+                      </a>
+                    )}
+                  </>
+                ) : (
+                  <p className="gm-empty">Selecione um anexo para visualizar.</p>
+                )}
+              </div>
+            </article>
           </section>
         </div>
       ) : null}
