@@ -671,7 +671,16 @@ export async function POST(request: Request) {
 
       const sessionsLoaded = await loadSnapshotPayload(config, SESSIONS_SNAPSHOT_TYPE);
       let sessionsState = sessionsLoaded.found && sessionsLoaded.payload ? sanitizeExecutionSessionsState(sessionsLoaded.payload) : defaultExecutionSessionsState();
-      const claimableSession = resolveClaimableSession(
+      const preferredAgentId = String(PREFERRED_EXECUTION_AGENT_BY_ASSIGNEE[current.assignee] || "").trim().toLowerCase();
+      const missionBoundSession =
+        sessionsState.sessions.find((session) => {
+          const role = String(session.role || "").trim().toUpperCase();
+          if (role !== current.assignee) return false;
+          if (String(session.current_mission_id || "").trim().toUpperCase() !== String(current.mission_id || "").trim().toUpperCase()) return false;
+          if (preferredAgentId && String(session.agent_id || "").trim().toLowerCase() !== preferredAgentId) return false;
+          return true;
+        }) || null;
+      const claimableSession = missionBoundSession || resolveClaimableSession(
         sessionsState,
         current.assignee,
         PREFERRED_EXECUTION_AGENT_BY_ASSIGNEE[current.assignee]
