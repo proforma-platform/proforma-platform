@@ -20,15 +20,7 @@ import {
   SUPPORT_REPORTED_SUFFIX
 } from "./gov/constants";
 import {
-  compactText,
-  formatAuditStatePreview,
   formatBytes,
-  formatDateOnly,
-  formatDateTime,
-  formatPct,
-  formatUsd,
-  normalizeChatMatch,
-  readNumber,
   replyCountLabel
 } from "./gov/formatters";
 import type {
