@@ -136,3 +136,36 @@ jobs:
             });
 
             core.info(`Created PR #${pr.data.number} via fallback.`);
+
+      - name: Registrar status do bot govhublab-pr
+        if: always() && secrets.GOV_MANAGER_BOT_STATUS_ENDPOINT != '' && secrets.GOV_MANAGER_BOT_STATUS_TOKEN != ''
+        env:
+          GOV_MANAGER_BOT_STATUS_ENDPOINT: ${{ secrets.GOV_MANAGER_BOT_STATUS_ENDPOINT }}
+          GOV_MANAGER_BOT_STATUS_TOKEN: ${{ secrets.GOV_MANAGER_BOT_STATUS_TOKEN }}
+          TOKEN_STATE: ${{ steps.token_state.outputs.has_token }}
+          CREATE_WITH_PAT_OUTCOME: ${{ steps.create_with_pat.outcome }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          state="ok"
+          message="auto-pr executado"
+
+          if [ "$TOKEN_STATE" != "true" ]; then
+            state="warn"
+            message="fallback com GITHUB_TOKEN (GOVHUB_PR_TOKEN ausente)"
+          fi
+
+          if [ "$TOKEN_STATE" = "true" ] && [ "$CREATE_WITH_PAT_OUTCOME" = "failure" ]; then
+            state="warn"
+            message="fallback com GITHUB_TOKEN (PAT falhou)"
+          fi
+
+          if [ "$JOB_STATUS" != "success" ]; then
+            state="error"
+            message="falha no workflow auto-pr"
+          fi
+
+          curl -fsS -X PUT "$GOV_MANAGER_BOT_STATUS_ENDPOINT" \
+            -H "content-type: application/json" \
+            -H "x-gov-manager-token: $GOV_MANAGER_BOT_STATUS_TOKEN" \
+            --data "{\"bot_id\":\"govhublab-pr\",\"workflow_id\":\"govhub-auto-pr\",\"state\":\"$state\",\"result\":\"$JOB_STATUS\",\"message\":\"$message\",\"run_id\":\"${{ github.run_id }}\",\"run_url\":\"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\",\"actor\":\"github-actions\"}" >/dev/null
