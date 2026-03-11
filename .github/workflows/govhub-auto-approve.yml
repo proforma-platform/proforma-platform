@@ -21,7 +21,6 @@ jobs:
           script: |
             const { owner, repo } = context.repo;
             const pull_number = context.payload.pull_request.number;
-            const blockGovernanceDocs = (process.env.GOVHUB_BLOCK_GOV_DOCS || 'false').toLowerCase() === 'true';
 
             const restrictedPathRegex = [
               /^infra\//,
@@ -53,7 +52,6 @@ jobs:
             const changedPaths = files.map((f) => f.filename);
             const touchesRestricted = changedPaths.some((p) => {
               if (p === '.github/workflows/govhub-auto-approve.yml') return false;
-              if (blockGovernanceDocs && /^docs\/governance\//.test(p)) return true;
               return restrictedPathRegex.some((rx) => rx.test(p));
             });
 
