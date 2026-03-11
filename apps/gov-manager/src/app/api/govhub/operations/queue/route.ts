@@ -687,8 +687,8 @@ export async function POST(request: Request) {
         );
       }
       {
-        const traceId = createTraceId(current.mission_id);
-        const runId = createRunId(current.mission_id);
+        const traceId = clampText(claimableSession.current_trace_id, 180) || createTraceId(current.mission_id);
+        const runId = clampText(claimableSession.current_run_id, 180) || createRunId(current.mission_id);
         const claimedSession = {
           ...claimableSession,
           status: "busy" as const,
