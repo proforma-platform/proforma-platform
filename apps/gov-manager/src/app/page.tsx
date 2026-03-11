@@ -656,9 +656,9 @@ function parseRequestAndNotes(raw: string): { requestText: string; notesText: st
 }
 
 function composeCompactMissionUdn(missionId: string, objective: string): string {
-  const token = missionShortToken(missionId || "00001");
+  const missionCode = missionShortToken(missionId || "00001");
   const mu = sanitizeMissionInline(objective || "Missão registrada no GOV-HUB.") || "Missão registrada no GOV-HUB.";
-  return `!MIS|${token}\n#μ:${mu}`;
+  return `!MIS|${missionCode}\n#μ:${mu}`;
 }
 
 function isLowSignalRequest(value: string): boolean {
