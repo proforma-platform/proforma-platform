@@ -10,7 +10,6 @@ Operar custo de token com visibilidade em tempo real no `gov-manager`, com gover
 - Politica de limite por owner (snapshot) com bloqueio automatico em `paused_waiting_owner`.
 - Registro de uso projetado por missao (snapshot de uso).
 - Biblioteca de prompts por referencia (`prompt_ref`) para reduzir payload repetido.
-- Evolucao UDN V2 compacto (menos verbosidade no cliente, defaults no backend).
 - Painel operacional v2:
   - KPIs de monitor (`progresso`, `status/fase`, `risco de limite`, `tokens usados/restantes`, `custo da missao`).
   - Uso em tempo real com ranking de missoes por custo (top consumo).

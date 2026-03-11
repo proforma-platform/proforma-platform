@@ -20,14 +20,27 @@ jobs:
   open-pr:
     runs-on: ubuntu-latest
     steps:
-      - name: Skip when GOVHUB_PR_TOKEN is missing
-        if: ${{ secrets.GOVHUB_PR_TOKEN == '' }}
+      - name: Resolve PR token state
+        id: token_state
+        env:
+          GOVHUB_PR_TOKEN: ${{ secrets.GOVHUB_PR_TOKEN }}
         run: |
-          echo "GOVHUB_PR_TOKEN ausente. Auto-PR desativado para evitar PR criada por github-actions[bot] e bloqueio de aprovacao."
-          echo "Configure o secret GOVHUB_PR_TOKEN para ativar ciclo 100% automatico."
+          if [ -n "${GOVHUB_PR_TOKEN:-}" ]; then
+            echo "has_token=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip notice when GOVHUB_PR_TOKEN is missing
+        if: ${{ steps.token_state.outputs.has_token != 'true' }}
+        run: |
+          echo "GOVHUB_PR_TOKEN ausente. Usando fallback com GITHUB_TOKEN para nao interromper o ciclo."
+          echo "Configure o secret GOVHUB_PR_TOKEN para manter autoria dedicada do bot de PR."
 
       - name: Create or reuse PR to main
-        if: ${{ secrets.GOVHUB_PR_TOKEN != '' }}
+        id: create_with_pat
+        if: ${{ steps.token_state.outputs.has_token == 'true' }}
+        continue-on-error: true
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GOVHUB_PR_TOKEN }}
@@ -75,27 +88,51 @@ jobs:
 
             core.info(`Created PR #${pr.data.number}`);
 
-      - name: Registrar status do bot govhublab-pr
-        if: always() && secrets.GOV_MANAGER_BOT_STATUS_ENDPOINT != '' && secrets.GOV_MANAGER_BOT_STATUS_TOKEN != ''
-        env:
-          GOV_MANAGER_BOT_STATUS_ENDPOINT: ${{ secrets.GOV_MANAGER_BOT_STATUS_ENDPOINT }}
-          GOV_MANAGER_BOT_STATUS_TOKEN: ${{ secrets.GOV_MANAGER_BOT_STATUS_TOKEN }}
-          HAS_GOVHUB_PR_TOKEN: ${{ secrets.GOVHUB_PR_TOKEN != '' }}
-          JOB_STATUS: ${{ job.status }}
-        run: |
-          set -euo pipefail
-          state="ok"
-          message="auto-pr executado"
+      - name: Fallback create/reuse PR with GITHUB_TOKEN
+        if: ${{ steps.token_state.outputs.has_token != 'true' || steps.create_with_pat.outcome == 'failure' }}
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const branch = context.ref.replace('refs/heads/', '');
 
-          if [ "$HAS_GOVHUB_PR_TOKEN" != "true" ]; then
-            state="blocked"
-            message="GOVHUB_PR_TOKEN ausente"
-          elif [ "$JOB_STATUS" != "success" ]; then
-            state="error"
-            message="falha no workflow auto-pr"
-          fi
+            if (!branch || branch === 'main' || branch.startsWith('dependabot/')) {
+              core.info(`Skip branch: ${branch}`);
+              return;
+            }
 
-          curl -fsS -X PUT "$GOV_MANAGER_BOT_STATUS_ENDPOINT" \
-            -H "content-type: application/json" \
-            -H "x-gov-manager-token: $GOV_MANAGER_BOT_STATUS_TOKEN" \
-            --data "{\"bot_id\":\"govhublab-pr\",\"workflow_id\":\"govhub-auto-pr\",\"state\":\"$state\",\"result\":\"$JOB_STATUS\",\"message\":\"$message\",\"run_id\":\"${{ github.run_id }}\",\"run_url\":\"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\",\"actor\":\"github-actions\"}" >/dev/null
+            const existing = await github.rest.pulls.list({
+              owner,
+              repo,
+              state: 'open',
+              head: `${owner}:${branch}`,
+              base: 'main',
+              per_page: 1
+            });
+
+            if (existing.data.length > 0) {
+              core.info(`PR already open: #${existing.data[0].number}`);
+              return;
+            }
+
+            const headCommitMessage = String(context.payload?.head_commit?.message || '').trim();
+            const title = headCommitMessage
+              ? headCommitMessage.split('\n')[0].slice(0, 120)
+              : `chore: auto pr ${branch}`;
+
+            const pr = await github.rest.pulls.create({
+              owner,
+              repo,
+              head: branch,
+              base: 'main',
+              title,
+              body: [
+                'Auto-opened by GOVHUB Auto PR workflow (fallback token).',
+                '',
+                `- Branch: \`${branch}\``,
+                '- Mode: GOVHUB governance auto cycle'
+              ].join('\n')
+            });
+
+            core.info(`Created PR #${pr.data.number} via fallback.`);

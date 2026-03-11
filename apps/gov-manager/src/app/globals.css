@@ -599,6 +599,77 @@ body {
   font-size: 12px;
 }
 
+.gm-debug {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--panel-2);
+}
+
+.gm-debug summary {
+  cursor: pointer;
+  color: var(--text-soft);
+  font-weight: 600;
+}
+
+.gm-usage-list {
+  display: grid;
+  gap: 8px;
+}
+
+.gm-usage-list article {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--panel-2);
+  display: grid;
+  gap: 4px;
+}
+
+.gm-empty {
+  margin: 0;
+  color: var(--text-soft);
+}
+
+.gm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.gm-mini-metrics article {
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  border-radius: 10px;
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.gm-mini-metrics span {
+  color: var(--text-soft);
+  font-size: 12px;
+}
+
+.gm-mini-metrics strong {
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.gm-risk-atencao {
+  border-color: #f59e0b !important;
+}
+
+.gm-risk-limite {
+  border-color: #ef4444 !important;
+}
+
+.gm-meta {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 12px;
+}
+
 .gm-chat-notice {
   margin: 0;
   border: 1px solid var(--line);
@@ -2364,62 +2435,7 @@ body {
     grid-template-columns: 1fr;
   }
 
-  .gm-kanban-toolbar {
-    grid-template-columns: 1fr;
-  }
-
-  .gm-kanban-board {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .gm-mini-metrics {
     grid-template-columns: 1fr;
-  }
-
-  .gm-manage-list {
-    grid-template-columns: 1fr;
-  }
-
-  .gm-queue-alert-actions {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
-@media (max-width: 700px) {
-  .gm-header h1 {
-    font-size: 30px;
-  }
-
-  .gm-header-actions {
-    gap: 8px;
-  }
-
-  .gm-header-search {
-    min-width: 100%;
-    flex: 1 1 100%;
-  }
-
-  .gm-header-icon-group {
-    width: 100%;
-    justify-content: flex-end;
-  }
-
-  .gm-inline-row {
-    grid-template-columns: 1fr;
-  }
-
-  .gm-token-strip {
-    grid-template-columns: 1fr;
-  }
-
-  .gm-kanban-board {
-    grid-template-columns: 1fr;
-  }
-
-  .gm-kanban-row-2,
-  .gm-kanban-row-3,
-  .gm-kanban-row-4 {
-    grid-template-columns: 1fr;
-    align-items: stretch;
   }
 }
