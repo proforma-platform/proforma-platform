@@ -1,6 +1,8 @@
 name: GOVHUB Auto Approve
 
 on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review, edited]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, edited]
 
@@ -11,6 +13,10 @@ permissions:
 
 jobs:
   auto-approve:
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'pull_request_target' &&
+       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     concurrency:
       group: govhub-auto-approve-${{ github.event.pull_request.number || github.ref }}
@@ -24,7 +30,7 @@ jobs:
           script: |
             const eventName = String(context.eventName || '');
             core.setOutput('event_name', eventName);
-            if (eventName !== 'pull_request' || !context.payload.pull_request) {
+            if ((eventName !== 'pull_request' && eventName !== 'pull_request_target') || !context.payload.pull_request) {
               core.notice(`Unsupported event for review automation: ${eventName || 'unknown'}`);
               core.setOutput('approve', 'false');
               core.setOutput('reason', 'invalid_event');
