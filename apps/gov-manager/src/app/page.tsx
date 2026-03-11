@@ -22,6 +22,15 @@ import {
   missionShortToken,
   udnContractIssues
 } from "./gov/utils/mission-udn";
+import {
+  loadOfficeHierarchyApi,
+  loadPolicyApi,
+  loadPromptsApi,
+  loadSessionInfoApi,
+  loadUsersApi
+} from "./gov/services/bootstrap";
+import { usePageMeta } from "./gov/hooks/use-page-meta";
+import { PageIntro } from "./gov/sections/page-intro";
 
 type Theme = "dark" | "light";
 type Section = "visao" | "missoes" | "orquestracao" | "escritorio" | "chat" | "execucoes" | "pendencias" | "prompts" | "governanca" | "memoria";
@@ -1780,9 +1789,8 @@ export default function GovManagerPage() {
 
   async function loadPrompts() {
     try {
-      const response = await fetch("/api/govhub/prompts", { cache: "no-store" });
-      const payload = await response.json();
-      if (Array.isArray(payload.prompts)) setPromptLibrary(payload.prompts);
+      const { payload } = await loadPromptsApi();
+      if (Array.isArray(payload.prompts)) setPromptLibrary(payload.prompts as PromptEntry[]);
     } catch {
       // no-op
     }
@@ -1790,14 +1798,14 @@ export default function GovManagerPage() {
 
   async function loadSessionInfo() {
     try {
-      const response = await fetch("/api/auth/session", { cache: "no-store" });
-      const payload = (await response.json()) as SessionInfo;
-      if (response.ok) {
-        const actor = String(payload.actor || "").trim();
-        const role = String(payload.role || "").trim().toLowerCase();
+      const { ok, payload } = await loadSessionInfoApi();
+      if (ok) {
+        const data = payload as SessionInfo;
+        const actor = String(data.actor || "").trim();
+        const role = String(data.role || "").trim().toLowerCase();
         if (actor) setCreatedBy(actor);
         setCurrentRole(role === "viewer" || role === "engineer" ? role : "admin");
-        setIsPrimaryAdmin(payload.is_primary_admin === true);
+        setIsPrimaryAdmin(data.is_primary_admin === true);
       }
     } catch {
       // no-op
@@ -1857,8 +1865,7 @@ export default function GovManagerPage() {
 
   async function loadPolicy() {
     try {
-      const response = await fetch("/api/govhub/token/policy", { cache: "no-store" });
-      const payload = await response.json();
+      const { payload } = await loadPolicyApi();
       if (payload?.policy?.default_policy) {
         setPolicy(payload.policy.default_policy as TokenPolicy);
       }
@@ -1920,8 +1927,7 @@ export default function GovManagerPage() {
 
   async function loadUsers() {
     try {
-      const response = await fetch("/api/auth/users", { cache: "no-store" });
-      const payload = await response.json();
+      const { payload } = await loadUsersApi();
       setUsersText(JSON.stringify(payload, null, 2));
       setUsersUpdatedAt(new Date().toISOString());
     } catch {
@@ -1932,8 +1938,7 @@ export default function GovManagerPage() {
 
   async function loadOfficeHierarchy() {
     try {
-      const response = await fetch("/api/govhub/operations/office", { cache: "no-store" });
-      const payload = await response.json();
+      const { payload } = await loadOfficeHierarchyApi();
       setOfficeText(JSON.stringify(payload, null, 2));
       setOfficeUpdatedAt(new Date().toISOString());
     } catch {
@@ -4150,31 +4155,7 @@ export default function GovManagerPage() {
     return list;
   }, [ackRequired, mission.id, missingMissionFields, status, udn]);
 
-  const pageTitle = useMemo(() => {
-    if (section === "missoes") return "Missões";
-    if (section === "orquestracao") return "Orquestração";
-    if (section === "escritorio") return "Control Plane de Agentes";
-    if (section === "chat") return "Chat HUB";
-    if (section === "execucoes") return "Execuções";
-    if (section === "pendencias") return "Pendências";
-    if (section === "prompts") return "Biblioteca de Prompts";
-    if (section === "governanca") return "Governança de Tokens";
-    if (section === "memoria") return "Memória Operacional";
-    return "Visão geral";
-  }, [section]);
-
-  const pageSubtitle = useMemo(() => {
-    if (section === "missoes") return "Cadastro de missão (UDN V2 compacto), particionamento e envio ao HUB.";
-    if (section === "orquestracao") return "Fila priorizada e distribuição de execução entre Staff, CPP e CPP-IA.";
-    if (section === "escritorio") return "Estrutura operacional com escritórios, líderes técnicos e agentes subordinados por governança.";
-    if (section === "chat") return "Comando rápido remoto: envio de ação pré-definida via webhook n8n/worker.";
-    if (section === "execucoes") return "Monitoramento operacional e retorno de execução.";
-    if (section === "pendencias") return "Itens que exigem ação para manter fluxo contínuo.";
-    if (section === "prompts") return "Reuso por referência para reduzir custo de tokens.";
-    if (section === "governanca") return "Política de limites, alertas e consumo em tempo real.";
-    if (section === "memoria") return "RAG operacional do GOV com busca, starter, backup e exportação.";
-    return "Painel oficial do GOV-HUB com operação direta e responsiva.";
-  }, [section]);
+  const { title: pageTitle, subtitle: pageSubtitle } = usePageMeta(section);
 
   const previewPayload = useMemo(() => safeJsonParse(tokenPreview), [tokenPreview]);
   const realtimePayload = useMemo(() => safeJsonParse(tokenRealtime), [tokenRealtime]);
@@ -5370,10 +5351,7 @@ export default function GovManagerPage() {
 
       <section className="gm-main">
         <header className="gm-header gm-header-shell">
-          <div className="gm-header-copy">
-            <h1>{pageTitle}</h1>
-            <p>{pageSubtitle}</p>
-          </div>
+          <PageIntro title={pageTitle} subtitle={pageSubtitle} />
           <div className="gm-header-actions">
             <label className="gm-header-search">
               <span>Pesquisar</span>
