@@ -141,6 +141,72 @@ async function fetchJsonWithTimeout(
   }
 }
 
+function readNumber(value: unknown, fallback = 0): number {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function formatUsd(value: number): string {
+  return `$${value.toFixed(2)}`;
+}
+
+function formatPct(value: number): string {
+  return `${Math.round(value)}%`;
+}
+
+function formatDateTime(value: string): string {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "medium",
+    timeZone: "America/Sao_Paulo"
+  }).format(date);
+}
+
+function formatDateOnly(value: string): string {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeZone: "America/Sao_Paulo"
+  }).format(date);
+}
+
+function formatAuditStatePreview(raw: string): string {
+  const input = String(raw || "").trim();
+  if (!input) return "-";
+  try {
+    const parsed = JSON.parse(input) as unknown;
+    if (!parsed || typeof parsed !== "object") return compactText(input, 180);
+    const obj = parsed as Record<string, unknown>;
+    const keys = Object.keys(obj).slice(0, 5);
+    if (keys.length === 0) return "-";
+    const line = keys
+      .map((key) => `${key}:${String(obj[key] ?? "-").slice(0, 42)}`)
+      .join(" · ");
+    return compactText(line, 180);
+  } catch {
+    return compactText(input, 180);
+  }
+}
+
+function compactText(value: string, max = 180): string {
+  const clean = String(value || "").replace(/\s+/g, " ").trim();
+  if (!clean) return "";
+  if (clean.length <= max) return clean;
+  return `${clean.slice(0, max - 1)}…`;
+}
+
+function normalizeChatMatch(value: string): string {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
 function isMissionFormattedRow(row: ChatRow): boolean {
   const action = String(row.action || "").trim().toUpperCase();
   if (action && action !== "MSG") return true;
@@ -844,7 +910,7 @@ function buildMissionDraftKey(input: {
 function isFinalReportText(value: string): boolean {
   const normalized = String(value || "")
     .normalize("NFD")
-    .replace(/\p{M}/gu, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
   return (
     normalized.includes("resultado") ||
