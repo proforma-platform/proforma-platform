@@ -136,3 +136,26 @@ jobs:
             });
 
             core.info(`Created PR #${pr.data.number} via fallback.`);
+
+      - name: Publish bot status snapshot
+        if: always()
+        env:
+          GOV_MANAGER_BOT_STATUS_ENDPOINT: ${{ secrets.GOV_MANAGER_BOT_STATUS_ENDPOINT }}
+          GOV_MANAGER_BOT_STATUS_TOKEN: ${{ secrets.GOV_MANAGER_BOT_STATUS_TOKEN }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GOV_MANAGER_BOT_STATUS_ENDPOINT:-}" ] || [ -z "${GOV_MANAGER_BOT_STATUS_TOKEN:-}" ]; then
+            echo "Bot status snapshot skipped: missing GOV_MANAGER_BOT_STATUS_* secrets."
+            exit 0
+          fi
+
+          state="ok"
+          if [ "$JOB_STATUS" != "success" ]; then
+            state="error"
+          fi
+
+          curl -fsS -X PUT "$GOV_MANAGER_BOT_STATUS_ENDPOINT" \
+            -H "content-type: application/json" \
+            -H "x-gov-manager-token: $GOV_MANAGER_BOT_STATUS_TOKEN" \
+            --data "{\"bot_id\":\"govhublab-pr\",\"workflow_id\":\"govhub-auto-pr\",\"state\":\"$state\",\"result\":\"$JOB_STATUS\",\"message\":\"auto-pr workflow result\",\"run_id\":\"${{ github.run_id }}\",\"run_url\":\"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\",\"actor\":\"github-actions\"}" >/dev/null
