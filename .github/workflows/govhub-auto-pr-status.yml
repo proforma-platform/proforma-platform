@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   publish-status:
-    if: ${{ secrets.GOV_MANAGER_BOT_STATUS_ENDPOINT != '' && secrets.GOV_MANAGER_BOT_STATUS_TOKEN != '' }}
     runs-on: ubuntu-latest
     steps:
       - name: Publish govhublab-pr status
@@ -22,6 +21,11 @@ jobs:
           RUN_URL: ${{ github.event.workflow_run.html_url }}
         run: |
           set -euo pipefail
+          if [ -z "${GOV_MANAGER_BOT_STATUS_ENDPOINT:-}" ] || [ -z "${GOV_MANAGER_BOT_STATUS_TOKEN:-}" ]; then
+            echo "Skip: GOV bot-status secrets ausentes."
+            exit 0
+          fi
+
           state="ok"
           message="auto-pr executado"
           conclusion="${RUN_CONCLUSION:-unknown}"
