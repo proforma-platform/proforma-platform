@@ -88,7 +88,8 @@ export async function POST(request: Request) {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-cpp-token": token
+        "x-cpp-token": token,
+        "x-govhub-token": token
       },
       body: JSON.stringify(payload),
       cache: "no-store"
