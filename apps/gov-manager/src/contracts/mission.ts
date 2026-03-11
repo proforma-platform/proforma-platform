@@ -32,6 +32,7 @@ export interface MissionRequest {
   mission: {
     id: string;
     target?: string;
+    notes?: string;
     level?: string;
     branch?: string;
     agent_id?: string;

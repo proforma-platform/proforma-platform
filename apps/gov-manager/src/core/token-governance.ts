@@ -22,6 +22,8 @@ export interface TokenUsageEntry {
   mission_id: string;
   owner_id: string;
   agent_id: string;
+  projected_input_tokens: number;
+  projected_output_tokens: number;
   projected_total_tokens: number;
   projected_cost_usd: number;
   projected_cost_brl: number;
@@ -36,7 +38,11 @@ export interface TokenUsageState {
 
 export interface TokenUsageSummary {
   owner_id: string;
+  daily_input_tokens: number;
+  daily_output_tokens: number;
   daily_tokens: number;
+  monthly_input_tokens: number;
+  monthly_output_tokens: number;
   daily_usd: number;
   monthly_usd: number;
   daily_count: number;
@@ -54,6 +60,40 @@ export interface TokenGovernanceDecision {
     daily_usd: number;
     monthly_usd: number;
   };
+}
+
+const DEFAULT_BUSINESS_TIMEZONE = String(process.env.GOVHUB_BUSINESS_TZ || "America/Sao_Paulo").trim() || "America/Sao_Paulo";
+
+function safeTimeZone(timeZone?: string): string {
+  const candidate = String(timeZone || DEFAULT_BUSINESS_TIMEZONE).trim() || "UTC";
+  try {
+    new Intl.DateTimeFormat("en-CA", { timeZone: candidate }).format(new Date());
+    return candidate;
+  } catch {
+    return "UTC";
+  }
+}
+
+function dayKeyInTimeZone(date: Date, timeZone?: string): string {
+  const tz = safeTimeZone(timeZone);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(date);
+}
+
+function monthKeyInTimeZone(date: Date, timeZone?: string): string {
+  const tz = safeTimeZone(timeZone);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit"
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value || "0000";
+  const month = parts.find((part) => part.type === "month")?.value || "01";
+  return `${year}-${month}`;
 }
 
 export function defaultTokenPolicyState(): TokenPolicyState {
@@ -110,6 +150,8 @@ export function sanitizeTokenUsageState(input: unknown): TokenUsageState {
       mission_id: String(row.mission_id || "").trim(),
       owner_id: String(row.owner_id || "").trim(),
       agent_id: String(row.agent_id || "CPP").trim(),
+      projected_input_tokens: clampPositiveNumber(row.projected_input_tokens, 0),
+      projected_output_tokens: clampPositiveNumber(row.projected_output_tokens, 0),
       projected_total_tokens: clampPositiveNumber(row.projected_total_tokens, 0),
       projected_cost_usd: clampPositiveNumber(row.projected_cost_usd, 0),
       projected_cost_brl: clampPositiveNumber(row.projected_cost_brl, 0),
@@ -118,6 +160,15 @@ export function sanitizeTokenUsageState(input: unknown): TokenUsageState {
     }))
     .filter((row) => row.mission_id && row.owner_id)
     .slice(-3000);
+
+  for (const row of rows) {
+    // Backward-compatibility with old rows that only persisted total tokens.
+    if (row.projected_input_tokens <= 0 && row.projected_output_tokens <= 0 && row.projected_total_tokens > 0) {
+      const input = Math.round(row.projected_total_tokens * 0.55);
+      row.projected_input_tokens = input;
+      row.projected_output_tokens = Math.max(0, row.projected_total_tokens - input);
+    }
+  }
 
   return {
     rows,
@@ -133,20 +184,28 @@ export function resolvePolicyForOwner(policyState: TokenPolicyState, ownerId: st
   });
 }
 
-export function computeUsageSummary(usageState: TokenUsageState, ownerId: string, now = new Date()): TokenUsageSummary {
+export function computeUsageSummary(
+  usageState: TokenUsageState,
+  ownerId: string,
+  now = new Date(),
+  timeZone = DEFAULT_BUSINESS_TIMEZONE
+): TokenUsageSummary {
   const rows = usageState.rows.filter((row) => row.owner_id === ownerId && row.status !== "released");
-  const dayKey = isoDay(now);
-  const monthKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+  const dayKey = dayKeyInTimeZone(now, timeZone);
+  const monthKey = monthKeyInTimeZone(now, timeZone);
 
-  const dailyRows = rows.filter((row) => isoDay(new Date(row.created_at_utc)) === dayKey);
+  const dailyRows = rows.filter((row) => dayKeyInTimeZone(new Date(row.created_at_utc), timeZone) === dayKey);
   const monthlyRows = rows.filter((row) => {
-    const dt = new Date(row.created_at_utc);
-    return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}` === monthKey;
+    return monthKeyInTimeZone(new Date(row.created_at_utc), timeZone) === monthKey;
   });
 
   return {
     owner_id: ownerId,
+    daily_input_tokens: sum(dailyRows.map((row) => row.projected_input_tokens)),
+    daily_output_tokens: sum(dailyRows.map((row) => row.projected_output_tokens)),
     daily_tokens: sum(dailyRows.map((row) => row.projected_total_tokens)),
+    monthly_input_tokens: sum(monthlyRows.map((row) => row.projected_input_tokens)),
+    monthly_output_tokens: sum(monthlyRows.map((row) => row.projected_output_tokens)),
     daily_usd: round2(sum(dailyRows.map((row) => row.projected_cost_usd))),
     monthly_usd: round2(sum(monthlyRows.map((row) => row.projected_cost_usd))),
     daily_count: dailyRows.length,
@@ -211,6 +270,8 @@ export function appendUsageReservation(
     mission_id: string;
     owner_id: string;
     agent_id: string;
+    projected_input_tokens: number;
+    projected_output_tokens: number;
     projected_total_tokens: number;
     projected_cost_usd: number;
     projected_cost_brl: number;
@@ -224,6 +285,8 @@ export function appendUsageReservation(
     mission_id: reservation.mission_id,
     owner_id: reservation.owner_id,
     agent_id: reservation.agent_id,
+    projected_input_tokens: Math.max(0, Math.trunc(reservation.projected_input_tokens)),
+    projected_output_tokens: Math.max(0, Math.trunc(reservation.projected_output_tokens)),
     projected_total_tokens: Math.max(0, Math.trunc(reservation.projected_total_tokens)),
     projected_cost_usd: round2(Math.max(0, reservation.projected_cost_usd)),
     projected_cost_brl: round2(Math.max(0, reservation.projected_cost_brl)),
@@ -272,10 +335,6 @@ function clampPositiveNumber(value: unknown, fallback: number): number {
 
 function sum(values: number[]): number {
   return values.reduce((acc, item) => acc + item, 0);
-}
-
-function isoDay(date: Date): string {
-  return date.toISOString().slice(0, 10);
 }
 
 function round2(value: number): number {

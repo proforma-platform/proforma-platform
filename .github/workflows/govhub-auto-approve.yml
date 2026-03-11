@@ -256,3 +256,35 @@ jobs:
                 'Ação do owner é obrigatória para concluir o merge. ' +
                 `Motivo técnico: ${reason}`
             });
+
+      - name: Registrar status do bot govhub-approve-br
+        if: always() && secrets.GOV_MANAGER_BOT_STATUS_ENDPOINT != '' && secrets.GOV_MANAGER_BOT_STATUS_TOKEN != ''
+        env:
+          GOV_MANAGER_BOT_STATUS_ENDPOINT: ${{ secrets.GOV_MANAGER_BOT_STATUS_ENDPOINT }}
+          GOV_MANAGER_BOT_STATUS_TOKEN: ${{ secrets.GOV_MANAGER_BOT_STATUS_TOKEN }}
+          HAS_GOVHUB_APPROVER_TOKEN: ${{ secrets.GOVHUB_APPROVER_TOKEN != '' }}
+          EVALUATE_APPROVE: ${{ steps.evaluate.outputs.approve }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          state="skipped"
+          message="criterios nao atendidos"
+
+          if [ "$EVALUATE_APPROVE" = "true" ]; then
+            state="ok"
+            message="auto-approve executado"
+            if [ "$HAS_GOVHUB_APPROVER_TOKEN" != "true" ]; then
+              state="blocked"
+              message="GOVHUB_APPROVER_TOKEN ausente"
+            fi
+          fi
+
+          if [ "$JOB_STATUS" != "success" ]; then
+            state="error"
+            message="falha no workflow auto-approve"
+          fi
+
+          curl -fsS -X PUT "$GOV_MANAGER_BOT_STATUS_ENDPOINT" \
+            -H "content-type: application/json" \
+            -H "x-gov-manager-token: $GOV_MANAGER_BOT_STATUS_TOKEN" \
+            --data "{\"bot_id\":\"govhub-approve-br\",\"workflow_id\":\"govhub-auto-approve\",\"state\":\"$state\",\"result\":\"$JOB_STATUS\",\"message\":\"$message\",\"run_id\":\"${{ github.run_id }}\",\"run_url\":\"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\",\"actor\":\"github-actions\"}" >/dev/null

@@ -7,10 +7,12 @@ These workflows implement:
 - mission intake
 - mission owner approve/deny gate
 - mission auto-fix limited controller (2 rounds + pause for owner)
+- operations chat dispatch webhook (staff -> hub)
 - CPP-IA worker dispatch (self-hosted agent call)
 - report ingest with idempotency and hashing
 - decision aggregation
 - snapshot update (mission run upsert + mission_runs_v1 snapshot publishing)
+- XBO watchdog 24x7 (detecção de travas em `in_progress` + auto-recuperação limitada)
 
 The objective is auditable, reproducible governance execution that remains aligned with GOV-0070 and in-repo artifacts.
 
@@ -39,6 +41,7 @@ Use environment variables in the n8n runtime (container/env file/secrets manager
 - `GOVHUB_TOKEN_SCOPES_JSON`
   - JSON map of token -> scopes used by scoped endpoints.
   - `snapshot-update` requires scope `s:w` (or `snapshots:write`).
+  - `missions-owner-ack`: if this map is empty/unset, token-only auth is used (scope gate skipped). If configured, requires `m:w`/`missions:write`/`s:w`.
   - `missions-autofix-limited`: if this map is empty/unset, token-only auth is used (scope gate skipped). If configured, requires `m:w`/`missions:write`/`s:w`.
   - Example: `{"token_agent_a":["s:w","snapshots:read"],"token_agent_b":["snapshots:read"]}`
 
@@ -51,6 +54,7 @@ Autofix mission control:
   - com `git_ops`: worker executa ciclo git (fetch/checkout/add/commit/push) conforme politica local
   - se dispatch do worker falhar (`5xx` no gateway), o workflow aciona automaticamente `missions-autofix-limited`
   - quando o limite do autofix for excedido, o estado vai para `paused_waiting_owner` e o retorno segue com sinalizacao para chamada do owner
+- `operations-chat-dispatch` recebe comandos do Chat HUB (gov-manager) com validacao strict + fail-closed.
 - `GOVHUB_DB_URL` (or equivalent DB host/user/db config)
   - Database connection for Governance Hub Postgres schema.
 
@@ -63,6 +67,7 @@ Mission partitioning (staff-first triage):
 Optional:
 - `N8N_LOG_LEVEL=info`
 - `N8N_ENCRYPTION_KEY` (recommended for credential protection)
+- `GOV_MANAGER_BASE_URL` (default recomendado para o watchdog: `http://127.0.0.1:3000`)
 
 ## Local test (curl examples)
 No secrets are embedded below. Replace placeholders at runtime.
@@ -180,3 +185,29 @@ docs/governance/hub/n8n/tests/validate_missions_next_contract.sh
 - Report and decision artifacts are hash-addressed.
 - Hashes are persisted in Postgres (governance schema).
 - GitHub Evidence PR remains a secondary historical source in disaster recovery posture.
+
+## GOV Memory / RAG operacional
+Endpoint GOV:
+- `GET/POST /api/govhub/operations/memory`
+
+Ações:
+- `store`: salva contexto particionado em `gov_manager_context_memory_v1`
+- `retrieve`: recupera chunks relevantes por `namespace/query/tags/mission_id`
+- `starter`: devolve pacote UDN curto para novo chat
+
+Uso recomendado no n8n:
+1. final de sessão -> `store`
+2. novo chat/missão -> `starter`
+3. consultas específicas -> `retrieve`
+
+Namespaces recomendados:
+- `gov_principal_architect`
+- `gov_manager`
+- `gov_operating_model`
+- `n8n`
+- `infra`
+
+Templates:
+- `docs/governance/hub/n8n/workflows/gov-memory-store.json`
+- `docs/governance/hub/n8n/workflows/gov-memory-starter.json`
+- `docs/governance/hub/n8n/workflows/gov-memory-retrieve.json`

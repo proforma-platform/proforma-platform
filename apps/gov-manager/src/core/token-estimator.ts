@@ -35,10 +35,14 @@ type MissionRunSnapshot = {
   nn?: number;
   total?: number;
   updated_at?: string;
+  udn_state?: string;
+  udn_mission?: string;
+  udn?: string;
 };
 
-const DEFAULT_USD_PER_1K_INPUT = 0.003;
-const DEFAULT_USD_PER_1K_OUTPUT = 0.009;
+// GPT-5.3-Codex default pricing (USD per 1K tokens)
+const DEFAULT_USD_PER_1K_INPUT = 0.00175;
+const DEFAULT_USD_PER_1K_OUTPUT = 0.014;
 const DEFAULT_USD_TO_BRL = 5.2;
 
 export function estimateTokenCount(text: string): number {
@@ -101,9 +105,44 @@ export function buildCostPreview(input: CostPreviewInput): CostPreview {
 export function decodeMissionRunsSnapshot(payloadB64: string): MissionRunSnapshot[] {
   const buf = Buffer.from(payloadB64, "base64");
   const text = gunzipSync(buf).toString("utf8");
-  const parsed = JSON.parse(text) as { mission_runs?: unknown };
-  const rows = Array.isArray(parsed?.mission_runs) ? parsed.mission_runs : [];
-  return rows.filter((r) => r && typeof r === "object") as MissionRunSnapshot[];
+  const trimmed = String(text || "").trim();
+  if (!trimmed) return [];
+
+  // Preferred format: JSON payload { mission_runs: [...] }
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(trimmed) as { mission_runs?: unknown };
+      const rows = Array.isArray(parsed?.mission_runs) ? parsed.mission_runs : [];
+      return rows.filter((r) => r && typeof r === "object") as MissionRunSnapshot[];
+    } catch {
+      // fall through to compact !RUN parser
+    }
+  }
+
+  // Compact format: !RUN|run_id|mission_id|status|phase|nn/total;
+  const rows: MissionRunSnapshot[] = [];
+  for (const rawLine of trimmed.split(/\r?\n/)) {
+    const line = String(rawLine || "").trim();
+    if (!line || !line.startsWith("!RUN|")) continue;
+    const clean = line.replace(/;\s*$/, "");
+    const parts = clean.split("|");
+    if (parts.length < 6) continue;
+    const mission_id = String(parts[2] || "").trim();
+    const status = String(parts[3] || "").trim();
+    const phase = String(parts[4] || "").trim();
+    const progress = String(parts[5] || "").trim();
+    const match = progress.match(/^(\d+)\s*\/\s*(\d+)$/);
+    const nn = match ? Number.parseInt(match[1] ?? "0", 10) : 0;
+    const total = match ? Number.parseInt(match[2] ?? "0", 10) : 0;
+    rows.push({
+      mission_id,
+      status,
+      phase,
+      nn: Number.isFinite(nn) ? nn : 0,
+      total: Number.isFinite(total) ? total : 0
+    });
+  }
+  return rows;
 }
 
 export function encodeMissionRunsSnapshot(rows: unknown): string {

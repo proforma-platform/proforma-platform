@@ -7,7 +7,7 @@ function resolveGovhubConfig() {
   const endpointPath = String(process.env.GOVHUB_MISSIONS_OWNER_ACK_PATH || "/webhook/govhub/missions/owner-ack").trim();
   const compatEndpointPath = String(
     process.env.GOVHUB_MISSIONS_OWNER_ACK_COMPAT_PATH ||
-      "/webhook/govhub-v7-missions-owner-ack/webhook%20missao%20owner%20ack/govhub/missions/owner-ack"
+      "/webhook/govhub-v7-missions-owner-ack/webhook%2520missao%2520owner%2520ack/govhub/missions/owner-ack"
   ).trim();
   return { baseUrl, token, endpointPath, compatEndpointPath };
 }
@@ -96,14 +96,21 @@ export async function POST(request: Request) {
     upstreamJson = { raw_status: upstreamResponse.status };
   }
 
+  const upstreamObj =
+    upstreamJson && typeof upstreamJson === "object" && !Array.isArray(upstreamJson)
+      ? (upstreamJson as Record<string, unknown>)
+      : null;
+  const upstreamLogicalOk = String(upstreamObj?.status || "").toLowerCase() !== "error";
+  const finalOk = upstreamResponse.ok && upstreamLogicalOk;
+
   return NextResponse.json(
     {
-      status: upstreamResponse.ok ? "owner_ack_applied" : "upstream_error",
+      status: finalOk ? "owner_ack_applied" : "upstream_error",
       govhub_http: upstreamResponse.status,
       mission_id,
       decision,
       govhub_response: upstreamJson
     },
-    { status: upstreamResponse.ok ? 200 : 502 }
+    { status: finalOk ? 200 : 502 }
   );
 }

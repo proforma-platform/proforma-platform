@@ -23,7 +23,7 @@
       {
         "parameters": {
           "mode": "runOnceForAllItems",
-          "jsCode": "const headers = $json.headers ?? {};\nconst tokenHeader = String(headers['x-govhub-token'] || headers['X-GOVHUB-TOKEN'] || '').trim();\nconst allowed = String($env.GOVHUB_TOKENS || '').split(',').map(v => v.trim()).filter(Boolean);\nif (!tokenHeader || !allowed.includes(tokenHeader)) {\n  return [{ json: { ok: false, statusCode: 401, error_code: 'AUTH_INVALID_TOKEN', message: 'invalid token' } }];\n}\nlet scopes = [];\ntry {\n  const map = JSON.parse(String($env.GOVHUB_TOKEN_SCOPES_JSON || '{}'));\n  if (Array.isArray(map[tokenHeader])) scopes = map[tokenHeader].map((s) => String(s).trim());\n} catch {}\nif (!(scopes.includes('m:w') || scopes.includes('missions:write') || scopes.includes('s:w'))) {\n  return [{ json: { ok: false, statusCode: 403, error_code: 'AUTH_SCOPE_REQUIRED', message: 'missing mission write scope' } }];\n}\nlet body = $json.body ?? {};\nif (typeof body === 'string') {\n  try { body = JSON.parse(body); } catch { body = {}; }\n}\nconst mission_id = String(body.mission_id || '').trim();\nconst decision = String(body.decision || '').trim().toLowerCase();\nconst owner_id = String(body.owner_id || '').trim();\nconst note = String(body.note || '').trim();\nif (!mission_id || !owner_id || !['approve', 'deny'].includes(decision)) {\n  return [{ json: { ok: false, statusCode: 400, error_code: 'OWNER_ACK_INVALID', message: 'mission_id, owner_id and decision(approve|deny) are required' } }];\n}\nconst esc = (v) => String(v ?? '').replace(/'/g, \"''\");\nreturn [{ json: { ok: true, mission_id, decision, owner_id, note, mission_id_sql: esc(mission_id), owner_id_sql: esc(owner_id), note_sql: esc(note), transition: decision === 'approve' ? 'awaiting_owner_ack->queued' : 'awaiting_owner_ack->blocked' } }];"
+          "jsCode": "const headers = $json.headers ?? {};\nconst tokenHeader = String(headers['x-govhub-token'] || headers['X-GOVHUB-TOKEN'] || '').trim();\nconst allowed = String($env.GOVHUB_TOKENS || '').split(',').map(v => v.trim()).filter(Boolean);\nif (!tokenHeader || !allowed.includes(tokenHeader)) {\n  return [{ json: { ok: false, statusCode: 401, error_code: 'AUTH_INVALID_TOKEN', message: 'invalid token' } }];\n}\nlet scopes = [];\nlet scopeMapConfigured = false;\ntry {\n  const map = JSON.parse(String($env.GOVHUB_TOKEN_SCOPES_JSON || '{}'));\n  scopeMapConfigured = !!map && typeof map === 'object' && Object.keys(map).length > 0;\n  if (Array.isArray(map[tokenHeader])) scopes = map[tokenHeader].map((s) => String(s).trim());\n} catch {}\nif (scopeMapConfigured && !(scopes.includes('m:w') || scopes.includes('missions:write') || scopes.includes('s:w'))) {\n  return [{ json: { ok: false, statusCode: 403, error_code: 'AUTH_SCOPE_REQUIRED', message: 'missing mission write scope' } }];\n}\nlet body = $json.body ?? {};\nif (typeof body === 'string') {\n  try { body = JSON.parse(body); } catch { body = {}; }\n}\nconst mission_id = String(body.mission_id || '').trim();\nconst decision = String(body.decision || '').trim().toLowerCase();\nconst owner_id = String(body.owner_id || '').trim();\nconst note = String(body.note || '').trim();\nif (!mission_id || !owner_id || !['approve', 'deny'].includes(decision)) {\n  return [{ json: { ok: false, statusCode: 400, error_code: 'OWNER_ACK_INVALID', message: 'mission_id, owner_id and decision(approve|deny) are required' } }];\n}\nconst esc = (v) => String(v ?? '').replace(/'/g, \"''\");\nreturn [{ json: { ok: true, mission_id, decision, owner_id, note, mission_id_sql: esc(mission_id), owner_id_sql: esc(owner_id), note_sql: esc(note), transition: decision === 'approve' ? 'awaiting_owner_ack->queued' : 'awaiting_owner_ack->blocked' } }];"
         },
         "id": "Code_ValidateOwnerAck",
         "name": "Validar Ack do Owner",
@@ -36,20 +36,14 @@
       },
       {
         "parameters": {
-          "conditions": {
-            "string": [
-              {
-                "value1": "={{ String($json.ok === true) }}",
-                "operation": "equal",
-                "value2": "true"
-              }
-            ]
-          }
+          "mode": "expression",
+          "numberOutputs": 2,
+          "output": "={{$json.ok ? 0 : 1}}"
         },
         "id": "If_OwnerAckValid",
         "name": "Valido?",
-        "type": "n8n-nodes-base.if",
-        "typeVersion": 2,
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
         "position": [
           740,
           280

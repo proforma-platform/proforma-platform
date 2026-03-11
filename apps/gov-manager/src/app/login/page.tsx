@@ -38,8 +38,9 @@ export default function LoginPage() {
     <main className="auth-shell">
       <form className="auth-card" onSubmit={onSubmit}>
         <div className="auth-logo">
-          <img className="auth-seal" src="/selo-govhub.png" alt="Selo Gov-Hub" />
-          <strong>gov-manager</strong>
+          <div className="auth-seal-wrap">
+            <img className="auth-seal" src="/selo-govhub.png" alt="Selo Gov-Hub" />
+          </div>
         </div>
         <h1>Entrar</h1>
         <p>Acesso ao painel de governanca e operacao de missoes.</p>

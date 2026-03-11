@@ -1,0 +1,333 @@
+[
+  {
+    "id": "govhub-client-v1-dispatch-output",
+    "name": "govhub-client-v1-dispatch-output",
+    "active": false,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "path": "partner/client/dispatch",
+          "httpMethod": "POST",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "Webhook_ClientDispatch",
+        "name": "Webhook Client Dispatch",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "webhookId": "c4ceeea5-3449-49c0-842f-1a1114ebc91c",
+        "position": [
+          220,
+          260
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const crypto = require('crypto');\nconst asObj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});\nlet body = asObj($json.body);\nif (!Object.keys(body).length && typeof $json.body === 'string') {\n  try { body = asObj(JSON.parse($json.body)); } catch {}\n}\nif (!Object.keys(body).length) body = asObj($json);\n\nconst toBool = (v) => v === true || String(v || '').toLowerCase() === 'true' || String(v || '') === '1';\nconst jobId = String(body.job_id || body.jobId || '').trim();\nif (!jobId) {\n  return [{ json: { route: 'error', statusCode: 400, error_code: 'JOB_ID_REQUIRED', message: 'job_id is required' } }];\n}\n\nconst base = String($env.GOV_CLIENT_GOVHUB_BASE_URL || 'https://govhub.proforma.net.br').replace(/\\/+$/,'');\nconst partnerId = String($env.GOV_CLIENT_PARTNER_ID || 'proforma-partner-test-001').trim();\nconst secret = String($env.GOV_CLIENT_HMAC_SECRET || '').trim();\nif (!secret) {\n  return [{ json: { route: 'error', statusCode: 500, error_code: 'CLIENT_SECRET_MISSING', message: 'GOV_CLIENT_HMAC_SECRET not configured' } }];\n}\n\nconst idempotencyKey = String(body.idempotency_key || body.idempotencyKey || `IDEMP-${jobId}`).trim();\nconst correlationId = String(body.correlation_id || body.correlationId || `CORR-${jobId}`).trim();\n\nconst payload = asObj(body.payload);\nconst requestBody = { job_id: jobId, payload: Object.keys(payload).length ? payload : body };\nconst bodyRaw = JSON.stringify(requestBody);\nconst ts = String(Math.floor(Date.now() / 1000));\nconst nonce = String(body.nonce || crypto.randomUUID());\nlet signature = crypto.createHmac('sha256', secret).update(`${ts}.${nonce}.${bodyRaw}`).digest('hex');\nif (toBool(body.simulate_bad_signature)) signature = 'deadbeef';\n\nconst timeoutMs = toBool(body.simulate_timeout) ? 1 : Number(body.timeout_ms || 10000);\n\nreturn [{\n  json: {\n    route: 'valid',\n    job_id: jobId,\n    partner_id: partnerId,\n    correlation_id: correlationId,\n    idempotency_key: idempotencyKey,\n    govhub_output_url: `${base}/webhook/govhub-output`,\n    govhub_status_url: `${base}/webhook/govhub-status`,\n    request_body: requestBody,\n    x_timestamp: ts,\n    x_nonce: nonce,\n    x_signature: signature,\n    timeout_ms: Number.isFinite(timeoutMs) ? Math.max(1, timeoutMs) : 10000\n  }\n}];\n"
+        },
+        "id": "Code_ValidateSign",
+        "name": "Validate + Sign",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          480,
+          260
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "expression",
+          "numberOutputs": 2,
+          "output": "={{$json.route === 'error' ? 0 : 1}}"
+        },
+        "id": "Switch_RequestRoute",
+        "name": "Route Request",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
+        "position": [
+          700,
+          260
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{$json.govhub_output_url}}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "content-type",
+                "value": "application/json"
+              },
+              {
+                "name": "x-partner-id",
+                "value": "={{$json.partner_id}}"
+              },
+              {
+                "name": "x-correlation-id",
+                "value": "={{$json.correlation_id}}"
+              },
+              {
+                "name": "x-idempotency-key",
+                "value": "={{$json.idempotency_key}}"
+              },
+              {
+                "name": "x-timestamp",
+                "value": "={{$json.x_timestamp}}"
+              },
+              {
+                "name": "x-nonce",
+                "value": "={{$json.x_nonce}}"
+              },
+              {
+                "name": "x-signature",
+                "value": "={{$json.x_signature}}"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "contentType": "json",
+          "jsonBody": "={{$json.request_body}}",
+          "options": {
+            "ignoreResponseCode": true,
+            "response": {
+              "response": {
+                "fullResponse": true
+              }
+            },
+            "timeout": "={{$json.timeout_ms || 10000}}"
+          }
+        },
+        "id": "Http_DispatchGovhubOutput",
+        "name": "Dispatch GOVHUB Output",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "continueOnFail": true,
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 3000,
+        "position": [
+          950,
+          180
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const req = $node['Validate + Sign'].json || {};\nconst body = ($json.body && typeof $json.body === 'object') ? $json.body : {};\nconst statusCode = Number($json.statusCode || $json.responseCode || 0);\nconst errMsg = String($json?.error?.message || $json.message || body.message || 'dispatch failed');\nconst dispatchOk = !$json.error && statusCode >= 200 && statusCode < 300 && body.ack === true;\nif (dispatchOk) {\n  return [{ json: { dispatch_ok: true, job_id: req.job_id, status_code: statusCode, partner_id: req.partner_id, idempotency_key: req.idempotency_key, correlation_id: req.correlation_id } }];\n}\nreturn [{ json: { dispatch_ok: false, job_id: req.job_id, partner_id: req.partner_id, idempotency_key: req.idempotency_key, correlation_id: req.correlation_id, govhub_status_url: req.govhub_status_url, status_code: statusCode || 502, error_code: String(body.error_code || ($json.error ? 'DISPATCH_HTTP_ERROR' : 'DISPATCH_REJECTED')), error_message: errMsg.slice(0, 250) } }];"
+        },
+        "id": "Code_ClassifyDispatch",
+        "name": "Classify Dispatch",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1160,
+          180
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "expression",
+          "numberOutputs": 2,
+          "output": "={{$json.dispatch_ok ? 1 : 0}}"
+        },
+        "id": "Switch_DispatchOutcome",
+        "name": "Dispatch OK?",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
+        "position": [
+          1360,
+          180
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{$json.govhub_status_url}}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "content-type",
+                "value": "application/json"
+              },
+              {
+                "name": "x-partner-id",
+                "value": "={{$json.partner_id}}"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "contentType": "json",
+          "jsonBody": "={{ { job_id: $json.job_id, status: 'DLQ_PENDING', error_code: $json.error_code, message: $json.error_message, http_status: $json.status_code, idempotency_key: $json.idempotency_key, correlation_id: $json.correlation_id } }}",
+          "options": {
+            "ignoreResponseCode": true,
+            "response": {
+              "response": {
+                "fullResponse": true
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "id": "Http_SendDlqStatus",
+        "name": "Send DLQ Status",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "continueOnFail": true,
+        "position": [
+          1570,
+          100
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseCode": 200,
+          "responseBody": "={{ { status: 'ok', dispatch: 'sent', job_id: $json.job_id, partner_id: $json.partner_id, idempotency_key: $json.idempotency_key } }}"
+        },
+        "id": "Respond_Sent",
+        "name": "Respond 200",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [
+          1570,
+          270
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseCode": 202,
+          "responseBody": "={{ { status: 'accepted', dispatch: 'dlq', job_id: $json.job_id, error_code: $json.error_code, message: $json.error_message, next_action: 'investigate_and_retry' } }}"
+        },
+        "id": "Respond_Dlq",
+        "name": "Respond 202 DLQ",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [
+          1780,
+          100
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { status: 'error', error_code: ($json.error_code || 'INVALID_REQUEST'), message: ($json.message || 'invalid request') } }}",
+          "options": {
+            "responseCode": "={{$json.statusCode || 400}}"
+          }
+        },
+        "id": "Respond_Error",
+        "name": "Respond Error",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [
+          950,
+          340
+        ]
+      }
+    ],
+    "connections": {
+      "Webhook Client Dispatch": {
+        "main": [
+          [
+            {
+              "node": "Validate + Sign",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Validate + Sign": {
+        "main": [
+          [
+            {
+              "node": "Route Request",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Route Request": {
+        "main": [
+          [
+            {
+              "node": "Respond Error",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Dispatch GOVHUB Output",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Dispatch GOVHUB Output": {
+        "main": [
+          [
+            {
+              "node": "Classify Dispatch",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Classify Dispatch": {
+        "main": [
+          [
+            {
+              "node": "Dispatch OK?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Dispatch OK?": {
+        "main": [
+          [
+            {
+              "node": "Send DLQ Status",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Respond 200",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Send DLQ Status": {
+        "main": [
+          [
+            {
+              "node": "Respond 202 DLQ",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1"
+    }
+  }
+]

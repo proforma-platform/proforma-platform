@@ -1,0 +1,116 @@
+[
+  {
+    "id": "govhub-v7-operations-chat-dispatch",
+    "name": "govhub-v7-operacoes-chat-dispatch",
+    "active": false,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "path": "govhub/operations/chat-dispatch",
+          "httpMethod": "POST",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "Webhook_ChatDispatch",
+        "name": "Webhook Chat Dispatch",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "webhookId": "6d6407f4-c4d7-4e40-95c6-523d01d4d901",
+        "position": [220, 260]
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const headers = $json.headers ?? {};\nconst tokenHeader = String(headers['x-govhub-token'] || headers['X-GOVHUB-TOKEN'] || '').trim();\nconst allowed = String($env.GOVHUB_TOKENS || '').split(',').map(v => v.trim()).filter(Boolean);\nif (!tokenHeader || !allowed.includes(tokenHeader)) {\n  return [{ json: { ok: false, statusCode: 401, error_code: 'AUTH_INVALID_TOKEN', message: 'invalid token' } }];\n}\nconst asObj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});\nlet body = asObj($json.body);\nif (!Object.keys(body).length && typeof $json.body === 'string') {\n  try { body = asObj(JSON.parse($json.body)); } catch {}\n}\nif (!Object.keys(body).length) body = asObj($json);\nconst mission_id = String(body.mission_id || '').trim();\nconst actor = String(body.actor || '').trim();\nconst target = String(body.target || '').trim();\nconst action = String(body.action || '').trim();\nconst message = String(body.message || '').trim();\nconst udn_block = String(body.udn_block || '').trim();\nconst allowedActions = new Set(['OK', 'PAUSAR', 'NEGAR', 'OWNER_CALL', 'NOVA_MISSAO', 'STATUS']);\nif (!mission_id || !allowedActions.has(action)) {\n  return [{ json: { ok: false, statusCode: 400, error_code: 'CHAT_DISPATCH_INVALID', message: 'mission_id and valid action are required' } }];\n}\nreturn [{ json: { ok: true, mission_id, actor, target, action, message, udn_block } }];"
+        },
+        "id": "Code_ValidatePayload",
+        "name": "Validar payload",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [480, 260]
+      },
+      {
+        "parameters": {
+          "mode": "expression",
+          "numberOutputs": 2,
+          "output": "={{$json.ok ? 0 : 1}}"
+        },
+        "id": "Switch_ValidateRoute",
+        "name": "Rota valida",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
+        "position": [700, 260]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseCode": 200,
+          "responseBody": "={{ { status: 'ok', dispatch: 'accepted', mission_id: $json.mission_id, target: $json.target || null, action: $json.action, handled_by: 'govhub-v7-operacoes-chat-dispatch' } }}"
+        },
+        "id": "Respond_Ok",
+        "name": "Responder 200",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [940, 180]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseCode": "={{$json.statusCode || 400}}",
+          "responseBody": "={{ { status: 'error', error_code: $json.error_code || 'CHAT_DISPATCH_ERROR', message: $json.message || 'invalid request' } }}"
+        },
+        "id": "Respond_Error",
+        "name": "Responder erro",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [940, 340]
+      }
+    ],
+    "connections": {
+      "Webhook Chat Dispatch": {
+        "main": [
+          [
+            {
+              "node": "Validar payload",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Validar payload": {
+        "main": [
+          [
+            {
+              "node": "Rota valida",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Rota valida": {
+        "main": [
+          [
+            {
+              "node": "Responder 200",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Responder erro",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1"
+    }
+  }
+]

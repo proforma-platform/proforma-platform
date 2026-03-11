@@ -157,3 +157,12 @@ To onboard a new product repository:
 - Snapshot MUST be decoded locally and SHA256-verified.
 - Prompt execution MUST reference snapshot metadata (`snapshot_type`, `created_at_utc`, `payload_sha256`).
 - If no snapshot exists, operator MUST generate inventory, ingest a new snapshot, then proceed.
+
+## Operational Diagnosis Gates
+- Before any architectural diagnosis, Staff/Agent MUST retrieve context from Operational Memory via `/api/govhub/operations/memory` and treat it as primary retrieval.
+- Operational Memory retrieval MUST prioritize role identity, governance rules, mission context, continuity, and prior validated decisions.
+- Retrieved context SHOULD include, when available: `namespace`, `topic`, `role`, `tags`, `snapshot`, and payload metadata.
+- Raw conversation continuity MUST NOT override Operational Memory when memory is available.
+- Governance diagnosis MUST distinguish visible orchestration paths from real execution paths.
+- A workflow/UI dispatch path MUST NOT be treated as executor bridge without code + runtime verification.
+- Current validated runtime constraint: `operations/chat` is real executor consumption path; `operations-chat-dispatch` is not a validated autonomous E2E bridge.

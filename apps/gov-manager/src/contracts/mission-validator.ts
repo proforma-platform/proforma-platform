@@ -15,6 +15,9 @@ export function validateMissionRequest(input: unknown): { valid: boolean; errors
   } else if (!obj.mission.id || typeof obj.mission.id !== "string") {
     errors.push("mission.id is required");
   } else {
+    if (obj.mission.notes !== undefined && typeof obj.mission.notes !== "string") {
+      errors.push("mission.notes must be string");
+    }
     if (obj.mission.branch !== undefined && typeof obj.mission.branch !== "string") {
       errors.push("mission.branch must be string");
     }
@@ -128,6 +131,7 @@ export function validateMissionRequest(input: unknown): { valid: boolean; errors
       mission: {
         id: obj.mission!.id as string,
         ...(typeof obj.mission!.target === "string" ? { target: obj.mission!.target } : {}),
+        ...(typeof obj.mission!.notes === "string" ? { notes: obj.mission!.notes } : {}),
         ...(typeof obj.mission!.level === "string" ? { level: obj.mission!.level } : {}),
         ...(typeof obj.mission!.branch === "string" ? { branch: obj.mission!.branch } : {}),
         ...(typeof obj.mission!.agent_id === "string" ? { agent_id: obj.mission!.agent_id } : {})

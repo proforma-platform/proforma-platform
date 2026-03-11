@@ -1,0 +1,197 @@
+[
+  {
+    "id": "govhub-v7-close-memory-store",
+    "name": "govhub-v7-mission-close-memory-autostore",
+    "active": true,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "minutes",
+                "minutesInterval": 1
+              }
+            ]
+          }
+        },
+        "id": "Schedule_Trigger",
+        "name": "Schedule Trigger",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          220,
+          260
+        ]
+      },
+      {
+        "parameters": {
+          "method": "GET",
+          "url": "={{ String($env.GOV_MANAGER_BASE_URL || 'http://172.19.0.1:3000').replace(/\\/+$/,'') + '/api/govhub/operations/queue' }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "x-govhub-token",
+                "value": "={{ String($env.GOVHUB_TOKEN || '').trim() || String($env.GOVHUB_TOKENS || '').split(',')[0]?.trim() || '' }}"
+              }
+            ]
+          },
+          "options": {
+            "response": {
+              "response": {
+                "fullResponse": false
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "id": "Http_LoadQueue",
+        "name": "Carregar fila GOV",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          500,
+          260
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const payload = items?.[0]?.json || {};\nconst rows = Array.isArray(payload.rows) ? payload.rows : [];\nconst doneRows = rows.filter((row) => String(row?.status || '').toLowerCase() === 'done');\nconst clean = (v, n = 6000) => String(v || '').trim().slice(0, n);\nconst outputs = [];\nfor (const row of doneRows) {\n  const missionId = clean(row.mission_id, 120).toUpperCase();\n  const queueId = clean(row.queue_id, 180);\n  const completionNote = clean(row.completion_note, 1400);\n  if (!missionId || !completionNote) continue;\n\n  const requestId = clean(row.completion_request_id || row.execution_run_id || row.updated_at_utc, 180);\n  const memoryId = clean(`auto-close-${missionId}-${requestId || queueId || 'na'}`.toLowerCase().replace(/[^a-z0-9._-]+/g, '-'), 120);\n  const completionAt = clean(row.completion_report_at_utc || row.updated_at_utc, 64);\n  const assignee = clean(row.assignee, 24).toUpperCase();\n  const proofMatch = completionNote.match(/artifact:\\/\\/\\S+/i);\n  const proofRef = clean(proofMatch ? proofMatch[0] : '', 600);\n\n  outputs.push({\n    json: {\n      action: 'store',\n      namespace: 'gov_principal_architect',\n      mission_id: missionId,\n      role: assignee || 'CPP',\n      topic: `mission_close_${missionId.toLowerCase()}`,\n      summary: clean(`Fechamento automático da missão ${missionId} por ${assignee || 'executor'} (${completionAt || 'sem horário'}).`, 600),\n      content: clean(\n        [\n          `MISSAO=${missionId}`,\n          `QUEUE_ID=${queueId}`,\n          `ASSIGNEE=${assignee || '-'}`,\n          `COMPLETION_AT_UTC=${completionAt || '-'}`,\n          `REQUEST_ID=${requestId || '-'}`,\n          proofRef ? `PROOF_REF=${proofRef}` : 'PROOF_REF=-',\n          `NOTE=${completionNote}`\n        ].join('\\n'),\n        16000\n      ),\n      tags: ['mission', 'closeout', 'auto-store', 'n8n', assignee || 'executor'],\n      actor: 'n8n-mission-close-autostore',\n      source_type: 'automation',\n      memory_id: memoryId\n    }\n  });\n}\nif (outputs.length === 0) {\n  return [{ json: { skip: true, reason: 'no_done_rows_with_completion_note' } }];\n}\nreturn outputs;"
+        },
+        "id": "Code_PrepareMemoryRows",
+        "name": "Preparar memória de fechamento",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          760,
+          260
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": false,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "skip-condition",
+                "leftValue": "={{$json.skip}}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "true",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "If_Skip",
+        "name": "Sem itens para store?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          1010,
+          260
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ String($env.GOV_MANAGER_BASE_URL || 'http://172.19.0.1:3000').replace(/\\/+$/,'') + '/api/govhub/operations/memory' }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "x-govhub-token",
+                "value": "={{ String($env.GOVHUB_TOKEN || '').trim() || String($env.GOVHUB_TOKENS || '').split(',')[0]?.trim() || '' }}"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{$json}}",
+          "options": {
+            "ignoreResponseCode": true,
+            "response": {
+              "response": {
+                "fullResponse": true
+              }
+            },
+            "timeout": 12000
+          }
+        },
+        "id": "Http_StoreMemory",
+        "name": "Store Memory",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "continueOnFail": true,
+        "position": [
+          1270,
+          360
+        ]
+      }
+    ],
+    "connections": {
+      "Schedule Trigger": {
+        "main": [
+          [
+            {
+              "node": "Carregar fila GOV",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Carregar fila GOV": {
+        "main": [
+          [
+            {
+              "node": "Preparar memória de fechamento",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Preparar memória de fechamento": {
+        "main": [
+          [
+            {
+              "node": "Sem itens para store?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Sem itens para store?": {
+        "main": [
+          [],
+          [
+            {
+              "node": "Store Memory",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {}
+  }
+]

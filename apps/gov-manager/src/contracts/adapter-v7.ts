@@ -6,6 +6,7 @@ export interface LegacyMissionEnvelope {
   mission?: {
     id?: unknown;
     target?: unknown;
+    notes?: unknown;
     level?: unknown;
     branch?: unknown;
     agent_id?: unknown;
@@ -37,6 +38,7 @@ export function adaptLegacyMissionEnvelope(input: unknown): MissionRequest | nul
     mission: {
       id: body.mission.id,
       ...(typeof body.mission.target === "string" ? { target: body.mission.target } : {}),
+      ...(typeof body.mission.notes === "string" ? { notes: body.mission.notes } : {}),
       ...(typeof body.mission.level === "string" ? { level: body.mission.level } : {}),
       ...(typeof body.mission.branch === "string" ? { branch: body.mission.branch } : {}),
       ...(typeof body.mission.agent_id === "string" ? { agent_id: body.mission.agent_id } : {})
@@ -64,6 +66,7 @@ export function contractAdapterHash(): string {
       "udn",
       "mission.id",
       "mission.target",
+      "mission.notes",
       "mission.level",
       "mission.branch",
       "mission.agent_id",
