@@ -1,0 +1,37 @@
+name: GOVHUB Auto PR Status
+
+on:
+  workflow_run:
+    workflows: ["GOVHUB Auto PR"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  publish-status:
+    if: ${{ secrets.GOV_MANAGER_BOT_STATUS_ENDPOINT != '' && secrets.GOV_MANAGER_BOT_STATUS_TOKEN != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish govhublab-pr status
+        env:
+          GOV_MANAGER_BOT_STATUS_ENDPOINT: ${{ secrets.GOV_MANAGER_BOT_STATUS_ENDPOINT }}
+          GOV_MANAGER_BOT_STATUS_TOKEN: ${{ secrets.GOV_MANAGER_BOT_STATUS_TOKEN }}
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          set -euo pipefail
+          state="ok"
+          message="auto-pr executado"
+          conclusion="${RUN_CONCLUSION:-unknown}"
+
+          if [ "$conclusion" != "success" ]; then
+            state="error"
+            message="falha no workflow auto-pr"
+          fi
+
+          curl -fsS -X PUT "$GOV_MANAGER_BOT_STATUS_ENDPOINT" \
+            -H "content-type: application/json" \
+            -H "x-gov-manager-token: $GOV_MANAGER_BOT_STATUS_TOKEN" \
+            --data "{\"bot_id\":\"govhublab-pr\",\"workflow_id\":\"govhub-auto-pr\",\"state\":\"$state\",\"result\":\"$conclusion\",\"message\":\"$message\",\"run_id\":\"$RUN_ID\",\"run_url\":\"$RUN_URL\",\"actor\":\"github-actions\"}" >/dev/null
