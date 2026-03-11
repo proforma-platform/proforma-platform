@@ -8,394 +8,73 @@ import {
   DEFAULT_CHAT_TRANSCRIPTION_LANGUAGE,
   type ChatTranscriptionLanguageId
 } from "../core/chat-transcription";
-
-type Theme = "dark" | "light";
-type Section = "visao" | "missoes" | "orquestracao" | "escritorio" | "chat" | "execucoes" | "pendencias" | "prompts" | "governanca" | "memoria";
-type MissionsTab = "cadastro" | "gestao";
-type PartExecutor = "STAFF" | "CPP" | "CPP-IA";
-type PartPriority = "P0" | "P1" | "P2";
-type ChatUiAction = "MSG" | "STATUS" | "OK" | "PAUSAR" | "NEGAR" | "OWNER_CALL" | "NOVA_MISSAO";
-type QueueWorkflowStatus = "staff_validation_gate" | "open" | "in_progress" | "done" | "paused_waiting_owner";
-
-interface MissionPart {
-  part_id: string;
-  goal: string;
-  executor: PartExecutor;
-  priority: PartPriority;
-}
-
-interface PromptEntry {
-  prompt_id: string;
-  title: string;
-  description: string;
-  purpose: string;
-  tags: string[];
-  template: string;
-  variables: string[];
-  prompt_hash: string;
-}
-
-interface TokenPolicy {
-  daily_token_limit: number;
-  daily_usd_limit: number;
-  monthly_usd_limit: number;
-  warn_threshold_pct: number;
-  auto_pause_on_limit: boolean;
-  hard_stop: boolean;
-}
-
-interface UsageSummary {
-  daily_input_tokens?: number;
-  daily_output_tokens?: number;
-  daily_tokens?: number;
-  monthly_input_tokens?: number;
-  monthly_output_tokens?: number;
-  daily_usd?: number;
-  monthly_usd?: number;
-  daily_count?: number;
-  monthly_count?: number;
-}
-
-interface UsageRow {
-  mission_id?: string;
-  projected_input_tokens?: number;
-  projected_output_tokens?: number;
-  projected_total_tokens?: number;
-  projected_cost_usd?: number;
-  projected_cost_brl?: number;
-  status?: string;
-  created_at_utc?: string;
-}
-
-interface BotStatusRow {
-  bot_id?: string;
-  workflow_id?: string;
-  state?: string;
-  result?: string;
-  message?: string;
-  run_id?: string;
-  run_url?: string;
-  actor?: string;
-  updated_at_utc?: string;
-}
-
-interface QueueRow {
-  queue_id?: string;
-  mission_id?: string;
-  title?: string;
-  description?: string;
-  kind?: string;
-  priority?: string;
-  assignee?: string;
-  assignee_agent_id?: string;
-  execution_session_id?: string;
-  execution_agent_id?: string;
-  execution_trace_id?: string;
-  execution_run_id?: string;
-  last_start_request_id?: string;
-  last_start_attempt_at_utc?: string;
-  last_start_ack_at_utc?: string;
-  last_start_error_code?: string;
-  last_start_error_message?: string;
-  last_start_ack_source?: string;
-  last_start_ack_http?: number;
-  last_transition_reason_code?: string;
-  last_transition_reason_message?: string;
-  last_transition_source?: string;
-  last_transition_actor?: string;
-  last_transition_at_utc?: string;
-  execution_progress_pct?: number;
-  execution_progress_label?: string;
-  eta_adjustment_min?: number;
-  completion_note?: string;
-  completion_report_by?: string;
-  completion_report_at_utc?: string;
-  status?: string;
-  created_at_utc?: string;
-  updated_at_utc?: string;
-}
-
-interface AgentStatusRow {
-  agent_id?: string;
-  role?: string;
-  group?: string;
-  capabilities?: string[];
-  created_at_utc?: string;
-  max_concurrency?: number;
-  current_load?: number;
-  state?: string;
-  health?: string;
-  last_heartbeat_at_utc?: string;
-  updated_at_utc?: string;
-}
-
-interface OfficeHierarchyRow {
-  office_id?: string;
-  leader_id?: string;
-  subordinate_ids?: string[];
-  updated_at_utc?: string;
-  updated_by?: string;
-}
-
-interface ExecutionSessionRow {
-  session_id?: string;
-  agent_id?: string;
-  role?: string;
-  office_id?: string;
-  host?: string;
-  channel?: string;
-  status?: string;
-  current_mission_id?: string;
-  current_trace_id?: string;
-  current_run_id?: string;
-  started_at_utc?: string;
-  last_heartbeat_at_utc?: string;
-  updated_at_utc?: string;
-}
-
-interface ExecutionEventRow {
-  session_id?: string;
-  mission_id?: string;
-  trace_id?: string;
-  run_id?: string;
-  event_type?: string;
-  stage?: string;
-  progress_pct?: number;
-  message?: string;
-  completion_proof?: string;
-  created_at_utc?: string;
-}
-
-type QueueEtaConfidence = "alta" | "media" | "baixa";
-
-interface QueueEtaEstimate {
-  label: string;
-  confidence: QueueEtaConfidence;
-  deviation_min: number;
-}
-
-interface OfficeAgentCard {
-  agent_id: string;
-  resolved_agent_id: string;
-  role: string;
-  office_id: string;
-  is_leader: boolean;
-  status_source: "exact" | "role_fallback" | "unknown";
-  state: string;
-  health: string;
-  current_load: number;
-  max_concurrency: number;
-  created_at_utc: string;
-  updated_at_utc: string;
-  capabilities: string[];
-}
-
-type AgentVitalityLevel = "saudavel" | "atencao" | "risco" | "perigo";
-
-interface PresenceAssigneeRow {
-  assignee?: string;
-  role?: string;
-  state?: string;
-  source?: string;
-  label?: string;
-  online?: boolean;
-  stale?: boolean;
-  health?: string;
-  open_count?: number;
-  in_progress_count?: number;
-  paused_count?: number;
-  done_count?: number;
-  demand_total?: number;
-  last_activity_at_utc?: string;
-  updated_at_utc?: string;
-}
-
-interface PresenceIdentityRow {
-  office_id?: string;
-  identity?: string;
-  resolved_agent_id?: string;
-  role?: string;
-  state?: string;
-  source?: string;
-  label?: string;
-  online?: boolean;
-  stale?: boolean;
-  health?: string;
-  last_activity_at_utc?: string;
-  updated_at_utc?: string;
-}
-
-interface PresenceOfficeRow {
-  office_id?: string;
-  state?: string;
-  source?: string;
-  label?: string;
-  online?: boolean;
-  stale?: boolean;
-  health?: string;
-  members_total?: number;
-  demand_total?: number;
-}
-
-interface MissionBoardPackage {
-  package_id?: string;
-  mission_ids?: string[];
-  note?: string;
-  status?: string;
-  created_by?: string;
-  created_at_utc?: string;
-  updated_at_utc?: string;
-}
-
-interface MissionBoardMission {
-  mission_id?: string;
-  objective?: string;
-  assignee?: string;
-  priority?: string;
-  status?: string;
-  notes?: string;
-  updated_at_utc?: string;
-  updated_by?: string;
-}
-
-interface MissionAssetRow {
-  asset_id: string;
-  mission_id: string;
-  file_name: string;
-  mime_type: string;
-  size_bytes: number;
-  created_at_utc: string;
-  created_by: string;
-  download_url?: string;
-}
-
-interface ChatRow {
-  message_id?: string;
-  mission_id?: string;
-  actor?: string;
-  target?: string;
-  action?: string;
-  message?: string;
-  direction?: string;
-  in_reply_to?: string;
-  source?: string;
-  delivery_status?: string;
-  dispatch_http?: number | null;
-  created_at_utc?: string;
-}
-
-interface GovUserRow {
-  username?: string;
-  role?: string;
-  active?: boolean;
-  created_at_utc?: string;
-  updated_at_utc?: string;
-}
-
-interface AuditEventRow {
-  event_id?: string;
-  actor?: string;
-  role?: string;
-  action?: string;
-  target?: string;
-  before_state?: string;
-  after_state?: string;
-  source?: string;
-  created_at_utc?: string;
-}
-
-interface MemoryChunkRow {
-  memory_id?: string;
-  chunk_id?: string;
-  namespace?: string;
-  topic?: string;
-  content?: string;
-  summary?: string;
-  tags?: string[];
-  mission_id?: string;
-  role?: string;
-  actor?: string;
-  source_type?: string;
-  created_at_utc?: string;
-  updated_at_utc?: string;
-}
-
-interface SessionInfo {
-  actor?: string;
-  role?: string;
-  is_primary_admin?: boolean;
-}
-
-interface QueueUpdateExtras {
-  reviewerGuard?: ReviewerGuardApproval;
-  etaDeltaMin?: number;
-  etaReason?: string;
-  completionNote?: string;
-  validationDecision?: "bind_cpp" | "reassign_cpp" | "staff_fallback";
-  assignee?: "STAFF" | "CPP" | "CPP-IA";
-}
-
-interface TopNotice {
-  message: string;
-  variant: "success" | "error" | "info";
-}
-
-type MissionManageConfirmAction = "group" | "edit";
-
-interface SupportErrorReportInput {
-  source: string;
-  missionId?: string;
-  queueId?: string;
-  action?: string;
-  errorCode?: string;
-  message: string;
-  payload?: unknown;
-}
-
-interface ReviewerGuardApproval {
-  reviewer_guard_approved: true;
-  reviewer_guard_by: string;
-  reviewer_guard_note: string;
-}
-
-const ADMIN_COMMAND_ACTIONS = new Set<ChatUiAction>(["OK", "PAUSAR", "NEGAR", "OWNER_CALL", "NOVA_MISSAO"]);
-const PRINCIPAL_ARCHITECT_TARGET = "PRINCIPAL_ARCHITECT";
-const MISSION_INTAKE_AGENT = PRINCIPAL_ARCHITECT_TARGET;
-const MISSION_ID_PREFIX = "GOV-MANAGER-V1-";
-const MISSION_ID_DIGITS = 5;
-const SUPPORT_REPORTED_SUFFIX = " (falha/erro reportado ao time de suporte).";
-const SECTION_ITEMS: Array<{ id: Section; label: string; icon: string }> = [
-  { id: "visao", label: "Visão geral", icon: "⌂" },
-  { id: "missoes", label: "Missões", icon: "◫" },
-  { id: "orquestracao", label: "Orquestração", icon: "◎" },
-  { id: "escritorio", label: "Control Plane", icon: "⌬" },
-  { id: "chat", label: "Chat HUB", icon: "✉" },
-  { id: "execucoes", label: "Execuções", icon: "▤" },
-  { id: "pendencias", label: "Pendências", icon: "⎋" },
-  { id: "prompts", label: "Prompts", icon: "⌘" },
-  { id: "governanca", label: "Governança", icon: "◉" },
-  { id: "memoria", label: "Memória", icon: "⧉" }
-];
-const KANBAN_COLUMNS: Array<{ status: QueueWorkflowStatus; label: string }> = [
-  { status: "staff_validation_gate", label: "Gate Staff" },
-  { status: "open", label: "A fazer" },
-  { status: "in_progress", label: "Em progresso" },
-  { status: "paused_waiting_owner", label: "Pausadas" },
-  { status: "done", label: "Concluídas" }
-];
+import {
+  ADMIN_COMMAND_ACTIONS,
+  defaultPolicy,
+  KANBAN_COLUMNS,
+  MISSION_ID_DIGITS,
+  MISSION_ID_PREFIX,
+  MISSION_INTAKE_AGENT,
+  PRINCIPAL_ARCHITECT_TARGET,
+  SECTION_ITEMS,
+  SUPPORT_REPORTED_SUFFIX
+} from "./gov/constants";
+import {
+  compactText,
+  formatAuditStatePreview,
+  formatBytes,
+  formatDateOnly,
+  formatDateTime,
+  formatPct,
+  formatUsd,
+  normalizeChatMatch,
+  readNumber,
+  replyCountLabel
+} from "./gov/formatters";
+import type {
+  AgentStatusRow,
+  AgentVitalityLevel,
+  AuditEventRow,
+  BotStatusRow,
+  ChatRow,
+  ChatUiAction,
+  ExecutionEventRow,
+  ExecutionSessionRow,
+  GovUserRow,
+  MemoryChunkRow,
+  MissionAssetRow,
+  MissionBoardMission,
+  MissionBoardPackage,
+  MissionManageConfirmAction,
+  MissionPart,
+  MissionsTab,
+  OfficeAgentCard,
+  OfficeHierarchyRow,
+  PartExecutor,
+  PartPriority,
+  PresenceAssigneeRow,
+  PresenceIdentityRow,
+  PresenceOfficeRow,
+  PromptEntry,
+  QueueEtaEstimate,
+  QueueEtaConfidence,
+  QueueRow,
+  QueueUpdateExtras,
+  QueueWorkflowStatus,
+  ReviewerGuardApproval,
+  Section,
+  SessionInfo,
+  SupportErrorReportInput,
+  Theme,
+  TokenPolicy,
+  TopNotice,
+  UsageRow,
+  UsageSummary
+} from "./gov/types";
 
 function isAdminCommandAction(action: string): boolean {
   return ADMIN_COMMAND_ACTIONS.has(String(action || "").toUpperCase() as ChatUiAction);
 }
-
-const defaultPolicy: TokenPolicy = {
-  daily_token_limit: 60000,
-  daily_usd_limit: 12,
-  monthly_usd_limit: 240,
-  warn_threshold_pct: 80,
-  auto_pause_on_limit: true,
-  hard_stop: true
-};
 
 function resolveOwnerAckRequired(payload: unknown): boolean {
   const obj = (payload && typeof payload === "object" ? payload : {}) as Record<string, unknown>;
@@ -462,72 +141,6 @@ async function fetchJsonWithTimeout(
   }
 }
 
-function readNumber(value: unknown, fallback = 0): number {
-  const num = Number(value);
-  return Number.isFinite(num) ? num : fallback;
-}
-
-function formatUsd(value: number): string {
-  return `$${value.toFixed(2)}`;
-}
-
-function formatPct(value: number): string {
-  return `${Math.round(value)}%`;
-}
-
-function formatDateTime(value: string): string {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "medium",
-    timeZone: "America/Sao_Paulo"
-  }).format(date);
-}
-
-function formatDateOnly(value: string): string {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeZone: "America/Sao_Paulo"
-  }).format(date);
-}
-
-function formatAuditStatePreview(raw: string): string {
-  const input = String(raw || "").trim();
-  if (!input) return "-";
-  try {
-    const parsed = JSON.parse(input) as unknown;
-    if (!parsed || typeof parsed !== "object") return compactText(input, 180);
-    const obj = parsed as Record<string, unknown>;
-    const keys = Object.keys(obj).slice(0, 5);
-    if (keys.length === 0) return "-";
-    const line = keys
-      .map((key) => `${key}:${String(obj[key] ?? "-").slice(0, 42)}`)
-      .join(" · ");
-    return compactText(line, 180);
-  } catch {
-    return compactText(input, 180);
-  }
-}
-
-function compactText(value: string, max = 180): string {
-  const clean = String(value || "").replace(/\s+/g, " ").trim();
-  if (!clean) return "";
-  if (clean.length <= max) return clean;
-  return `${clean.slice(0, max - 1)}…`;
-}
-
-function normalizeChatMatch(value: string): string {
-  return String(value || "")
-    .normalize("NFD")
-    .replace(/\p{M}/gu, "")
-    .toLowerCase();
-}
-
 function isMissionFormattedRow(row: ChatRow): boolean {
   const action = String(row.action || "").trim().toUpperCase();
   if (action && action !== "MSG") return true;
@@ -552,13 +165,6 @@ function chatActionUiLabel(action: string): string {
   if (normalized === "OWNER_CALL") return "Chamar Owner";
   if (normalized === "NOVA_MISSAO") return "Nova Missão";
   return normalized || "Conversa";
-}
-
-function replyCountLabel(count: number): string {
-  const safe = Math.max(0, Math.trunc(count));
-  const prefix = String(safe).padStart(2, "0");
-  const suffix = safe === 1 ? "resposta" : "respostas";
-  return `${prefix} ${suffix}`;
 }
 
 function chatRowSummary(row: ChatRow): string {
@@ -677,13 +283,6 @@ function withSupportSuffix(message: string): string {
   const text = String(message || "").trim();
   if (!text) return SUPPORT_REPORTED_SUFFIX.trim();
   return text.endsWith(SUPPORT_REPORTED_SUFFIX) ? text : `${text}${SUPPORT_REPORTED_SUFFIX}`;
-}
-
-function formatBytes(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) return "0 B";
-  if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`;
-  if (value >= 1024) return `${Math.round(value / 1024)} KB`;
-  return `${Math.round(value)} B`;
 }
 
 function botStateLabel(state: string): string {
@@ -1159,6 +758,20 @@ function queueExecutionProgressPercent(row: QueueRow, event?: ExecutionEventRow 
   return clampNumber(Math.trunc(raw), 0, 100);
 }
 
+function queueLiveProgressPercent(row: QueueRow, nowEpoch: number, event?: ExecutionEventRow | null): number {
+  const base = queueExecutionProgressPercent(row, event);
+  if (base >= 100) return 100;
+  const status = String(row.status || "").trim().toLowerCase();
+  if (status !== "in_progress") return base;
+
+  const baselineMin = Math.max(10, Math.round(queuePriorityBaseMinutes(String(row.priority || "")) * queueAssigneeFactor(String(row.assignee || ""))));
+  const startedEpoch = toEpoch(row.updated_at_utc) ?? toEpoch(row.created_at_utc);
+  if (!startedEpoch) return base;
+  const elapsedMin = Math.max(0, (nowEpoch - startedEpoch) / 60000);
+  const estimated = clampNumber(Math.trunc((elapsedMin / baselineMin) * 100), 3, 95);
+  return Math.max(base, estimated);
+}
+
 function estimateQueueEta(row: QueueRow, nowEpoch: number): QueueEtaEstimate {
   const status = String(row.status || "").trim().toLowerCase();
   if (status === "done") return { label: "Concluída", confidence: "alta", deviation_min: 0 };
@@ -1366,6 +979,7 @@ export default function GovManagerPage() {
   const [queueLoading, setQueueLoading] = useState(false);
   const [queueRefreshSec, setQueueRefreshSec] = useState(30);
   const [queueRefreshNonce, setQueueRefreshNonce] = useState(0);
+  const [liveNowEpoch, setLiveNowEpoch] = useState<number>(() => Date.now());
   const [queueNotice, setQueueNotice] = useState("");
   const [officeContextCollapsed, setOfficeContextCollapsed] = useState(false);
   const [officeInsightsCollapsed, setOfficeInsightsCollapsed] = useState(true);
@@ -1669,6 +1283,11 @@ export default function GovManagerPage() {
   );
 
   useEffect(() => {
+    const tick = window.setInterval(() => setLiveNowEpoch(Date.now()), 1000);
+    return () => window.clearInterval(tick);
+  }, []);
+
+  useEffect(() => {
     let active = true;
     const pullQueue = async () => {
       if (!active) return;
@@ -1676,7 +1295,7 @@ export default function GovManagerPage() {
     };
 
     pullQueue();
-    const interval = window.setInterval(pullQueue, Math.max(15, queueRefreshSec) * 1000);
+    const interval = window.setInterval(pullQueue, Math.max(5, queueRefreshSec) * 1000);
     return () => {
       active = false;
       window.clearInterval(interval);
@@ -1769,7 +1388,7 @@ export default function GovManagerPage() {
     };
 
     pullSessions();
-    const interval = window.setInterval(pullSessions, Math.max(15, queueRefreshSec) * 1000);
+    const interval = window.setInterval(pullSessions, Math.max(5, queueRefreshSec) * 1000);
     return () => {
       active = false;
       window.clearInterval(interval);
@@ -3476,12 +3095,21 @@ export default function GovManagerPage() {
       } else {
         const payloadObj = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
         const isInvalidResponse = String(payloadObj.status || "").trim().toLowerCase() === "invalid_response";
+        const govhubHttp = Number(payloadObj.govhub_http || response.status || 0);
+        const govhubResponse = payloadObj.govhub_response && typeof payloadObj.govhub_response === "object"
+          ? (payloadObj.govhub_response as Record<string, unknown>)
+          : {};
+        const upstreamErrorCode = String(govhubResponse.error_code || payloadObj.error_code || "").trim().toUpperCase();
         const failureDetail = isInvalidResponse
           ? `resposta inválida do backend (HTTP ${response.status})`
           : resolveRegisterError(payload);
         const normalizedCode = resolveErrorCode(payload);
         const errorCode = normalizedCode === "UNKNOWN_ERROR" ? `HTTP_${response.status}` : normalizedCode;
-        const baseMessage = `Falha ao registrar missão: ${failureDetail}.`;
+        const diagnostics: string[] = [];
+        if (Number.isFinite(govhubHttp) && govhubHttp > 0) diagnostics.push(`govhub_http=${govhubHttp}`);
+        if (upstreamErrorCode) diagnostics.push(`upstream_code=${upstreamErrorCode}`);
+        const diagnosticSuffix = diagnostics.length > 0 ? ` [${diagnostics.join(" | ")}]` : "";
+        const baseMessage = `Falha ao registrar missão: ${failureDetail}.${diagnosticSuffix}`;
         await reportSupportError({
           source: "MISSION_REGISTER",
           action: "register_mission",
@@ -5065,14 +4693,13 @@ export default function GovManagerPage() {
   }, [executionEventRows]);
 
   const queueEtaById = useMemo(() => {
-    const now = Date.now();
     const map = new Map<string, QueueEtaEstimate>();
     for (const row of queueOrderedRows) {
       const key = String(row.queue_id || `${row.mission_id}-${row.title}`);
-      map.set(key, estimateQueueEta(row, now));
+      map.set(key, estimateQueueEta(row, liveNowEpoch));
     }
     return map;
-  }, [queueOrderedRows]);
+  }, [liveNowEpoch, queueOrderedRows]);
 
   const queueOpenRows = useMemo(() => {
     return queueOrderedRows.filter((row) => {
@@ -6429,7 +6056,7 @@ export default function GovManagerPage() {
                           const executionSession = executionSessionByMission.get(missionId) || null;
                           const latestExecutionEvent = executionLatestEventByMission.get(missionId) || null;
                           const latestProgressEvent = executionLatestProgressEventByMission.get(missionId) || latestExecutionEvent || null;
-                          const progressPercent = queueExecutionProgressPercent(row, latestProgressEvent);
+                          const progressPercent = queueLiveProgressPercent(row, liveNowEpoch, latestProgressEvent);
                           const progressLabel =
                             String(latestProgressEvent?.message || latestExecutionEvent?.message || "").trim() ||
                             String(row.execution_progress_label || "").trim() ||
@@ -6608,7 +6235,7 @@ export default function GovManagerPage() {
                     const executionSession = executionSessionByMission.get(missionId) || null;
                     const latestExecutionEvent = executionLatestEventByMission.get(missionId) || null;
                     const latestProgressEvent = executionLatestProgressEventByMission.get(missionId) || latestExecutionEvent || null;
-                    const progressPercent = queueExecutionProgressPercent(row, latestProgressEvent);
+                    const progressPercent = queueLiveProgressPercent(row, liveNowEpoch, latestProgressEvent);
                     const progressLabel =
                       String(latestProgressEvent?.message || latestExecutionEvent?.message || "").trim() ||
                       String(row.execution_progress_label || "").trim() ||

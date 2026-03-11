@@ -418,6 +418,7 @@ export async function POST(request: Request) {
   let boardStatus: number | null = null;
   let agentsStatus: number | null = null;
   let sessionsStatus: number | null = null;
+  let handledStaffValidationDecision = false;
 
   const validationDecision = clampText(data.validation_decision, 40).toLowerCase();
   if ((current.status === "staff_validation_gate") && (nextStatus === "open" || nextStatus === "in_progress")) {
@@ -513,6 +514,7 @@ export async function POST(request: Request) {
         updated_at_utc: now
       };
       nextStatus = "open";
+      handledStaffValidationDecision = true;
     } else if (validationDecision === "reassign_cpp") {
       const requestedAssignee = normalizeAssignee(data.assignee || current.assignee);
       if (requestedAssignee !== "CPP" && requestedAssignee !== "CPP-IA") {
@@ -543,6 +545,7 @@ export async function POST(request: Request) {
         updated_at_utc: now
       };
       nextStatus = "open";
+      handledStaffValidationDecision = true;
     } else if (validationDecision === "bind_cpp") {
       const requestedAssignee = normalizeAssignee(data.assignee || current.assignee);
       if (requestedAssignee !== "CPP" && requestedAssignee !== "CPP-IA") {
@@ -569,6 +572,7 @@ export async function POST(request: Request) {
         updated_at_utc: now
       };
       nextStatus = "open";
+      handledStaffValidationDecision = true;
     } else {
       return NextResponse.json(
         {
@@ -841,20 +845,22 @@ export async function POST(request: Request) {
       });
       boardStatus = boardSaved.status;
     } else {
-      const { assignee_agent_id: _dropAssigneeAgentId, ...rowWithoutAgent } = current;
-      nextRow = {
-        ...rowWithoutAgent,
-        status: nextStatus,
-        ...(nextStatus === "open" ? { execution_progress_pct: 0, execution_progress_label: "" } : {}),
-        last_transition_reason_code: nextStatus === "paused_waiting_owner" ? "MANUAL_PAUSE" : "MANUAL_REOPEN",
-        last_transition_reason_message: nextStatus === "paused_waiting_owner"
-          ? `Item pausado manualmente por ${actor}.`
-          : `Item reaberto manualmente por ${actor}.`,
-        last_transition_source: "operations-queue",
-        last_transition_actor: actor,
-        last_transition_at_utc: now,
-        updated_at_utc: now
-      };
+      if (!handledStaffValidationDecision) {
+        const { assignee_agent_id: _dropAssigneeAgentId, ...rowWithoutAgent } = current;
+        nextRow = {
+          ...rowWithoutAgent,
+          status: nextStatus,
+          ...(nextStatus === "open" ? { execution_progress_pct: 0, execution_progress_label: "" } : {}),
+          last_transition_reason_code: nextStatus === "paused_waiting_owner" ? "MANUAL_PAUSE" : "MANUAL_REOPEN",
+          last_transition_reason_message: nextStatus === "paused_waiting_owner"
+            ? `Item pausado manualmente por ${actor}.`
+            : `Item reaberto manualmente por ${actor}.`,
+          last_transition_source: "operations-queue",
+          last_transition_actor: actor,
+          last_transition_at_utc: now,
+          updated_at_utc: now
+        };
+      }
     }
   }
 

@@ -208,6 +208,11 @@ function toQueueStatus(priority: QueuePriority): QueueStatus {
   return priority === "P3" ? "paused_waiting_owner" : "open";
 }
 
+function resolveInitialQueueStatus(priority: QueuePriority, assignee: QueueAssignee): QueueStatus {
+  if (assignee === "CPP" || assignee === "CPP-IA") return "staff_validation_gate";
+  return toQueueStatus(priority);
+}
+
 function resolvePreferredQueueAgent(
   assignee: QueueAssignee,
   agentsState: ReturnType<typeof sanitizeAgentRegistryState>
@@ -568,7 +573,7 @@ export async function POST(request: Request) {
           last_transition_source: "missions-register",
           last_transition_actor: ownerId,
           last_transition_at_utc: nowUtc,
-          status: toQueueStatus(partPriority),
+          status: resolveInitialQueueStatus(partPriority, safeAssignee),
           created_at_utc: nowUtc,
           updated_at_utc: nowUtc
         };

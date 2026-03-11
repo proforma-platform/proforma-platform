@@ -5419,3 +5419,753 @@ Could not request local forwarding.
 [ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T00:58:07Z
 [ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T00:59:07Z
 [ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:00:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:01:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:02:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:03:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:04:06Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:05:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:06:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:07:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:08:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:09:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:10:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:11:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:12:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:13:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:14:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:15:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:16:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:17:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:18:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:19:06Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:20:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:21:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:22:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:23:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:24:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:25:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:26:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:27:06Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:28:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:29:06Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:30:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:31:06Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:32:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:33:06Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:34:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:35:06Z
+bind [0.0.0.0]:11435: Address already in use
+channel_setup_fwd_listener_tcpip: cannot listen to port: 11435
+Could not request local forwarding.
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:36:05Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:37:05Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:38:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:39:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:40:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:41:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:42:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:43:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:44:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:45:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:46:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:47:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:48:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:49:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:50:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:51:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:52:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:53:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:54:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:55:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:56:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:57:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:58:06Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T01:59:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:00:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:01:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:02:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:03:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:04:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:05:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:06:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:07:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:08:06Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:09:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:10:06Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:11:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:12:06Z
+bind [0.0.0.0]:11435: Address already in use
+channel_setup_fwd_listener_tcpip: cannot listen to port: 11435
+Could not request local forwarding.
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:13:05Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:14:05Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:15:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:16:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:17:06Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:18:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:19:06Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:20:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:21:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:22:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:23:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:24:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:25:06Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:26:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:27:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:28:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:29:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:30:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:31:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:32:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:33:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:34:06Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:35:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:36:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:37:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:38:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:39:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:40:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:41:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:42:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:43:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:44:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:45:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:46:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:47:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:48:07Z
+bind [0.0.0.0]:11435: Address already in use
+channel_setup_fwd_listener_tcpip: cannot listen to port: 11435
+Could not request local forwarding.
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:49:05Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:50:05Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:51:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:52:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:53:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:54:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:55:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:56:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:57:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:58:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T02:59:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:00:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:01:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:02:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:03:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:04:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:05:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:06:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:07:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:08:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:09:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:10:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:11:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:12:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:13:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:14:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:15:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:16:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:17:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:18:06Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:19:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:20:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:21:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:22:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:23:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:24:07Z
+bind [0.0.0.0]:11435: Address already in use
+channel_setup_fwd_listener_tcpip: cannot listen to port: 11435
+Could not request local forwarding.
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:25:05Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:26:05Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:27:06Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:28:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:29:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:30:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:31:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:32:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:33:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:34:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:35:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:36:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:37:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:38:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:39:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:40:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:41:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:42:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:43:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:44:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:45:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:46:06Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:47:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:48:06Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:49:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:50:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:51:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:52:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:53:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:54:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:55:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:56:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:57:06Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:58:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T03:59:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:00:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:01:07Z
+bind [0.0.0.0]:11435: Address already in use
+channel_setup_fwd_listener_tcpip: cannot listen to port: 11435
+Could not request local forwarding.
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:02:05Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:03:05Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:04:06Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:05:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:06:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:07:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:08:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:09:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:10:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:11:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:12:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:13:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:14:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:15:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:16:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:17:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:18:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:19:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:20:07Z
+bind [0.0.0.0]:11435: Address already in use
+channel_setup_fwd_listener_tcpip: cannot listen to port: 11435
+Could not request local forwarding.
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:21:05Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:22:05Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:23:06Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:24:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:25:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:26:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:27:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:28:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:29:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:30:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:31:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:32:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:33:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:34:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:35:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:36:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:37:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:38:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:39:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:40:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:41:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:42:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:43:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:44:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:45:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:46:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:47:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:48:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:49:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:50:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:51:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:52:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:53:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:54:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:55:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:56:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:57:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:58:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T04:59:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:00:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:01:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:02:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:03:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:04:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:05:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:06:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:07:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:08:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:09:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:10:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:11:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:12:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:13:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:14:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:15:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:16:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:17:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:18:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:19:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:20:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:21:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:22:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:23:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:24:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:25:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:26:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:27:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:28:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:29:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:30:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:31:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:32:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:33:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:34:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:35:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:36:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:37:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:38:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:39:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:40:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:41:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:42:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:43:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:44:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:45:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:46:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:47:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:48:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:49:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:50:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:51:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:52:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:53:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:54:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:55:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:56:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:57:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:58:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T05:59:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:00:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:01:02Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:02:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:03:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:04:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:05:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:06:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:07:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:08:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:09:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:10:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:11:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:12:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:13:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:14:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:15:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:16:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:17:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:18:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:19:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:20:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:21:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:22:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:23:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:24:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:25:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:26:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:27:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:28:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:29:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:30:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:31:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:32:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:33:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:34:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:35:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:36:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:37:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:38:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:39:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:40:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:41:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:42:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:43:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:44:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:45:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:46:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:47:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:48:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:49:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:50:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:51:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:52:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:53:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:54:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:55:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:56:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:57:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:58:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T06:59:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:00:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:01:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:02:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:03:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:04:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:05:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:06:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:07:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:08:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:09:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:10:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:11:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:12:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:13:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:14:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:15:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:16:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:17:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:18:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:19:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:20:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:21:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:22:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:23:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:24:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:25:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:26:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:27:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:28:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:29:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:30:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:31:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:32:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:33:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:34:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:35:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:36:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:37:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:38:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:39:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:40:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:41:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:42:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:43:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:44:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:45:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:46:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:47:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:48:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:49:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:50:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:51:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:52:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:53:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:54:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:55:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:56:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:57:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:58:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T07:59:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:00:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:01:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:02:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:03:02Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:04:03Z
+ssh: connect to host 192.168.0.101 port 22: No route to host
+ssh: connect to host 192.168.0.101 port 22: No route to host
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:05:03Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:06:05Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:07:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:08:07Z
+bind [0.0.0.0]:11435: Address already in use
+channel_setup_fwd_listener_tcpip: cannot listen to port: 11435
+Could not request local forwarding.
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:09:05Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:10:05Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:11:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:12:06Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:13:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:14:06Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:15:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:16:06Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:17:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:18:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:19:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:20:06Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:21:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:22:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:23:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:24:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:25:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:26:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:27:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:28:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:29:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:30:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:31:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:32:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:33:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:34:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:35:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:36:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:37:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:38:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:39:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:40:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:41:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:42:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:43:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:44:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:45:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:46:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:47:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:48:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:49:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:50:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:51:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:52:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:53:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:54:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:55:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:56:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:57:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:58:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T08:59:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T09:00:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T09:01:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T09:02:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T09:03:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T09:04:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T09:05:06Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T09:06:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T09:07:06Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T09:08:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T09:09:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T09:10:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T09:11:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T09:12:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T09:13:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T09:14:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T09:15:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T09:16:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T09:17:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T09:18:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T09:19:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T09:20:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T09:21:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T09:22:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T09:23:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T09:24:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T09:25:07Z
+[ensure-ollama-tunnel] tunnel failed to become healthy at 2026-03-11T09:26:07Z
