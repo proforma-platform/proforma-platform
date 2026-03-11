@@ -142,23 +142,11 @@ jobs:
         env:
           GOV_MANAGER_BOT_STATUS_ENDPOINT: ${{ secrets.GOV_MANAGER_BOT_STATUS_ENDPOINT }}
           GOV_MANAGER_BOT_STATUS_TOKEN: ${{ secrets.GOV_MANAGER_BOT_STATUS_TOKEN }}
-          TOKEN_STATE: ${{ steps.token_state.outputs.has_token }}
-          CREATE_WITH_PAT_OUTCOME: ${{ steps.create_with_pat.outcome }}
           JOB_STATUS: ${{ job.status }}
         run: |
           set -euo pipefail
           state="ok"
           message="auto-pr executado"
-
-          if [ "$TOKEN_STATE" != "true" ]; then
-            state="warn"
-            message="fallback com GITHUB_TOKEN (GOVHUB_PR_TOKEN ausente)"
-          fi
-
-          if [ "$TOKEN_STATE" = "true" ] && [ "$CREATE_WITH_PAT_OUTCOME" = "failure" ]; then
-            state="warn"
-            message="fallback com GITHUB_TOKEN (PAT falhou)"
-          fi
 
           if [ "$JOB_STATUS" != "success" ]; then
             state="error"
