@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import RuntimeGuard from "./runtime-guard";
 
 export const metadata: Metadata = {
   title: "Gov-Hub Manager",

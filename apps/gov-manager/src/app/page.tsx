@@ -9,416 +9,64 @@ import {
   type ChatTranscriptionLanguageId
 } from "../core/chat-transcription";
 import {
-  buildPrimaryRequestFromUdn,
-  composeCompactMissionUdn,
-  extractUdnMu,
-  isLowSignalRequest,
-  mergeMissionUdnWithRequest,
-  missionRequiredIssues,
-  normalizeTdvTags,
-  parseRequestAndNotes,
-  repairMissionUdn,
-  sanitizeMissionInline,
-  missionShortToken,
-  udnContractIssues
-} from "./gov/utils/mission-udn";
+  ADMIN_COMMAND_ACTIONS,
+  defaultPolicy,
+  KANBAN_COLUMNS,
+  MISSION_ID_DIGITS,
+  MISSION_ID_PREFIX,
+  MISSION_INTAKE_AGENT,
+  PRINCIPAL_ARCHITECT_TARGET,
+  SECTION_ITEMS,
+  SUPPORT_REPORTED_SUFFIX
+} from "./gov/constants";
 import {
-  loadOfficeHierarchyApi,
-  loadPolicyApi,
-  loadPromptsApi,
-  loadSessionInfoApi,
-  loadUsersApi
-} from "./gov/services/bootstrap";
-import { usePageMeta } from "./gov/hooks/use-page-meta";
-import { PageIntro } from "./gov/sections/page-intro";
-
-type Theme = "dark" | "light";
-type Section = "visao" | "missoes" | "orquestracao" | "escritorio" | "chat" | "execucoes" | "pendencias" | "prompts" | "governanca" | "memoria";
-type MissionsTab = "cadastro" | "gestao";
-type PartExecutor = "STAFF" | "CPP" | "CPP-IA";
-type PartPriority = "P0" | "P1" | "P2";
-type ChatUiAction = "MSG" | "STATUS" | "OK" | "PAUSAR" | "NEGAR" | "OWNER_CALL" | "NOVA_MISSAO";
-type QueueWorkflowStatus = "staff_validation_gate" | "open" | "in_progress" | "done" | "paused_waiting_owner";
-
-interface MissionPart {
-  part_id: string;
-  goal: string;
-  executor: PartExecutor;
-  priority: PartPriority;
-}
-
-interface PromptEntry {
-  prompt_id: string;
-  title: string;
-  description: string;
-  purpose: string;
-  tags: string[];
-  template: string;
-  variables: string[];
-  prompt_hash: string;
-}
-
-interface TokenPolicy {
-  daily_token_limit: number;
-  daily_usd_limit: number;
-  monthly_usd_limit: number;
-  warn_threshold_pct: number;
-  auto_pause_on_limit: boolean;
-  hard_stop: boolean;
-}
-
-interface UsageSummary {
-  daily_input_tokens?: number;
-  daily_output_tokens?: number;
-  daily_tokens?: number;
-  monthly_input_tokens?: number;
-  monthly_output_tokens?: number;
-  daily_usd?: number;
-  monthly_usd?: number;
-  daily_count?: number;
-  monthly_count?: number;
-}
-
-interface UsageRow {
-  mission_id?: string;
-  projected_input_tokens?: number;
-  projected_output_tokens?: number;
-  projected_total_tokens?: number;
-  projected_cost_usd?: number;
-  projected_cost_brl?: number;
-  status?: string;
-  created_at_utc?: string;
-}
-
-interface BotStatusRow {
-  bot_id?: string;
-  workflow_id?: string;
-  state?: string;
-  result?: string;
-  message?: string;
-  run_id?: string;
-  run_url?: string;
-  actor?: string;
-  updated_at_utc?: string;
-}
-
-interface QueueRow {
-  queue_id?: string;
-  mission_id?: string;
-  title?: string;
-  description?: string;
-  kind?: string;
-  priority?: string;
-  assignee?: string;
-  assignee_agent_id?: string;
-  execution_session_id?: string;
-  execution_agent_id?: string;
-  execution_trace_id?: string;
-  execution_run_id?: string;
-  last_start_request_id?: string;
-  last_start_attempt_at_utc?: string;
-  last_start_ack_at_utc?: string;
-  last_start_error_code?: string;
-  last_start_error_message?: string;
-  last_start_ack_source?: string;
-  last_start_ack_http?: number;
-  last_transition_reason_code?: string;
-  last_transition_reason_message?: string;
-  last_transition_source?: string;
-  last_transition_actor?: string;
-  last_transition_at_utc?: string;
-  execution_progress_pct?: number;
-  execution_progress_label?: string;
-  eta_adjustment_min?: number;
-  completion_note?: string;
-  completion_report_by?: string;
-  completion_report_at_utc?: string;
-  status?: string;
-  created_at_utc?: string;
-  updated_at_utc?: string;
-}
-
-interface AgentStatusRow {
-  agent_id?: string;
-  role?: string;
-  group?: string;
-  capabilities?: string[];
-  created_at_utc?: string;
-  max_concurrency?: number;
-  current_load?: number;
-  state?: string;
-  health?: string;
-  last_heartbeat_at_utc?: string;
-  updated_at_utc?: string;
-}
-
-interface OfficeHierarchyRow {
-  office_id?: string;
-  leader_id?: string;
-  subordinate_ids?: string[];
-  updated_at_utc?: string;
-  updated_by?: string;
-}
-
-interface ExecutionSessionRow {
-  session_id?: string;
-  agent_id?: string;
-  role?: string;
-  office_id?: string;
-  host?: string;
-  channel?: string;
-  status?: string;
-  current_mission_id?: string;
-  current_trace_id?: string;
-  current_run_id?: string;
-  started_at_utc?: string;
-  last_heartbeat_at_utc?: string;
-  updated_at_utc?: string;
-}
-
-interface ExecutionEventRow {
-  session_id?: string;
-  mission_id?: string;
-  trace_id?: string;
-  run_id?: string;
-  event_type?: string;
-  stage?: string;
-  progress_pct?: number;
-  message?: string;
-  completion_proof?: string;
-  created_at_utc?: string;
-}
-
-type QueueEtaConfidence = "alta" | "media" | "baixa";
-
-interface QueueEtaEstimate {
-  label: string;
-  confidence: QueueEtaConfidence;
-  deviation_min: number;
-}
-
-interface OfficeAgentCard {
-  agent_id: string;
-  resolved_agent_id: string;
-  role: string;
-  office_id: string;
-  is_leader: boolean;
-  status_source: "exact" | "role_fallback" | "unknown";
-  state: string;
-  health: string;
-  current_load: number;
-  max_concurrency: number;
-  created_at_utc: string;
-  updated_at_utc: string;
-  capabilities: string[];
-}
-
-type AgentVitalityLevel = "saudavel" | "atencao" | "risco" | "perigo";
-
-interface PresenceAssigneeRow {
-  assignee?: string;
-  role?: string;
-  state?: string;
-  source?: string;
-  label?: string;
-  online?: boolean;
-  stale?: boolean;
-  health?: string;
-  open_count?: number;
-  in_progress_count?: number;
-  paused_count?: number;
-  done_count?: number;
-  demand_total?: number;
-  last_activity_at_utc?: string;
-  updated_at_utc?: string;
-}
-
-interface PresenceIdentityRow {
-  office_id?: string;
-  identity?: string;
-  resolved_agent_id?: string;
-  role?: string;
-  state?: string;
-  source?: string;
-  label?: string;
-  online?: boolean;
-  stale?: boolean;
-  health?: string;
-  last_activity_at_utc?: string;
-  updated_at_utc?: string;
-}
-
-interface PresenceOfficeRow {
-  office_id?: string;
-  state?: string;
-  source?: string;
-  label?: string;
-  online?: boolean;
-  stale?: boolean;
-  health?: string;
-  members_total?: number;
-  demand_total?: number;
-}
-
-interface MissionBoardPackage {
-  package_id?: string;
-  mission_ids?: string[];
-  note?: string;
-  status?: string;
-  created_by?: string;
-  created_at_utc?: string;
-  updated_at_utc?: string;
-}
-
-interface MissionBoardMission {
-  mission_id?: string;
-  objective?: string;
-  assignee?: string;
-  priority?: string;
-  status?: string;
-  notes?: string;
-  updated_at_utc?: string;
-  updated_by?: string;
-}
-
-interface MissionAssetRow {
-  asset_id: string;
-  mission_id: string;
-  file_name: string;
-  mime_type: string;
-  size_bytes: number;
-  created_at_utc: string;
-  created_by: string;
-  download_url?: string;
-}
-
-interface ChatRow {
-  message_id?: string;
-  mission_id?: string;
-  actor?: string;
-  target?: string;
-  action?: string;
-  message?: string;
-  direction?: string;
-  in_reply_to?: string;
-  source?: string;
-  delivery_status?: string;
-  dispatch_http?: number | null;
-  created_at_utc?: string;
-}
-
-interface GovUserRow {
-  username?: string;
-  role?: string;
-  active?: boolean;
-  created_at_utc?: string;
-  updated_at_utc?: string;
-}
-
-interface AuditEventRow {
-  event_id?: string;
-  actor?: string;
-  role?: string;
-  action?: string;
-  target?: string;
-  before_state?: string;
-  after_state?: string;
-  source?: string;
-  created_at_utc?: string;
-}
-
-interface MemoryChunkRow {
-  memory_id?: string;
-  chunk_id?: string;
-  namespace?: string;
-  topic?: string;
-  content?: string;
-  summary?: string;
-  tags?: string[];
-  mission_id?: string;
-  role?: string;
-  actor?: string;
-  source_type?: string;
-  created_at_utc?: string;
-  updated_at_utc?: string;
-}
-
-interface SessionInfo {
-  actor?: string;
-  role?: string;
-  is_primary_admin?: boolean;
-}
-
-interface QueueUpdateExtras {
-  reviewerGuard?: ReviewerGuardApproval;
-  etaDeltaMin?: number;
-  etaReason?: string;
-  completionNote?: string;
-  validationDecision?: "bind_cpp" | "reassign_cpp" | "staff_fallback";
-  assignee?: "STAFF" | "CPP" | "CPP-IA";
-}
-
-interface TopNotice {
-  message: string;
-  variant: "success" | "error" | "info";
-}
-
-type MissionManageConfirmAction = "group" | "edit";
-
-interface SupportErrorReportInput {
-  source: string;
-  missionId?: string;
-  queueId?: string;
-  action?: string;
-  errorCode?: string;
-  message: string;
-  payload?: unknown;
-}
-
-interface ReviewerGuardApproval {
-  reviewer_guard_approved: true;
-  reviewer_guard_by: string;
-  reviewer_guard_note: string;
-}
-
-const ADMIN_COMMAND_ACTIONS = new Set<ChatUiAction>(["OK", "PAUSAR", "NEGAR", "OWNER_CALL", "NOVA_MISSAO"]);
-const PRINCIPAL_ARCHITECT_TARGET = "PRINCIPAL_ARCHITECT";
-const MISSION_INTAKE_AGENT = PRINCIPAL_ARCHITECT_TARGET;
-const MISSION_ID_PREFIX = "GOV-MANAGER-V1-";
-const MISSION_ID_DIGITS = 5;
-const SUPPORT_REPORTED_SUFFIX = " (falha/erro reportado ao time de suporte).";
-const SECTION_ITEMS: Array<{ id: Section; label: string; icon: string }> = [
-  { id: "visao", label: "Visão geral", icon: "⌂" },
-  { id: "missoes", label: "Missões", icon: "◫" },
-  { id: "orquestracao", label: "Orquestração", icon: "◎" },
-  { id: "escritorio", label: "Control Plane", icon: "⌬" },
-  { id: "chat", label: "Chat HUB", icon: "✉" },
-  { id: "execucoes", label: "Execuções", icon: "▤" },
-  { id: "pendencias", label: "Pendências", icon: "⎋" },
-  { id: "prompts", label: "Prompts", icon: "⌘" },
-  { id: "governanca", label: "Governança", icon: "◉" },
-  { id: "memoria", label: "Memória", icon: "⧉" }
-];
-const KANBAN_COLUMNS: Array<{ status: QueueWorkflowStatus; label: string }> = [
-  { status: "staff_validation_gate", label: "Gate Staff" },
-  { status: "open", label: "A fazer" },
-  { status: "in_progress", label: "Em progresso" },
-  { status: "paused_waiting_owner", label: "Pausadas" },
-  { status: "done", label: "Concluídas" }
-];
+  formatBytes,
+  replyCountLabel
+} from "./gov/formatters";
+import type {
+  AgentStatusRow,
+  AgentVitalityLevel,
+  AuditEventRow,
+  BotStatusRow,
+  ChatRow,
+  ChatUiAction,
+  ExecutionEventRow,
+  ExecutionSessionRow,
+  GovUserRow,
+  MemoryChunkRow,
+  MissionAssetRow,
+  MissionBoardMission,
+  MissionBoardPackage,
+  MissionManageConfirmAction,
+  MissionPart,
+  MissionsTab,
+  OfficeAgentCard,
+  OfficeHierarchyRow,
+  PartExecutor,
+  PartPriority,
+  PresenceAssigneeRow,
+  PresenceIdentityRow,
+  PresenceOfficeRow,
+  PromptEntry,
+  QueueEtaEstimate,
+  QueueEtaConfidence,
+  QueueRow,
+  QueueUpdateExtras,
+  QueueWorkflowStatus,
+  ReviewerGuardApproval,
+  Section,
+  SessionInfo,
+  SupportErrorReportInput,
+  Theme,
+  TokenPolicy,
+  TopNotice,
+  UsageRow,
+  UsageSummary
+} from "./gov/types";
 
 function isAdminCommandAction(action: string): boolean {
   return ADMIN_COMMAND_ACTIONS.has(String(action || "").toUpperCase() as ChatUiAction);
 }
-
-const defaultPolicy: TokenPolicy = {
-  daily_token_limit: 60000,
-  daily_usd_limit: 12,
-  monthly_usd_limit: 240,
-  warn_threshold_pct: 80,
-  auto_pause_on_limit: true,
-  hard_stop: true
-};
 
 function resolveOwnerAckRequired(payload: unknown): boolean {
   const obj = (payload && typeof payload === "object" ? payload : {}) as Record<string, unknown>;
@@ -577,13 +225,6 @@ function chatActionUiLabel(action: string): string {
   return normalized || "Conversa";
 }
 
-function replyCountLabel(count: number): string {
-  const safe = Math.max(0, Math.trunc(count));
-  const prefix = String(safe).padStart(2, "0");
-  const suffix = safe === 1 ? "resposta" : "respostas";
-  return `${prefix} ${suffix}`;
-}
-
 function chatRowSummary(row: ChatRow): string {
   const directMessage = compactText(String(row.message || ""), 180);
   if (directMessage) return directMessage;
@@ -595,6 +236,70 @@ function chatRowSummary(row: ChatRow): string {
   return compactText(pieces.join(" | "), 180) || "Sem conteúdo.";
 }
 
+function sanitizeMissionInline(value: string): string {
+  return String(value || "")
+    .replace(/\r?\n/g, " ")
+    .replace(/[;|]/g, ",")
+    .trim();
+}
+
+function missionRequiredIssues(mission: { id: string; target: string }, createdBy: string, parts: MissionPart[]): string[] {
+  const issues: string[] = [];
+  if (!String(mission.id || "").trim()) issues.push("Mission ID");
+  if (!String(mission.target || "").trim()) issues.push("Objetivo");
+  if (!String(createdBy || "").trim()) issues.push("Criado por");
+  const hasPartGoal = parts.some((part) => String(part.goal || "").trim().length > 0);
+  if (!hasPartGoal) issues.push("Entrega da Parte");
+  return issues;
+}
+
+function normalizeTdvTags(raw: string): string {
+  return String(raw || "")
+    .replace(/#\s*mu\s*:/gi, "#μ:")
+    .replace(/#\s*tau\s*:/gi, "#τ:")
+    .replace(/#\s*sigma\s*:/gi, "#σ:")
+    .replace(/#\s*rho\s*:/gi, "#ρ:")
+    .replace(/#\s*delta\s*:/gi, "#δ:");
+}
+
+function udnContractIssues(rawUdn: string): string[] {
+  const text = normalizeTdvTags(String(rawUdn || "")).trim().toUpperCase();
+  const issues: string[] = [];
+  if (!text) issues.push("UDN vazio");
+  if (text && !text.includes("!MIS|")) issues.push("!MIS");
+  if (text && !text.includes("#Μ:")) issues.push("#μ");
+  return issues;
+}
+
+function repairMissionUdn(rawUdn: string, generatedUdn: string): { udn: string; repaired: string[] } {
+  const rawLines = normalizeTdvTags(String(rawUdn || ""))
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const generatedLines = normalizeTdvTags(String(generatedUdn || ""))
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const repaired: string[] = [];
+  const ensureLine = (prefix: string) => {
+    const hasPrefix = rawLines.some((line) => line.toUpperCase().startsWith(prefix.toUpperCase()));
+    if (hasPrefix) return;
+    const fallback = generatedLines.find((line) => line.toUpperCase().startsWith(prefix.toUpperCase()));
+    if (fallback) {
+      rawLines.push(fallback);
+      repaired.push(prefix);
+    }
+  };
+
+  ensureLine("!MIS|");
+  ensureLine("#μ:");
+  if (rawLines.some((line) => line.toUpperCase().startsWith("!MIS|")) && !rawLines.some((line) => line.toUpperCase().startsWith("#τ:"))) {
+    ensureLine("#τ:");
+  }
+
+  return { udn: normalizeTdvTags(rawLines.join("\n")), repaired };
+}
 
 function resolveRegisterError(payload: unknown): string {
   const obj = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
@@ -636,13 +341,6 @@ function withSupportSuffix(message: string): string {
   const text = String(message || "").trim();
   if (!text) return SUPPORT_REPORTED_SUFFIX.trim();
   return text.endsWith(SUPPORT_REPORTED_SUFFIX) ? text : `${text}${SUPPORT_REPORTED_SUFFIX}`;
-}
-
-function formatBytes(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) return "0 B";
-  if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`;
-  if (value >= 1024) return `${Math.round(value / 1024)} KB`;
-  return `${Math.round(value)} B`;
 }
 
 function botStateLabel(state: string): string {
@@ -928,6 +626,103 @@ function formatMissionCode(value: number): string {
   return `${MISSION_ID_PREFIX}${String(safe).padStart(MISSION_ID_DIGITS, "0")}`;
 }
 
+function missionShortToken(value: string): string {
+  const clean = String(value || "").trim().toUpperCase();
+  const match = clean.match(/-(\d{1,10})$/);
+  if (!match || !match[1]) return clean || "00001";
+  return match[1].padStart(MISSION_ID_DIGITS, "0");
+}
+
+function parseRequestAndNotes(raw: string): { requestText: string; notesText: string } {
+  const text = String(raw || "").trim();
+  if (!text) return { requestText: "", notesText: "" };
+  const requestMatch = text.match(/Solicitação:\s*([\s\S]*?)(?:\n\s*Notas:\s*|$)/i);
+  const notesMatch = text.match(/\n\s*Notas:\s*([\s\S]*)$/i);
+  if (requestMatch || notesMatch) {
+    return {
+      requestText: String(requestMatch?.[1] || "").trim(),
+      notesText: String(notesMatch?.[1] || "").trim()
+    };
+  }
+  return { requestText: "", notesText: text };
+}
+
+function composeCompactMissionUdn(missionId: string, objective: string): string {
+  const missionCode = missionShortToken(missionId || "00001");
+  const mu = sanitizeMissionInline(objective || "Missão registrada no GOV-HUB.") || "Missão registrada no GOV-HUB.";
+  return `!MIS|${missionCode}\n#μ:${mu}`;
+}
+
+function isLowSignalRequest(value: string): boolean {
+  const normalized = String(value || "")
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized) return true;
+  if (normalized.length < 12) return true;
+  if (normalized.startsWith("resultado factual |")) return true;
+  if (normalized.startsWith("missao_recebida |")) return true;
+  if (normalized.includes(" queue=") && normalized.includes(" session=") && normalized.includes(" trace=") && normalized.includes(" run=")) return true;
+  return (
+    normalized === "classificar escopo e preparar distribuicao inicial." ||
+    normalized === "classificar escopo e preparar distribuicao inicial"
+  );
+}
+
+function mergeMissionUdnWithRequest(udnText: string, missionId: string, requestText: string): string {
+  const request = sanitizeMissionInline(String(requestText || "").trim());
+  if (!request) return String(udnText || "").trim();
+  const base = String(udnText || "").trim();
+  if (!base) return composeCompactMissionUdn(missionId, request);
+  const lines = base.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const hasMu = lines.some((line) => /^#μ:/i.test(line));
+  const next = lines.map((line) => {
+    if (!/^#μ:/i.test(line)) return line;
+    const current = line.replace(/^#μ:\s*/i, "").trim();
+    if (!isLowSignalRequest(current)) return line;
+    return `#μ:${request}`;
+  });
+  if (!hasMu) next.push(`#μ:${request}`);
+  return next.join("\n");
+}
+
+function extractUdnMu(rawInput: string): string {
+  const normalized = normalizeTdvTags(String(rawInput || "")).trim();
+  const idx = normalized.indexOf("!MIS|");
+  const text = idx >= 0 ? normalized.slice(idx).trim() : normalized;
+  if (!text) return "";
+  const match = text.match(/#μ:\s*([^\n]+)/i);
+  return String(match?.[1] || "").trim();
+}
+
+function extractUdnPartGoals(rawInput: string): string[] {
+  const normalized = normalizeTdvTags(String(rawInput || "")).trim();
+  const idx = normalized.indexOf("!MIS|");
+  const text = idx >= 0 ? normalized.slice(idx).trim() : normalized;
+  if (!text) return [];
+  const goals = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => /^#part:/i.test(line))
+    .map((line) => {
+      const body = line.replace(/^#part:/i, "").trim();
+      const fields = body.split(";").map((field) => field.trim());
+      const goalField = fields.find((field) => /^goal=/i.test(field));
+      return String(goalField || "")
+        .replace(/^goal=/i, "")
+        .trim();
+    })
+    .filter(Boolean);
+  return Array.from(new Set(goals));
+}
+
+function buildPrimaryRequestFromUdn(rawInput: string): string {
+  const goals = extractUdnPartGoals(rawInput);
+  if (goals.length > 0) return goals.join("\n");
+  return extractUdnMu(rawInput);
+}
 
 function toEpoch(value: unknown): number | null {
   const parsed = Date.parse(String(value || "").trim());
@@ -1019,6 +814,20 @@ function queueExecutionProgressPercent(row: QueueRow, event?: ExecutionEventRow 
   const raw = Number(row.execution_progress_pct);
   if (!Number.isFinite(raw)) return 0;
   return clampNumber(Math.trunc(raw), 0, 100);
+}
+
+function queueLiveProgressPercent(row: QueueRow, nowEpoch: number, event?: ExecutionEventRow | null): number {
+  const base = queueExecutionProgressPercent(row, event);
+  if (base >= 100) return 100;
+  const status = String(row.status || "").trim().toLowerCase();
+  if (status !== "in_progress") return base;
+
+  const baselineMin = Math.max(10, Math.round(queuePriorityBaseMinutes(String(row.priority || "")) * queueAssigneeFactor(String(row.assignee || ""))));
+  const startedEpoch = toEpoch(row.updated_at_utc) ?? toEpoch(row.created_at_utc);
+  if (!startedEpoch) return base;
+  const elapsedMin = Math.max(0, (nowEpoch - startedEpoch) / 60000);
+  const estimated = clampNumber(Math.trunc((elapsedMin / baselineMin) * 100), 3, 95);
+  return Math.max(base, estimated);
 }
 
 function estimateQueueEta(row: QueueRow, nowEpoch: number): QueueEtaEstimate {
@@ -1228,6 +1037,7 @@ export default function GovManagerPage() {
   const [queueLoading, setQueueLoading] = useState(false);
   const [queueRefreshSec, setQueueRefreshSec] = useState(30);
   const [queueRefreshNonce, setQueueRefreshNonce] = useState(0);
+  const [liveNowEpoch, setLiveNowEpoch] = useState<number>(() => Date.now());
   const [queueNotice, setQueueNotice] = useState("");
   const [officeContextCollapsed, setOfficeContextCollapsed] = useState(false);
   const [officeInsightsCollapsed, setOfficeInsightsCollapsed] = useState(true);
@@ -1531,6 +1341,11 @@ export default function GovManagerPage() {
   );
 
   useEffect(() => {
+    const tick = window.setInterval(() => setLiveNowEpoch(Date.now()), 1000);
+    return () => window.clearInterval(tick);
+  }, []);
+
+  useEffect(() => {
     let active = true;
     const pullQueue = async () => {
       if (!active) return;
@@ -1538,7 +1353,7 @@ export default function GovManagerPage() {
     };
 
     pullQueue();
-    const interval = window.setInterval(pullQueue, Math.max(15, queueRefreshSec) * 1000);
+    const interval = window.setInterval(pullQueue, Math.max(5, queueRefreshSec) * 1000);
     return () => {
       active = false;
       window.clearInterval(interval);
@@ -1631,7 +1446,7 @@ export default function GovManagerPage() {
     };
 
     pullSessions();
-    const interval = window.setInterval(pullSessions, Math.max(15, queueRefreshSec) * 1000);
+    const interval = window.setInterval(pullSessions, Math.max(5, queueRefreshSec) * 1000);
     return () => {
       active = false;
       window.clearInterval(interval);
@@ -1789,8 +1604,9 @@ export default function GovManagerPage() {
 
   async function loadPrompts() {
     try {
-      const { payload } = await loadPromptsApi();
-      if (Array.isArray(payload.prompts)) setPromptLibrary(payload.prompts as PromptEntry[]);
+      const response = await fetch("/api/govhub/prompts", { cache: "no-store" });
+      const payload = await response.json();
+      if (Array.isArray(payload.prompts)) setPromptLibrary(payload.prompts);
     } catch {
       // no-op
     }
@@ -1798,14 +1614,14 @@ export default function GovManagerPage() {
 
   async function loadSessionInfo() {
     try {
-      const { ok, payload } = await loadSessionInfoApi();
-      if (ok) {
-        const data = payload as SessionInfo;
-        const actor = String(data.actor || "").trim();
-        const role = String(data.role || "").trim().toLowerCase();
+      const response = await fetch("/api/auth/session", { cache: "no-store" });
+      const payload = (await response.json()) as SessionInfo;
+      if (response.ok) {
+        const actor = String(payload.actor || "").trim();
+        const role = String(payload.role || "").trim().toLowerCase();
         if (actor) setCreatedBy(actor);
         setCurrentRole(role === "viewer" || role === "engineer" ? role : "admin");
-        setIsPrimaryAdmin(data.is_primary_admin === true);
+        setIsPrimaryAdmin(payload.is_primary_admin === true);
       }
     } catch {
       // no-op
@@ -1865,7 +1681,8 @@ export default function GovManagerPage() {
 
   async function loadPolicy() {
     try {
-      const { payload } = await loadPolicyApi();
+      const response = await fetch("/api/govhub/token/policy", { cache: "no-store" });
+      const payload = await response.json();
       if (payload?.policy?.default_policy) {
         setPolicy(payload.policy.default_policy as TokenPolicy);
       }
@@ -1927,7 +1744,8 @@ export default function GovManagerPage() {
 
   async function loadUsers() {
     try {
-      const { payload } = await loadUsersApi();
+      const response = await fetch("/api/auth/users", { cache: "no-store" });
+      const payload = await response.json();
       setUsersText(JSON.stringify(payload, null, 2));
       setUsersUpdatedAt(new Date().toISOString());
     } catch {
@@ -1938,7 +1756,8 @@ export default function GovManagerPage() {
 
   async function loadOfficeHierarchy() {
     try {
-      const { payload } = await loadOfficeHierarchyApi();
+      const response = await fetch("/api/govhub/operations/office", { cache: "no-store" });
+      const payload = await response.json();
       setOfficeText(JSON.stringify(payload, null, 2));
       setOfficeUpdatedAt(new Date().toISOString());
     } catch {
@@ -2875,10 +2694,9 @@ export default function GovManagerPage() {
     const bestRequest = highSignalRequest || udnPrimaryRequest || objective;
     const requestText =
       mergeMissionUdnWithRequest(
-        missionUdnText || composeCompactMissionUdn(missionId, objective, MISSION_ID_DIGITS),
+        missionUdnText || composeCompactMissionUdn(missionId, objective),
         missionId,
-        bestRequest,
-        MISSION_ID_DIGITS
+        bestRequest
       );
     const objectiveSeed = String(bestRequest || objective)
       .split(/\r?\n/)
@@ -2960,7 +2778,7 @@ export default function GovManagerPage() {
   }
 
   function buildMissionUdn(missionDraft = mission) {
-    const missionToken = missionShortToken(missionDraft.id || nextMissionCode || "00001", MISSION_ID_DIGITS);
+    const missionToken = missionShortToken(missionDraft.id || nextMissionCode || "00001");
     const compactTasks = parts
       .map((part, index) => {
         const partId = sanitizeMissionInline(part.part_id || `P${index + 1}`) || `P${index + 1}`;
@@ -3335,12 +3153,21 @@ export default function GovManagerPage() {
       } else {
         const payloadObj = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
         const isInvalidResponse = String(payloadObj.status || "").trim().toLowerCase() === "invalid_response";
+        const govhubHttp = Number(payloadObj.govhub_http || response.status || 0);
+        const govhubResponse = payloadObj.govhub_response && typeof payloadObj.govhub_response === "object"
+          ? (payloadObj.govhub_response as Record<string, unknown>)
+          : {};
+        const upstreamErrorCode = String(govhubResponse.error_code || payloadObj.error_code || "").trim().toUpperCase();
         const failureDetail = isInvalidResponse
           ? `resposta inválida do backend (HTTP ${response.status})`
           : resolveRegisterError(payload);
         const normalizedCode = resolveErrorCode(payload);
         const errorCode = normalizedCode === "UNKNOWN_ERROR" ? `HTTP_${response.status}` : normalizedCode;
-        const baseMessage = `Falha ao registrar missão: ${failureDetail}.`;
+        const diagnostics: string[] = [];
+        if (Number.isFinite(govhubHttp) && govhubHttp > 0) diagnostics.push(`govhub_http=${govhubHttp}`);
+        if (upstreamErrorCode) diagnostics.push(`upstream_code=${upstreamErrorCode}`);
+        const diagnosticSuffix = diagnostics.length > 0 ? ` [${diagnostics.join(" | ")}]` : "";
+        const baseMessage = `Falha ao registrar missão: ${failureDetail}.${diagnosticSuffix}`;
         await reportSupportError({
           source: "MISSION_REGISTER",
           action: "register_mission",
@@ -4155,7 +3982,31 @@ export default function GovManagerPage() {
     return list;
   }, [ackRequired, mission.id, missingMissionFields, status, udn]);
 
-  const { title: pageTitle, subtitle: pageSubtitle } = usePageMeta(section);
+  const pageTitle = useMemo(() => {
+    if (section === "missoes") return "Missões";
+    if (section === "orquestracao") return "Orquestração";
+    if (section === "escritorio") return "Control Plane de Agentes";
+    if (section === "chat") return "Chat HUB";
+    if (section === "execucoes") return "Execuções";
+    if (section === "pendencias") return "Pendências";
+    if (section === "prompts") return "Biblioteca de Prompts";
+    if (section === "governanca") return "Governança de Tokens";
+    if (section === "memoria") return "Memória Operacional";
+    return "Visão geral";
+  }, [section]);
+
+  const pageSubtitle = useMemo(() => {
+    if (section === "missoes") return "Cadastro de missão (UDN V2 compacto), particionamento e envio ao HUB.";
+    if (section === "orquestracao") return "Fila priorizada e distribuição de execução entre Staff, CPP e CPP-IA.";
+    if (section === "escritorio") return "Estrutura operacional com escritórios, líderes técnicos e agentes subordinados por governança.";
+    if (section === "chat") return "Comando rápido remoto: envio de ação pré-definida via webhook n8n/worker.";
+    if (section === "execucoes") return "Monitoramento operacional e retorno de execução.";
+    if (section === "pendencias") return "Itens que exigem ação para manter fluxo contínuo.";
+    if (section === "prompts") return "Reuso por referência para reduzir custo de tokens.";
+    if (section === "governanca") return "Política de limites, alertas e consumo em tempo real.";
+    if (section === "memoria") return "RAG operacional do GOV com busca, starter, backup e exportação.";
+    return "Painel oficial do GOV-HUB com operação direta e responsiva.";
+  }, [section]);
 
   const previewPayload = useMemo(() => safeJsonParse(tokenPreview), [tokenPreview]);
   const realtimePayload = useMemo(() => safeJsonParse(tokenRealtime), [tokenRealtime]);
@@ -4900,14 +4751,13 @@ export default function GovManagerPage() {
   }, [executionEventRows]);
 
   const queueEtaById = useMemo(() => {
-    const now = Date.now();
     const map = new Map<string, QueueEtaEstimate>();
     for (const row of queueOrderedRows) {
       const key = String(row.queue_id || `${row.mission_id}-${row.title}`);
-      map.set(key, estimateQueueEta(row, now));
+      map.set(key, estimateQueueEta(row, liveNowEpoch));
     }
     return map;
-  }, [queueOrderedRows]);
+  }, [liveNowEpoch, queueOrderedRows]);
 
   const queueOpenRows = useMemo(() => {
     return queueOrderedRows.filter((row) => {
@@ -5351,7 +5201,10 @@ export default function GovManagerPage() {
 
       <section className="gm-main">
         <header className="gm-header gm-header-shell">
-          <PageIntro title={pageTitle} subtitle={pageSubtitle} />
+          <div className="gm-header-copy">
+            <h1>{pageTitle}</h1>
+            <p>{pageSubtitle}</p>
+          </div>
           <div className="gm-header-actions">
             <label className="gm-header-search">
               <span>Pesquisar</span>
@@ -6261,7 +6114,7 @@ export default function GovManagerPage() {
                           const executionSession = executionSessionByMission.get(missionId) || null;
                           const latestExecutionEvent = executionLatestEventByMission.get(missionId) || null;
                           const latestProgressEvent = executionLatestProgressEventByMission.get(missionId) || latestExecutionEvent || null;
-                          const progressPercent = queueExecutionProgressPercent(row, latestProgressEvent);
+                          const progressPercent = queueLiveProgressPercent(row, liveNowEpoch, latestProgressEvent);
                           const progressLabel =
                             String(latestProgressEvent?.message || latestExecutionEvent?.message || "").trim() ||
                             String(row.execution_progress_label || "").trim() ||
@@ -6440,7 +6293,7 @@ export default function GovManagerPage() {
                     const executionSession = executionSessionByMission.get(missionId) || null;
                     const latestExecutionEvent = executionLatestEventByMission.get(missionId) || null;
                     const latestProgressEvent = executionLatestProgressEventByMission.get(missionId) || latestExecutionEvent || null;
-                    const progressPercent = queueExecutionProgressPercent(row, latestProgressEvent);
+                    const progressPercent = queueLiveProgressPercent(row, liveNowEpoch, latestProgressEvent);
                     const progressLabel =
                       String(latestProgressEvent?.message || latestExecutionEvent?.message || "").trim() ||
                       String(row.execution_progress_label || "").trim() ||
