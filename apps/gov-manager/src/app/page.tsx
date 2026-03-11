@@ -547,7 +547,7 @@ function compactText(value: string, max = 180): string {
 function normalizeChatMatch(value: string): string {
   return String(value || "")
     .normalize("NFD")
-    .replace(/\p{M}/gu, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
 }
 
@@ -1093,7 +1093,7 @@ function buildMissionDraftKey(input: {
 function isFinalReportText(value: string): boolean {
   const normalized = String(value || "")
     .normalize("NFD")
-    .replace(/\p{M}/gu, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
   return (
     normalized.includes("resultado") ||
