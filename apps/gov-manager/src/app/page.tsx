@@ -22,6 +22,15 @@ import {
   missionShortToken,
   udnContractIssues
 } from "./gov/utils/mission-udn";
+import {
+  loadOfficeHierarchyApi,
+  loadPolicyApi,
+  loadPromptsApi,
+  loadSessionInfoApi,
+  loadUsersApi
+} from "./gov/services/bootstrap";
+import { usePageMeta } from "./gov/hooks/use-page-meta";
+import { PageIntro } from "./gov/sections/page-intro";
 
 type Theme = "dark" | "light";
 type Section = "visao" | "missoes" | "orquestracao" | "escritorio" | "chat" | "execucoes" | "pendencias" | "prompts" | "governanca" | "memoria";
