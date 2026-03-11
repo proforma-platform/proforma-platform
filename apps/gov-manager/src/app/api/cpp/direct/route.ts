@@ -1,9 +1,17 @@
 import { NextResponse } from "next/server";
 import { readSessionFromRequest } from "../../../../auth/session";
 import { recordAuditEvent } from "../../../../core/audit-store";
-import { resolveGovhubSnapshotConfig } from "../../../../core/govhub-snapshots";
+import { loadSnapshotPayload, resolveGovhubSnapshotConfig, saveSnapshotPayload } from "../../../../core/govhub-snapshots";
+import {
+  appendExecutionEvent,
+  createEventId,
+  defaultExecutionSessionsState,
+  sanitizeExecutionSessionsState,
+  upsertExecutionSession
+} from "../../../../core/execution-sessions";
 
 type DirectTarget = "CPP" | "CPP-IA";
+const SESSIONS_SNAPSHOT_TYPE = String(process.env.GOVHUB_EXECUTION_SESSIONS_SNAPSHOT_TYPE || "gov_manager_execution_sessions_v1").trim();
 
 function clampText(value: unknown, max = 4000): string {
   return String(value || "").trim().slice(0, max);
@@ -45,17 +53,26 @@ export async function POST(request: Request) {
 
   const data = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
   const missionId = clampText(data.mission_id, 120).toUpperCase();
+  const traceId = clampText(data.trace_id, 180);
+  const runId = clampText(data.run_id, 180);
   const target = resolveTarget(data.target);
   const message = clampText(data.message, 2000);
   const action = clampText(data.action || "MSG", 20).toUpperCase() || "MSG";
+  const completionProof = clampText(data.completion_proof, 600);
   const source = clampText(data.source || "cpp-direct-api", 60) || "cpp-direct-api";
   const correlationId = clampText(data.correlation_id || `cpp-direct-${Date.now()}`, 180);
 
-  if (!missionId || !message) {
+  if (!missionId || !traceId || !runId || !action) {
     return NextResponse.json(
-      { status: "invalid_request", error_code: "MISSION_ID_AND_MESSAGE_REQUIRED" },
+      { status: "invalid_request", error_code: "MISSION_TRACE_RUN_ACTION_REQUIRED" },
       { status: 400 }
     );
+  }
+  if (action === "DONE" && !completionProof) {
+    return NextResponse.json({ status: "invalid_request", error_code: "COMPLETION_PROOF_REQUIRED" }, { status: 400 });
+  }
+  if (!message && action !== "DONE") {
+    return NextResponse.json({ status: "invalid_request", error_code: "MESSAGE_REQUIRED" }, { status: 400 });
   }
 
   const { endpoint, token } = resolveDispatchConfig(target);
@@ -82,8 +99,72 @@ export async function POST(request: Request) {
     correlation_id: correlationId,
     use_llm: action === "MSG"
   };
+  const auditConfig = resolveGovhubSnapshotConfig();
 
   try {
+    const sessionsLoaded = await loadSnapshotPayload(auditConfig, SESSIONS_SNAPSHOT_TYPE);
+    let sessionsState = sessionsLoaded.found && sessionsLoaded.payload
+      ? sanitizeExecutionSessionsState(sessionsLoaded.payload)
+      : defaultExecutionSessionsState();
+    const candidateSessions = sessionsState.sessions.filter((row) => {
+      const role = String(row.role || "").trim().toUpperCase();
+      const status = String(row.status || "").trim().toLowerCase();
+      return role === target && (status === "online" || status === "busy");
+    });
+    const executionSession = candidateSessions[0] || null;
+    if (!executionSession) {
+      return NextResponse.json(
+        { status: "blocked", error_code: "EXECUTION_SESSION_REQUIRED", target, mission_id: missionId },
+        { status: 409 }
+      );
+    }
+    const sessionId = String(executionSession.session_id || "").trim();
+    const now = new Date().toISOString();
+    const eventType = action === "DONE" ? "done" : action === "HEARTBEAT" ? "heartbeat" : "mission_accepted";
+    if (action === "DONE") {
+      const {
+        current_mission_id: _dropMissionId,
+        current_trace_id: _dropTraceId,
+        current_run_id: _dropRunId,
+        ...sessionWithoutRun
+      } = executionSession;
+      sessionsState = upsertExecutionSession(sessionsState, {
+        ...sessionWithoutRun,
+        status: "online",
+        last_heartbeat_at_utc: now,
+        updated_at_utc: now
+      });
+    } else {
+      sessionsState = upsertExecutionSession(sessionsState, {
+        ...executionSession,
+        status: "busy",
+        current_mission_id: missionId,
+        current_trace_id: traceId,
+        current_run_id: runId,
+        last_heartbeat_at_utc: now,
+        updated_at_utc: now
+      });
+    }
+    sessionsState = appendExecutionEvent(sessionsState, {
+      event_id: createEventId(sessionId, eventType),
+      session_id: sessionId,
+      mission_id: missionId,
+      trace_id: traceId,
+      run_id: runId,
+      event_type: eventType,
+      stage: action === "DONE" ? "completion" : "dispatch",
+      message: message || (action === "DONE" ? "Missão concluída via cpp/direct." : "Missão roteada via cpp/direct."),
+      ...(completionProof ? { completion_proof: completionProof } : {}),
+      created_at_utc: now
+    });
+    await saveSnapshotPayload(auditConfig, {
+      snapshotType: SESSIONS_SNAPSHOT_TYPE,
+      payload: sessionsState,
+      createdBy: session.username,
+      sourceRepo: "gov-manager",
+      sourceRef: "cpp-direct-dispatch"
+    });
+
     const response = await fetch(endpoint, {
       method: "POST",
       headers: {
@@ -102,7 +183,6 @@ export async function POST(request: Request) {
       dispatchPayload = null;
     }
 
-    const auditConfig = resolveGovhubSnapshotConfig();
     await recordAuditEvent(auditConfig, {
       actor: session.username,
       role: session.role,
@@ -128,8 +208,10 @@ export async function POST(request: Request) {
         {
           status: "error",
           error_code: "CPP_DIRECT_DISPATCH_FAILED",
+          ack: false,
           mission_id: missionId,
           target,
+          execution_session_id: sessionId,
           correlation_id: correlationId,
           dispatch_http: response.status,
           dispatch_payload: dispatchPayload
@@ -141,8 +223,12 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         status: "ok",
+        ack: true,
         mission_id: missionId,
         target,
+        execution_session_id: sessionId,
+        trace_id: traceId,
+        run_id: runId,
         correlation_id: correlationId,
         dispatch_http: response.status,
         dispatch_payload: dispatchPayload
