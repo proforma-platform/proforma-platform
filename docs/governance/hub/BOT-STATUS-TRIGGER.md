@@ -8,3 +8,5 @@ Checklist rápido:
 - Validar `GET /api/govhub/bots/status` com `rows` preenchido.
 
 - Trigger GOVHUB Auto PR bot status at 2026-03-11T12:03:46Z UTC
+
+- Auto PR status trigger at 2026-03-11T12:42:47Z UTC
