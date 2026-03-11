@@ -12,6 +12,9 @@ permissions:
 jobs:
   auto-approve:
     runs-on: ubuntu-latest
+    concurrency:
+      group: govhub-auto-approve-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
     steps:
       - name: Evaluate PR criteria
         id: evaluate
@@ -19,9 +22,20 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const eventName = String(context.eventName || '');
+            core.setOutput('event_name', eventName);
+            if (eventName !== 'pull_request' || !context.payload.pull_request) {
+              core.notice(`Unsupported event for review automation: ${eventName || 'unknown'}`);
+              core.setOutput('approve', 'false');
+              core.setOutput('reason', 'invalid_event');
+              core.setOutput('pr_number', '');
+              core.setOutput('head_sha', '');
+              return;
+            }
+
             const { owner, repo } = context.repo;
             const pull_number = context.payload.pull_request.number;
-            const blockGovernanceDocs = (process.env.GOVHUB_BLOCK_GOV_DOCS || 'false').toLowerCase() === 'true';
+            core.setOutput('pr_number', String(pull_number));
 
             const restrictedPathRegex = [
               /^infra\//,
@@ -42,6 +56,7 @@ jobs:
             const pr = await github.rest.pulls.get({ owner, repo, pull_number });
             const title = pr.data.title || '';
             const headSha = pr.data.head.sha;
+            core.setOutput('head_sha', String(headSha || ''));
 
             const files = await github.paginate(github.rest.pulls.listFiles, {
               owner,
@@ -53,7 +68,6 @@ jobs:
             const changedPaths = files.map((f) => f.filename);
             const touchesRestricted = changedPaths.some((p) => {
               if (p === '.github/workflows/govhub-auto-approve.yml') return false;
-              if (blockGovernanceDocs && /^docs\/governance\//.test(p)) return true;
               return restrictedPathRegex.some((rx) => rx.test(p));
             });
 
@@ -110,6 +124,7 @@ jobs:
           fi
 
       - name: Approve PR
+        id: approve_pr
         if: steps.evaluate.outputs.approve == 'true' && steps.approver_token_state.outputs.has_token == 'true'
         uses: actions/github-script@v7
         with:
@@ -234,27 +249,57 @@ jobs:
           GOV_MANAGER_BOT_STATUS_TOKEN: ${{ secrets.GOV_MANAGER_BOT_STATUS_TOKEN }}
           HAS_GOVHUB_APPROVER_TOKEN: ${{ secrets.GOVHUB_APPROVER_TOKEN != '' }}
           EVALUATE_APPROVE: ${{ steps.evaluate.outputs.approve }}
+          EVALUATE_REASON: ${{ steps.evaluate.outputs.reason }}
+          EVENT_NAME: ${{ steps.evaluate.outputs.event_name }}
+          PR_NUMBER: ${{ steps.evaluate.outputs.pr_number }}
+          HEAD_SHA: ${{ steps.evaluate.outputs.head_sha }}
+          APPROVE_STEP_OUTCOME: ${{ steps.approve_pr.outcome }}
+          AUTOMERGE_ENABLED: ${{ steps.automerge.outputs.enabled }}
           JOB_STATUS: ${{ job.status }}
         run: |
           set -euo pipefail
           state="skipped"
           message="criterios nao atendidos"
+          review_action="SKIPPED"
+          merge_action="SKIPPED"
 
           if [ "$EVALUATE_APPROVE" = "true" ]; then
             state="ok"
             message="auto-approve executado"
+            review_action="APPROVED"
+            merge_action="ENABLED"
             if [ "$HAS_GOVHUB_APPROVER_TOKEN" != "true" ]; then
               state="blocked"
               message="GOVHUB_APPROVER_TOKEN ausente"
+              review_action="SKIPPED"
+              merge_action="SKIPPED"
             fi
+          fi
+
+          if [ -n "${EVALUATE_REASON:-}" ] && [ "$EVALUATE_REASON" != "eligible" ]; then
+            message="$message; reason=$EVALUATE_REASON"
+          fi
+
+          if [ -n "${APPROVE_STEP_OUTCOME:-}" ] && [ "$APPROVE_STEP_OUTCOME" != "success" ]; then
+            review_action="FAILED"
+          fi
+
+          if [ "${AUTOMERGE_ENABLED:-}" != "true" ] && [ "$EVALUATE_APPROVE" = "true" ]; then
+            merge_action="FAILED"
           fi
 
           if [ "$JOB_STATUS" != "success" ]; then
             state="error"
             message="falha no workflow auto-approve"
+            if [ "$EVALUATE_APPROVE" = "true" ] && [ "$HAS_GOVHUB_APPROVER_TOKEN" = "true" ]; then
+              review_action="FAILED"
+            fi
+            if [ "$EVALUATE_APPROVE" = "true" ]; then
+              merge_action="FAILED"
+            fi
           fi
 
           curl -fsS -X PUT "$GOV_MANAGER_BOT_STATUS_ENDPOINT" \
             -H "content-type: application/json" \
             -H "x-gov-manager-token: $GOV_MANAGER_BOT_STATUS_TOKEN" \
-            --data "{\"bot_id\":\"govhub-approve-br\",\"workflow_id\":\"govhub-auto-approve\",\"state\":\"$state\",\"result\":\"$JOB_STATUS\",\"message\":\"$message\",\"run_id\":\"${{ github.run_id }}\",\"run_url\":\"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\",\"actor\":\"github-actions\"}" >/dev/null
+            --data "{\"bot_id\":\"govhub-approve-br\",\"workflow_id\":\"govhub-auto-approve\",\"state\":\"$state\",\"result\":\"$JOB_STATUS\",\"message\":\"$message;event=$EVENT_NAME;pr=$PR_NUMBER;sha=$HEAD_SHA;review_action=$review_action;merge_action=$merge_action\",\"run_id\":\"${{ github.run_id }}\",\"run_url\":\"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\",\"actor\":\"github-actions\"}" >/dev/null
