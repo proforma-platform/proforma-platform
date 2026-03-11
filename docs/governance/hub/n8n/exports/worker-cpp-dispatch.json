@@ -1,0 +1,429 @@
+[
+  {
+    "id": "govhub-v7-worker-cpp-dispatch",
+    "name": "govhub-v7-worker-cpp-dispatch",
+    "active": true,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "path": "govhub/workers/cpp/dispatch",
+          "httpMethod": "POST",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "Webhook_Dispatch",
+        "name": "Webhook Dispatch CPP",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "webhookId": "52f245de-07da-4a8d-a6f3-cf779f8b4bb0",
+        "position": [220, 260]
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const headers = $json.headers ?? {};\nconst tokenHeader = String(headers['x-govhub-token'] || headers['X-GOVHUB-TOKEN'] || '').trim();\nconst allowed = String($env.GOVHUB_TOKENS || '').split(',').map(v => v.trim()).filter(Boolean);\nif (!tokenHeader || !allowed.includes(tokenHeader)) {\n  return [{ json: { ok: false, statusCode: 401, error_code: 'AUTH_INVALID_TOKEN', message: 'invalid token' } }];\n}\nconst asObj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});\nlet body = asObj($json.body);\nif (!Object.keys(body).length && typeof $json.body === 'string') {\n  try { body = asObj(JSON.parse($json.body)); } catch {}\n}\nif (!Object.keys(body).length) body = asObj($json);\nconst mission_id = String(body.mission_id || '').trim();\nconst queue_id = String(body.queue_id || body.task_id || '').trim();\nconst task_id = String(body.task_id || '').trim();\nconst udn_block = String(body.udn_block || '').trim();\nconst git_ops = asObj(body.git_ops);\nif (!mission_id) {\n  return [{ json: { ok: false, statusCode: 400, error_code: 'DISPATCH_INVALID', message: 'mission_id is required' } }];\n}\nreturn [{ json: { ok: true, mission_id, queue_id, task_id, udn_block, ...(Object.keys(git_ops).length ? { git_ops } : {}) } }];"
+        },
+        "id": "Code_Validate",
+        "name": "Validar Payload",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [480, 260]
+      },
+      {
+        "parameters": {
+          "mode": "expression",
+          "numberOutputs": 2,
+          "output": "={{$json.ok ? 0 : 1}}"
+        },
+        "id": "Switch_Valid",
+        "name": "Rota Valida",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
+        "position": [700, 260]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://govhub-cpp-worker:8080/run",
+          "sendBody": true,
+          "specifyBody": "json",
+          "contentType": "json",
+          "jsonBody": "={{ { mission_id: $json.mission_id, task_id: ($json.task_id || $json.queue_id || ''), queue_id: ($json.queue_id || $json.task_id || ''), udn_block: $json.udn_block, ...($json.git_ops ? { git_ops: $json.git_ops } : {}) } }}",
+          "options": {
+            "ignoreResponseCode": true,
+            "response": {
+              "response": {
+                "fullResponse": true
+              }
+            },
+            "timeout": 15000
+          }
+        },
+        "id": "Http_CallWorker",
+        "name": "Chamar Worker CPP",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "continueOnFail": true,
+        "position": [940, 180]
+      },
+      {
+        "parameters": {
+          "mode": "expression",
+          "numberOutputs": 2,
+          "output": "={{ ($json.error || ($json.statusCode && Number($json.statusCode) >= 400) || (String($json?.body?.status || 'ok').toLowerCase() !== 'ok')) ? 0 : 1 }}"
+        },
+        "id": "Switch_WorkerResult",
+        "name": "Rota resultado worker",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
+        "position": [1120, 180]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ String($env.GOV_MANAGER_BASE_URL || 'http://172.19.0.1:3000').replace(/\\/+$/,'') + '/api/govhub/operations/alerts' }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "x-govhub-token",
+                "value": "={{String($env.GOVHUB_TOKENS || '').split(',')[0]?.trim() || ''}}"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "contentType": "json",
+          "jsonBody": "={{ { action: 'create', type: 'cpp_worker_dispatch_failure', severity: 'high', mission_id: $node['Validar Payload'].json.mission_id, queue_id: ($node['Validar Payload'].json.queue_id || $node['Validar Payload'].json.task_id || ''), source: 'n8n-cpp-dispatch', message: ('Falha no dispatch CPP: ' + String($json?.body?.error_code || $json?.error?.message || $json?.body?.message || $json?.message || 'worker request failed')).slice(0, 280) } }}",
+          "options": {
+            "ignoreResponseCode": true,
+            "response": {
+              "response": {
+                "fullResponse": true
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "id": "Http_ReportFailureAlert",
+        "name": "Reportar falha no GOV",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "continueOnFail": true,
+        "position": [1310, 20]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ String($env.GOV_MANAGER_BASE_URL || 'http://172.19.0.1:3000').replace(/\\/+$/,'') + '/api/govhub/operations/queue/relay' }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "x-govhub-token",
+                "value": "={{String($env.GOVHUB_TOKENS || '').split(',')[0]?.trim() || ''}}"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "contentType": "json",
+          "jsonBody": "={{ { mission_id: $node['Validar Payload'].json.mission_id, queue_id: ($node['Validar Payload'].json.queue_id || $node['Validar Payload'].json.task_id || ''), assignee: 'CPP', status: 'paused_waiting_owner', reason_code: 'CPP_DISPATCH_FAILED', reason_message: ('Dispatch CPP falhou: ' + String($node['Chamar Worker CPP']?.json?.body?.error_code || $node['Chamar Worker CPP']?.json?.error?.message || $node['Chamar Worker CPP']?.json?.body?.message || $node['Chamar Worker CPP']?.json?.message || 'worker request failed') + ' (falha/erro reportado ao time de suporte).').slice(0, 280), actor: 'n8n-cpp-dispatch', source: 'n8n-cpp-dispatch', release_load: true } }}",
+          "options": {
+            "ignoreResponseCode": true,
+            "response": {
+              "response": {
+                "fullResponse": true
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "id": "Http_PauseRelayFailure",
+        "name": "Pausar missão no GOV",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "continueOnFail": true,
+        "position": [1500, 20]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://127.0.0.1:5678/webhook/govhub/missions/autofix-limited",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "x-govhub-token",
+                "value": "={{String($env.GOVHUB_TOKENS || '').split(',')[0]?.trim() || ''}}"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "contentType": "json",
+          "jsonBody": "={{ { mission_id: $node['Validar Payload'].json.mission_id, error_code: 'DISPATCH_WORKER_HTTP_FAILURE', error_excerpt: String($json?.error?.message || $json?.body?.message || $json?.message || 'worker request failed').slice(0, 256) } }}",
+          "options": {
+            "ignoreResponseCode": true,
+            "response": {
+              "response": {
+                "fullResponse": false
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "id": "Http_AutofixLimited",
+        "name": "Chamar autofix-limited",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [1690, 100]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ String($env.GOV_MANAGER_BASE_URL || 'http://172.19.0.1:3000').replace(/\\/+$/,'') + '/api/govhub/operations/queue/relay' }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "x-govhub-token",
+                "value": "={{String($env.GOVHUB_TOKENS || '').split(',')[0]?.trim() || ''}}"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "contentType": "json",
+          "jsonBody": "={{ { mission_id: $node['Validar Payload'].json.mission_id, queue_id: ($node['Validar Payload'].json.queue_id || $node['Validar Payload'].json.task_id || ''), assignee: 'CPP', status: 'in_progress', reason_code: 'CPP_WORKER_ACK', reason_message: 'Missão recebida e em execução no worker CPP via n8n.', actor: 'n8n-cpp-dispatch', source: 'n8n-cpp-dispatch', release_load: false, execution_progress_pct: Number($node['Chamar Worker CPP'].json?.body?.execution_progress_pct || 12), execution_progress_label: String($node['Chamar Worker CPP'].json?.body?.execution_progress_label || 'Missao aceita pelo executor') } }}",
+          "options": {
+            "ignoreResponseCode": true,
+            "response": {
+              "response": {
+                "fullResponse": true
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "id": "Http_StatusRelay",
+        "name": "Relatar status no GOV",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "continueOnFail": true,
+        "position": [1330, 280]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ String($env.GOV_MANAGER_BASE_URL || 'http://172.19.0.1:3000').replace(/\\/+$/,'') + '/api/govhub/operations/queue/relay' }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "x-govhub-token",
+                "value": "={{String($env.GOVHUB_TOKENS || '').split(',')[0]?.trim() || ''}}"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "contentType": "json",
+          "jsonBody": "={{ { mission_id: $node['Validar Payload'].json.mission_id, queue_id: ($node['Validar Payload'].json.queue_id || $node['Validar Payload'].json.task_id || ''), assignee: 'CPP', status: 'done', reason_code: 'CPP_WORKER_DONE', reason_message: 'Missão concluída automaticamente pelo worker CPP via n8n.', actor: 'n8n-cpp-dispatch', source: 'n8n-cpp-dispatch', release_load: true, completion_ack: Boolean($node['Chamar Worker CPP'].json?.body?.completion_ack), completion_proof: String($node['Chamar Worker CPP'].json?.body?.completion_proof || 'worker_done'), request_id: String($node['Chamar Worker CPP'].json?.body?.request_id || $node['Validar Payload'].json.queue_id || ''), completion_note: ('Relatorio GOV: conclusao automatica do worker CPP com prova ' + String($node['Chamar Worker CPP'].json?.body?.completion_proof || 'worker_done')).slice(0, 1400), execution_progress_pct: 100, execution_progress_label: 'Concluida com evidencia' } }}",
+          "options": {
+            "ignoreResponseCode": true,
+            "response": {
+              "response": {
+                "fullResponse": true
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "id": "Http_DoneRelay",
+        "name": "Relatar conclusao no GOV",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "continueOnFail": true,
+        "position": [1530, 360]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseCode": 200,
+          "responseBody": "={{ { status: 'ok', dispatch: 'sent', mission_id: ($node['Validar Payload'].json.mission_id || null), worker_http_status: Number($node['Chamar Worker CPP'].json.statusCode || 200), queue_relay_http_status: Number($node['Relatar status no GOV'].json.statusCode || 0), done_relay_http_status: Number($json.statusCode || 0), execution_progress_pct: 100, execution_progress_label: 'Concluida com evidencia', next_action: 'done' } }}"
+        },
+        "id": "Respond_Ok",
+        "name": "Responder 200",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [1530, 280]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { status: 'error', dispatch: 'failed', mission_id: ($node['Validar Payload'].json.mission_id || null), error_code: 'DISPATCH_WORKER_HTTP_FAILURE', autofix_state: ($json?.autofix_state || null), owner_call_required: !!$json?.owner_call_required, next_action: (($json?.autofix_state === 'paused_waiting_owner' || $json?.owner_call_required === true) ? 'owner_ack_required' : 'retry_limited') } }}",
+          "options": {
+            "responseCode": "={{ (($json?.autofix_state === 'paused_waiting_owner' || $json?.owner_call_required === true) ? 409 : 502) }}"
+          }
+        },
+        "id": "Respond_FailedAutofix",
+        "name": "Responder falha+autofix",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [1890, 100]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseCode": "={{$json.statusCode || 400}}",
+          "responseBody": "={{ { status: 'error', error_code: $json.error_code || 'DISPATCH_ERROR', next_action: 'fix_payload' } }}"
+        },
+        "id": "Respond_Error",
+        "name": "Responder Erro",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [940, 340]
+      }
+    ],
+    "connections": {
+      "Webhook Dispatch CPP": {
+        "main": [
+          [
+            {
+              "node": "Validar Payload",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Validar Payload": {
+        "main": [
+          [
+            {
+              "node": "Rota Valida",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Rota Valida": {
+        "main": [
+          [
+            {
+              "node": "Chamar Worker CPP",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Responder Erro",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Chamar Worker CPP": {
+        "main": [
+          [
+            {
+              "node": "Rota resultado worker",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Rota resultado worker": {
+        "main": [
+          [
+            {
+              "node": "Reportar falha no GOV",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Relatar status no GOV",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Relatar status no GOV": {
+        "main": [
+          [
+            {
+              "node": "Relatar conclusao no GOV",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Relatar conclusao no GOV": {
+        "main": [
+          [
+            {
+              "node": "Responder 200",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Reportar falha no GOV": {
+        "main": [
+          [
+            {
+              "node": "Pausar missão no GOV",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Pausar missão no GOV": {
+        "main": [
+          [
+            {
+              "node": "Chamar autofix-limited",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Chamar autofix-limited": {
+        "main": [
+          [
+            {
+              "node": "Responder falha+autofix",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Relatar status no GOV": {
+        "main": [
+          [
+            {
+              "node": "Responder 200",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {}
+  }
+]

@@ -1,0 +1,134 @@
+[
+  {
+    "name": "govhub-v7-xbo-watchdog-24x7",
+    "active": false,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "minutes",
+                "minutesInterval": 1
+              }
+            ]
+          }
+        },
+        "id": "Schedule_1min",
+        "name": "Schedule 1min",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          220,
+          240
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const base = String($env.GOV_MANAGER_BASE_URL || 'http://127.0.0.1:3000').replace(/\\/+$/,'');\nconst token = String($env.GOVHUB_TOKENS || '').split(',').map(v => v.trim()).filter(Boolean)[0] || '';\nconst stale = Number.parseInt(String($env.GOVHUB_WATCHDOG_STALE_MIN || '30'), 10);\nreturn [{json:{base_url:base, token, stale_threshold_min:Number.isFinite(stale)?Math.max(1,Math.min(240,stale)):30}}];"
+        },
+        "id": "Code_BuildInput",
+        "name": "Montar entrada",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          460,
+          240
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{$json.base_url + '/api/govhub/operations/watchdog'}}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "content-type",
+                "value": "application/json"
+              },
+              {
+                "name": "x-govhub-token",
+                "value": "={{$json.token}}"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ { action: 'run', stale_threshold_min: $json.stale_threshold_min } }}",
+          "options": {
+            "timeout": 12000,
+            "response": {
+              "response": {
+                "fullResponse": false
+              }
+            }
+          }
+        },
+        "id": "Http_RunWatchdog",
+        "name": "Executar watchdog",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "continueOnFail": true,
+        "position": [
+          760,
+          240
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const payload = items?.[0]?.json || {};\nconst changed = Number(payload.changed || 0);\nconst paused = Number(payload.paused_waiting_owner || 0);\nconst alerts = Number(payload.alerts_opened || 0);\nconst status = String(payload.status || 'unknown');\nreturn [{json:{status, changed, paused_waiting_owner: paused, alerts_opened: alerts, monitor: changed > 0 || paused > 0 || alerts > 0 ? 'attention' : 'ok'}}];"
+        },
+        "id": "Code_Summarize",
+        "name": "Sumarizar ciclo",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1020,
+          240
+        ]
+      }
+    ],
+    "connections": {
+      "Schedule 1min": {
+        "main": [
+          [
+            {
+              "node": "Montar entrada",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Montar entrada": {
+        "main": [
+          [
+            {
+              "node": "Executar watchdog",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Executar watchdog": {
+        "main": [
+          [
+            {
+              "node": "Sumarizar ciclo",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1"
+    }
+  }
+]

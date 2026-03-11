@@ -104,3 +104,25 @@ Fechar GOV-0032: release `v0.3.0` com evidências Lighthouse anexadas + checks v
 - Foco no próximo incremento.
 - Qualquer mudança em infra exige ADR.
 - Sempre manter governança e rastreabilidade (branch + PR + commit SHA).
+
+## GOV-MANAGER V7 FOUNDATION (2026-03-01)
+- merge_commit_sha: `c7f5da673d7bd3434fec81376b8d0f9aaccf26c4`
+- foundation_commit_sha: `4b87026`
+- tdv_root_hash: `1693b2656a46f5d6ec0f232b95e9433601f8dcc14c0324adb531f10d670595d9`
+- udn_engine_hash: `714b63e9ed0edaf3f3277f7fa9b13d1f8cdeac26f904c2d75b85da8dc1d5cc13`
+- ledger_genesis_hash: `1a60c2703e8166c43db06554c345f024ac5f3b6cb5d62222bc290d9fde2a4242`
+- contract_adapter_hash: `6ce1ec1f089d035f789286b8185e0c4d4d170e1e2c650522ae20cbaad4792c7d`
+- documentation_hash: `b4c90f11eb5a558ff85f1475e5c98e2b0bc578adcbc0f76babc1540b7483c6d4`
+
+## GOV-HUB V7 ORCHESTRATION V1 (HASH BLOCK)
+- migration: `docs/governance/hub/schema/0004_govhub_v7_orchestration.sql`
+- endpoints:
+  - `POST /webhook/govhub/missions/register`
+  - `GET /webhook/govhub/missions/next`
+  - `POST /webhook/govhub/snapshot-update`
+  - `GET /webhook/govhub/snapshots/latest?snapshot_type=mission_runs_v1`
+- workflow_exports:
+  - `docs/governance/hub/n8n/exports/missions-register.json`
+  - `docs/governance/hub/n8n/exports/missions-next-get.json`
+  - `docs/governance/hub/n8n/exports/orchestration-monitor.json`
+  - `docs/governance/hub/n8n/exports/snapshot-update.json`

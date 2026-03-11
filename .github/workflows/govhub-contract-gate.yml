@@ -1,0 +1,44 @@
+name: GOVHUB Contract Gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths:
+      - "docs/governance/hub/n8n/exports/missions-next.json"
+      - "docs/governance/hub/n8n/exports/report-ingest.json"
+      - "docs/governance/hub/n8n/exports/missions-autofix-limited.json"
+      - "docs/governance/hub/n8n/exports/missions-owner-ack.json"
+      - "docs/governance/hub/n8n/exports/worker-cppia-dispatch.json"
+      - "docs/governance/hub/n8n/tests/*.sh"
+      - ".github/workflows/govhub-contract-gate.yml"
+
+jobs:
+  missions-next-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate shell scripts syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n docs/governance/hub/n8n/tests/validate_missions_next_contract.sh
+          bash -n docs/governance/hub/n8n/tests/validate_missions_next_export_contract.sh
+          bash -n docs/governance/hub/n8n/tests/validate_compact_outputs.sh
+
+      - name: Validate missions-next export contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x docs/governance/hub/n8n/tests/validate_missions_next_export_contract.sh
+          docs/governance/hub/n8n/tests/validate_missions_next_export_contract.sh \
+            docs/governance/hub/n8n/exports/missions-next.json
+
+      - name: Validate compact outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x docs/governance/hub/n8n/tests/validate_compact_outputs.sh
+          docs/governance/hub/n8n/tests/validate_compact_outputs.sh

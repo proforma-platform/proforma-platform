@@ -1,0 +1,105 @@
+{
+  "contract_id": "gov-manager-v1-udn-ccp-contract",
+  "version": "1.0.0",
+  "mode": "GOVERNANCE_ACTIVE|CCP_STRICT",
+  "envelope": {
+    "required": true,
+    "type": "execution_payload",
+    "fields": [
+      "ccp_ver",
+      "type",
+      "mission_id",
+      "mode",
+      "udn_block",
+      "autofix_control",
+      "prompt_ref",
+      "parts",
+      "token_control",
+      "constraints"
+    ]
+  },
+  "autofix_control": {
+    "required": false,
+    "defaults": {
+      "enabled": true,
+      "max_rounds": 2,
+      "on_exhaust": "pause_owner"
+    },
+    "constraints": {
+      "max_rounds_allowed": [
+        1,
+        2
+      ],
+      "on_exhaust_allowed": [
+        "pause_owner"
+      ]
+    },
+    "persistence": "serialized in udn_mission as #af:enabled=<bool>;max_rounds=<int>;on_exhaust=<value>"
+  },
+  "parts": {
+    "required": false,
+    "rules": {
+      "min_items": 1,
+      "executor_allowed": [
+        "STAFF",
+        "CPP",
+        "CPP-IA"
+      ],
+      "priority_allowed": [
+        "P0",
+        "P1",
+        "P2"
+      ]
+    },
+    "persistence": "persisted in gov.mission_parts and mirrored in UDN lines #part:<id>;exec=<executor>;prio=<priority>;goal=<goal>"
+  },
+  "prompt_ref": {
+    "required": false,
+    "rules": {
+      "inject_mode_allowed": [
+        "append_ref",
+        "replace_udn"
+      ],
+      "hash_policy": "if prompt_hash is provided and does not match stored hash, fail-closed"
+    },
+    "persistence": "stored by reference via snapshot gov_manager_prompt_library_v1 and mirrored in UDN as #ctx_prompt_ref:id=<id>;hash=<sha>"
+  },
+  "token_governance": {
+    "required": false,
+    "rules": {
+      "limit_policy_snapshot": "gov_manager_token_policy_v1",
+      "usage_snapshot": "gov_manager_token_usage_v1",
+      "block_state_on_limit": "paused_waiting_owner"
+    }
+  },
+  "udn": {
+    "primary_semantics": true,
+    "required_prefix": "!MIS|",
+    "required_segments": [
+      "#σ",
+      "#τ",
+      "!OUT"
+    ],
+    "parse_policy": "FAIL_CLOSED_ON_PARSE_AMBIGUITY"
+  },
+  "safety_rules": [
+    "NO_TOKEN_LOG",
+    "NO_SCHEMA_CHANGE",
+    "NO_AUTH_SCOPE_CHANGE",
+    "CCP_ENVELOPE_MANDATORY"
+  ],
+  "response_contract": {
+    "type": "phase_complete",
+    "required_fields": [
+      "mission_id",
+      "phase",
+      "status",
+      "snapshot_update_http",
+      "latest_http",
+      "payload_sha256",
+      "baseline_artifacts_ref",
+      "contract_artifacts_ref",
+      "constraints_compliance"
+    ]
+  }
+}

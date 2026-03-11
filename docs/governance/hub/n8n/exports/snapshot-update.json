@@ -1,0 +1,337 @@
+[
+  {
+    "id": "govhub-phase1-snapshot-update",
+    "name": "govhub-phase1-snapshot-update",
+    "active": false,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "path": "govhub/snapshot-update",
+          "httpMethod": "POST",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "Webhook_SnapshotUpdate",
+        "name": "Webhook Snapshot Update",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "webhookId": "a7fb7e1a-bc18-4e39-9fdd-6f42c4b3b7e9",
+        "position": [
+          220,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const crypto = require('crypto');\nconst headers = $json.headers ?? {};\nconst tokenHeader = String(headers['x-govhub-token'] || headers['X-GOVHUB-TOKEN'] || '').trim();\nconst contentType = String(headers['content-type'] || headers['Content-Type'] || '').toLowerCase();\nconst allowed = String($env.GOVHUB_TOKENS || '').split(',').map(v => v.trim()).filter(Boolean);\nif (!tokenHeader || !allowed.includes(tokenHeader)) {\n  return [{ json: { route: 'error', statusCode: 401, status: 'unauthorized', error_code: 'AUTH_INVALID_TOKEN', message: 'invalid token' } }];\n}\nlet tokenScopes = [];\nlet rawScopes = '';\ntry {\n  rawScopes = String($env.GOVHUB_TOKEN_SCOPES_JSON || '').trim();\n  if (rawScopes) {\n    const parsed = JSON.parse(rawScopes);\n    if (Array.isArray(parsed[tokenHeader])) tokenScopes = parsed[tokenHeader].map((s) => String(s).trim());\n  }\n} catch {}\nif (tokenScopes.length === 0 && rawScopes === '') {\n  tokenScopes = ['s:w'];\n}\nif (!(tokenScopes.includes('s:w') || tokenScopes.includes('snapshots:write'))) {\n  return [{ json: { route: 'error', statusCode: 403, status: 'forbidden', error_code: 'AUTH_SCOPE_REQUIRED', message: 'token missing required write scope (s:w)' } }];\n}\nif (!contentType.includes('application/json')) {\n  return [{ json: { route: 'error', statusCode: 400, status: 'invalid_request', error_code: 'CONTENT_TYPE_REQUIRED', message: 'Content-Type must be application/json' } }];\n}\nlet body = $json.body ?? {};\nif (typeof body === 'string') {\n  try { body = JSON.parse(body); } catch { body = {}; }\n}\nconst required = ['run_id','mission_id','branch','status','phase','nn','total','udn_state'];\nfor (const k of required) {\n  if (body[k] === undefined || body[k] === null || String(body[k]).trim() === '') {\n    return [{ json: { route: 'error', statusCode: 400, status: 'invalid_request', error_code: 'SNAPSHOT_UPDATE_INVALID_PAYLOAD', message: 'missing field: ' + k } }];\n  }\n}\nconst canonicalUdn = String(body.udn_state)\n  .replace(/\\r\\n/g, '\\n')\n  .split('\\n')\n  .map((l) => l.trim())\n  .filter((l) => l.length > 0)\n  .join('\\n');\nif (!canonicalUdn) {\n  return [{ json: { route: 'error', statusCode: 400, status: 'invalid_request', error_code: 'UDN_STATE_INVALID', message: 'udn_state must not be empty after canonicalization' } }];\n}\nconst computedHash = crypto.createHash('sha256').update(Buffer.from(canonicalUdn, 'utf8')).digest('hex');\nif (body.integrity_hash && String(body.integrity_hash).trim() !== computedHash) {\n  return [{ json: { route: 'error', statusCode: 400, status: 'invalid_request', error_code: 'INTEGRITY_HASH_MISMATCH', message: 'client integrity_hash mismatch' } }];\n}\nconst esc = (v) => String(v ?? '').replace(/'/g, \"''\");\nconst nn = Number(body.nn);\nconst total = Number(body.total);\nif (!Number.isFinite(nn) || !Number.isFinite(total)) {\n  return [{ json: { route: 'error', statusCode: 400, status: 'invalid_request', error_code: 'SNAPSHOT_UPDATE_INVALID_NUMBERS', message: 'nn and total must be numeric' } }];\n}\nconst excerpt = body.last_error_excerpt_256 ? String(body.last_error_excerpt_256).slice(0, 256) : '';\nreturn [{ json: {\n  route: 'valid',\n  run_id: String(body.run_id),\n  mission_id: String(body.mission_id),\n  branch: String(body.branch),\n  status: String(body.status),\n  phase: String(body.phase),\n  nn: Math.trunc(nn),\n  total: Math.trunc(total),\n  last_event_ts: body.last_event_ts ? String(body.last_event_ts) : '',\n  last_error_code: body.last_error_code ? String(body.last_error_code) : '',\n  last_error_excerpt_256: excerpt,\n  report_ref: body.report_ref ? String(body.report_ref) : '',\n  udn_state_canonical: canonicalUdn,\n  integrity_hash: computedHash,\n  run_id_sql: esc(body.run_id),\n  mission_id_sql: esc(body.mission_id),\n  branch_sql: esc(body.branch),\n  status_sql: esc(body.status),\n  phase_sql: esc(body.phase),\n  last_event_ts_sql: esc(body.last_event_ts ?? ''),\n  last_error_code_sql: esc(body.last_error_code ?? ''),\n  last_error_excerpt_256_sql: esc(excerpt),\n  report_ref_sql: esc(body.report_ref ?? ''),\n  udn_state_canonical_sql: esc(canonicalUdn),\n  integrity_hash_sql: esc(computedHash)\n} }];"
+        },
+        "id": "Code_ValidateSnapshotUpdate",
+        "name": "Validate Snapshot Update",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          500,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "expression",
+          "numberOutputs": 2,
+          "output": "={{$json.route === 'error' ? 0 : 1}}"
+        },
+        "id": "Switch_SnapshotUpdateRoute",
+        "name": "Route Snapshot Update",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
+        "position": [
+          760,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { status: $json.status || 'internal_error', error_code: $json.error_code || 'SNAPSHOT_UPDATE_INTERNAL', message: $json.message || 'internal error' } }}",
+          "options": {
+            "responseCode": "={{$json.statusCode || 500}}"
+          }
+        },
+        "id": "Respond_SnapshotUpdateError",
+        "name": "Respond Snapshot Update Error",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [
+          1040,
+          180
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "INSERT INTO governance.mission_runs (\n  run_id, mission_id, branch, status, phase, nn, total, last_event_ts,\n  last_error_code, last_error_excerpt_256, report_ref, udn_state, integrity_hash, updated_at\n) VALUES (\n  '{{$json.run_id_sql}}',\n  '{{$json.mission_id_sql}}',\n  '{{$json.branch_sql}}',\n  '{{$json.status_sql}}',\n  '{{$json.phase_sql}}',\n  {{$json.nn}},\n  {{$json.total}},\n  COALESCE(NULLIF('{{$json.last_event_ts_sql}}','')::timestamptz, now()),\n  NULLIF('{{$json.last_error_code_sql}}',''),\n  NULLIF('{{$json.last_error_excerpt_256_sql}}',''),\n  NULLIF('{{$json.report_ref_sql}}',''),\n  '{{$json.udn_state_canonical_sql}}',\n  '{{$json.integrity_hash_sql}}',\n  now()\n)\nON CONFLICT (run_id) DO UPDATE SET\n  mission_id = EXCLUDED.mission_id,\n  branch = EXCLUDED.branch,\n  status = EXCLUDED.status,\n  phase = EXCLUDED.phase,\n  nn = EXCLUDED.nn,\n  total = EXCLUDED.total,\n  last_event_ts = EXCLUDED.last_event_ts,\n  last_error_code = EXCLUDED.last_error_code,\n  last_error_excerpt_256 = EXCLUDED.last_error_excerpt_256,\n  report_ref = EXCLUDED.report_ref,\n  udn_state = EXCLUDED.udn_state,\n  integrity_hash = EXCLUDED.integrity_hash,\n  updated_at = now()\nRETURNING run_id, mission_id, branch, status, phase, nn, total,\n  to_char(last_event_ts AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS last_event_ts,\n  last_error_code, last_error_excerpt_256, report_ref, udn_state, integrity_hash;"
+        },
+        "id": "Postgres_UpsertMissionRun",
+        "name": "Upsert Mission Run",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2,
+        "position": [
+          1040,
+          420
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "11111111-2222-4333-8444-555555555555",
+            "name": "GOVHUB_DB"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "SELECT COALESCE(\n  jsonb_agg(\n    jsonb_build_object(\n      'run_id', run_id,\n      'mission_id', mission_id,\n      'branch', branch,\n      'status', status,\n      'phase', phase,\n      'nn', nn,\n      'total', total,\n      'last_event_ts', to_char(last_event_ts AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'),\n      'last_error_code', last_error_code,\n      'last_error_excerpt_256', last_error_excerpt_256,\n      'report_ref', report_ref,\n      'udn_state', udn_state,\n      'integrity_hash', integrity_hash,\n      'updated_at', to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"')\n    )\n    ORDER BY updated_at DESC\n  ),\n  '[]'::jsonb\n) AS mission_runs\nFROM governance.mission_runs;"
+        },
+        "id": "Postgres_LoadMissionRuns",
+        "name": "Load Mission Runs",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2,
+        "position": [
+          1280,
+          420
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "11111111-2222-4333-8444-555555555555",
+            "name": "GOVHUB_DB"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const crypto = require('crypto');\n\nconst esc = (v) => String(v ?? '').replace(/'/g, \"''\");\n\nlet missionRuns = $json.mission_runs ?? [];\nif (typeof missionRuns === 'string') {\n  try { missionRuns = JSON.parse(missionRuns); } catch { missionRuns = []; }\n}\nif (!Array.isArray(missionRuns)) missionRuns = [];\n\nconst udnLines = missionRuns\n  .map((r) => String(r?.udn_state ?? '').replace(/\\r\\n/g, '\\n').trim())\n  .filter((v) => v.length > 0);\n\nconst udnBlock = (udnLines.length > 0 ? udnLines.join('\\n') : '!RUNS|NONE;') + '\\n';\nconst payloadBytes = Buffer.from(udnBlock, 'utf8');\n\nfunction crc32(bytes) {\n  let crc = 0 ^ (-1);\n  for (let i = 0; i < bytes.length; i++) {\n    crc ^= bytes[i];\n    for (let j = 0; j < 8; j++) {\n      crc = (crc >>> 1) ^ (0xEDB88320 & (-(crc & 1)));\n    }\n  }\n  return (crc ^ (-1)) >>> 0;\n}\n\nfunction gzipStored(bytes) {\n  const header = Buffer.from([0x1f, 0x8b, 0x08, 0x00, 0, 0, 0, 0, 0x00, 0xff]);\n  const blocks = [];\n  let offset = 0;\n  while (offset < bytes.length) {\n    const remaining = bytes.length - offset;\n    const len = Math.min(65535, remaining);\n    const isFinal = (offset + len) >= bytes.length ? 1 : 0;\n    const block = Buffer.alloc(1 + 2 + 2 + len);\n    block[0] = isFinal;\n    block.writeUInt16LE(len, 1);\n    block.writeUInt16LE((~len) & 0xffff, 3);\n    bytes.copy(block, 5, offset, offset + len);\n    blocks.push(block);\n    offset += len;\n  }\n\n  const trailer = Buffer.alloc(8);\n  trailer.writeUInt32LE(crc32(bytes), 0);\n  trailer.writeUInt32LE(bytes.length >>> 0, 4);\n\n  return Buffer.concat([header, ...blocks, trailer]);\n}\n\nconst gzipBytes = gzipStored(payloadBytes);\nconst payloadSha256 = crypto.createHash('sha256').update(gzipBytes).digest('hex');\nconst payloadB64 = gzipBytes.toString('base64');\n\nreturn [{ json: {\n  ...$json,\n  snapshot_type: 'mission_runs_v1',\n  protocol: 'UBIN',\n  version: '1.0',\n  encoding: 'json',\n  compression: 'gzip',\n  payload_text: udnBlock,\n  payload_size_bytes: gzipBytes.length,\n  payload_sha256: payloadSha256,\n  payload_b64: payloadB64,\n  payload_b64_sql: esc(payloadB64),\n  payload_sha256_sql: esc(payloadSha256)\n} }];\n"
+        },
+        "id": "Code_BuildMissionRunsSnapshot",
+        "name": "Build Mission Runs Snapshot",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1520,
+          420
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "UPDATE governance.hub_snapshots\nSET is_active = false\nWHERE snapshot_type = 'mission_runs_v1'\n  AND is_active = true;\n\nINSERT INTO governance.hub_snapshots (\n  snapshot_type, protocol, version, encoding, compression, payload_b64, payload_sha256, payload_size_bytes, created_by, source_repo, source_ref, is_active\n) VALUES (\n  'mission_runs_v1',\n  'UBIN',\n  '1.0',\n  'json',\n  'gzip',\n  '{{$json.payload_b64_sql}}',\n  '{{$json.payload_sha256_sql}}',\n  {{Math.trunc($json.payload_size_bytes)}},\n  'snapshot-update',\n  'platform',\n  NULL,\n  true\n) RETURNING snapshot_id::text, payload_sha256, payload_size_bytes, snapshot_type;"
+        },
+        "id": "Postgres_StoreMissionRunsSnapshot",
+        "name": "Store Mission Runs Snapshot",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2,
+        "position": [
+          1760,
+          420
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "11111111-2222-4333-8444-555555555555",
+            "name": "GOVHUB_DB"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseCode": 200,
+          "responseBody": "={{ { status: 'updated', run_id: ($node['Upsert Mission Run'].json.run_id || $node['Upsert Mission Run'].json[0]?.run_id || null), snapshot_type: ($json[0]?.snapshot_type || $json.snapshot_type || 'mission_runs_v1'), payload_sha256: ($json[0]?.payload_sha256 || $json.payload_sha256 || null), payload_size_bytes: Number($json[0]?.payload_size_bytes || $json.payload_size_bytes || 0), snapshot_id: ($json[0]?.snapshot_id || $json.snapshot_id || null) } }}"
+        },
+        "id": "Respond_SnapshotUpdateSuccess",
+        "name": "Respond Snapshot Update Success",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [
+          2010,
+          420
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "SELECT\n  '{{$json.snapshot_type}}'::text AS snapshot_type,\n  '{{$json.payload_b64_sql}}'::text AS payload_b64_sql,\n  '{{$json.payload_sha256_sql}}'::text AS payload_sha256_sql,\n  {{Math.trunc($json.payload_size_bytes)}}::bigint AS payload_size_bytes,\n  '{{$json.payload_sha256}}'::text AS new_payload_sha256,\n  (\n    SELECT payload_sha256\n    FROM governance.hub_snapshots\n    WHERE snapshot_type = 'mission_runs_v1'\n      AND is_active = true\n    ORDER BY created_at_utc DESC\n    LIMIT 1\n  )::text AS current_payload_sha256;",
+          "options": {}
+        },
+        "id": "Postgres_SelectCurrentSnapshotHash",
+        "name": "Select Current Snapshot Hash",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.6,
+        "position": [
+          1740,
+          420
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "11111111-2222-4333-8444-555555555555",
+            "name": "GOVHUB_DB"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "hash-changed-cond",
+                "leftValue": "={{$json.new_payload_sha256}}",
+                "rightValue": "={{$json.current_payload_sha256 || ''}}",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEquals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "If_HashChanged",
+        "name": "Hash Changed?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          1960,
+          420
+        ]
+      }
+    ],
+    "connections": {
+      "Webhook Snapshot Update": {
+        "main": [
+          [
+            {
+              "node": "Validate Snapshot Update",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Validate Snapshot Update": {
+        "main": [
+          [
+            {
+              "node": "Route Snapshot Update",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Route Snapshot Update": {
+        "main": [
+          [
+            {
+              "node": "Respond Snapshot Update Error",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Upsert Mission Run",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Upsert Mission Run": {
+        "main": [
+          [
+            {
+              "node": "Load Mission Runs",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Load Mission Runs": {
+        "main": [
+          [
+            {
+              "node": "Build Mission Runs Snapshot",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Store Mission Runs Snapshot": {
+        "main": [
+          [
+            {
+              "node": "Respond Snapshot Update Success",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build Mission Runs Snapshot": {
+        "main": [
+          [
+            {
+              "node": "Select Current Snapshot Hash",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Select Current Snapshot Hash": {
+        "main": [
+          [
+            {
+              "node": "Hash Changed?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Hash Changed?": {
+        "main": [
+          [
+            {
+              "node": "Store Mission Runs Snapshot",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Respond Snapshot Update Success",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {},
+    "pinData": {},
+    "staticData": null,
+    "meta": {
+      "templateCredsSetupCompleted": false
+    }
+  }
+]

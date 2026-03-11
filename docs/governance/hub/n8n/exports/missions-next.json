@@ -54,7 +54,7 @@
       {
         "parameters": {
           "operation": "executeQuery",
-          "query": "WITH candidate AS (\n  SELECT\n    mt.id AS mission_task_id,\n    m.mission_key\n  FROM governance.mission_tasks mt\n  JOIN governance.missions m ON m.id = mt.mission_id\n  JOIN governance.repositories r ON r.id = mt.repo_id\n  WHERE r.repo_key = '{{$json.repo_key_sql}}'\n    AND (\n      mt.status = 'pending'\n      OR (mt.status = 'in_progress' AND mt.started_at < now() - interval '15 minutes')\n    )\n  ORDER BY mt.created_at ASC\n  LIMIT 1\n  FOR UPDATE SKIP LOCKED\n), locked AS (\n  UPDATE governance.mission_tasks mt\n  SET\n    status = 'in_progress',\n    assigned_agent = '{{$json.agent_id_sql}}',\n    started_at = now()\n  FROM candidate c\n  WHERE mt.id = c.mission_task_id\n    AND (\n      mt.status = 'pending'\n      OR (mt.status = 'in_progress' AND mt.started_at < now() - interval '15 minutes')\n    )\n  RETURNING mt.id, mt.repo_id, c.mission_key\n)\nSELECT\n  CASE WHEN EXISTS (SELECT 1 FROM locked) THEN 'assigned' ELSE 'no_work' END AS status,\n  (SELECT mission_key FROM locked LIMIT 1) AS mission_key,\n  '{{$json.repo_key_sql}}' AS repo_key,\n  '{{$json.agent_id_sql}}' AS agent_id,\n  900 AS lock_ttl_seconds,\n  to_char((now() + interval '15 minutes') AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS lock_expires_at_utc,\n  NULL::text AS instructions,\n  'govhub-n8n'::text AS source;"
+          "query": "WITH candidate AS (\n  SELECT\n    mt.id AS mission_task_id,\n    m.mission_key\n  FROM governance.mission_tasks mt\n  JOIN governance.missions m ON m.id = mt.mission_id\n  JOIN governance.repositories r ON r.id = mt.repo_id\n  WHERE r.repo_key = '{{$json.repo_key_sql}}'\n    AND (\n      mt.status = 'pending'\n      OR (mt.status = 'in_progress' AND mt.started_at < now() - interval '15 minutes')\n    )\n  ORDER BY mt.created_at ASC\n  LIMIT 1\n  FOR UPDATE SKIP LOCKED\n), locked AS (\n  UPDATE governance.mission_tasks mt\n  SET\n    status = 'in_progress',\n    assigned_agent = '{{$json.agent_id_sql}}',\n    started_at = now()\n  FROM candidate c\n  WHERE mt.id = c.mission_task_id\n    AND (\n      mt.status = 'pending'\n      OR (mt.status = 'in_progress' AND mt.started_at < now() - interval '15 minutes')\n    )\n  RETURNING mt.id, mt.repo_id, c.mission_key\n)\nSELECT\n  CASE WHEN EXISTS (SELECT 1 FROM locked) THEN 'assigned' ELSE 'no_work' END AS status,\n  (SELECT id::text FROM locked LIMIT 1) AS mission_task_id,\n  (SELECT mission_key FROM locked LIMIT 1) AS mission_key,\n  '{{$json.repo_key_sql}}' AS repo_key,\n  '{{$json.agent_id_sql}}' AS agent_id,\n  900 AS lock_ttl_seconds,\n  to_char((now() + interval '15 minutes') AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS lock_expires_at_utc,\n  NULL::text AS instructions,\n  'govhub-n8n'::text AS source;"
         },
         "id": "Postgres_SelectAndLockMission",
         "name": "Select + Lock Mission",
@@ -74,7 +74,7 @@
       {
         "parameters": {
           "respondWith": "json",
-          "responseBody": "={{ { status: $json.status || 'internal_error', error_code: $json.error_code || 'MISSIONS_NEXT_INTERNAL_ERROR', message: $json.message || 'internal error' } }}",
+          "responseBody": "={{ { status:'error', error_code:$json.error_code || 'MISSIONS_NEXT_INTERNAL_ERROR', next_action:'fix_request_or_check_db' } }}",
           "options": {
             "responseCode": "={{$json.statusCode || 500}}"
           }
@@ -92,7 +92,7 @@
         "parameters": {
           "respondWith": "json",
           "responseCode": 200,
-          "responseBody": "={{ { status: $json.status || 'no_work', mission_key: $json.mission_key || null, repo_key: $json.repo_key || null, agent_id: $json.agent_id || null, lock_ttl_seconds: Number($json.lock_ttl_seconds || 900), lock_expires_at_utc: $json.lock_expires_at_utc || null, instructions: $json.instructions ?? null, source: $json.source || 'govhub-n8n' } }}"
+          "responseBody": "={{ (() => { const hasIdentity = !!(String($json.mission_key || '').trim() && String($json.mission_task_id || '').trim()); const status = hasIdentity ? 'assigned' : 'no_work'; return { status, mission_id: hasIdentity ? ($json.mission_key || null) : null, mission_task_id: hasIdentity ? (String($json.mission_task_id || '') || null) : null, next_action: hasIdentity ? 'execute_mission' : 'wait' }; })() }}"
         },
         "id": "Respond_Dispatch",
         "name": "Respond Dispatch",
@@ -100,6 +100,263 @@
         "typeVersion": 1,
         "position": [
           1180,
+          180
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "string": [
+              {
+                "value1": "={{$json.status || ''}}",
+                "operation": "equal",
+                "value2": "assigned"
+              }
+            ]
+          }
+        },
+        "id": "If_Assigned",
+        "name": "Trabalho atribuido?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          1160,
+          180
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "expression",
+          "numberOutputs": 3,
+          "output": "={{$json.agent_id === 'CPP-IA' ? 0 : ($json.agent_id === 'CPP' ? 1 : 2)}}"
+        },
+        "id": "Switch_AgentRoute",
+        "name": "Rota por agente",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
+        "position": [
+          1360,
+          120
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://govhub-cpp-ia-worker:8080/run",
+          "sendBody": true,
+          "specifyBody": "json",
+          "contentType": "json",
+          "jsonBody": "={{ { mission_id: $json.mission_key, task_id: String($json.mission_task_id || ''), udn_block: String($json.instructions || '') } }}",
+          "options": {
+            "response": {
+              "response": {
+                "fullResponse": false
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "id": "Http_CallCppIa",
+        "name": "Despachar CPP-IA",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "continueOnFail": true,
+        "position": [
+          1580,
+          40
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://govhub-cpp-worker:8080/run",
+          "sendBody": true,
+          "specifyBody": "json",
+          "contentType": "json",
+          "jsonBody": "={{ { mission_id: $json.mission_key, task_id: String($json.mission_task_id || ''), udn_block: String($json.instructions || '') } }}",
+          "options": {
+            "response": {
+              "response": {
+                "fullResponse": false
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "id": "Http_CallCpp",
+        "name": "Despachar CPP",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "continueOnFail": true,
+        "position": [
+          1580,
+          140
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "expression",
+          "numberOutputs": 2,
+          "output": "={{$json.error ? 0 : 1}}"
+        },
+        "id": "Switch_DispatchResult",
+        "name": "Rota resultado dispatch",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
+        "position": [
+          1700,
+          100
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "return [{json:{status:'error',statusCode:400,error_code:'AGENT_NOT_SUPPORTED',message:`agent_id not supported: ${$json.agent_id || ''}`}}];"
+        },
+        "id": "Code_UnsupportedAgent",
+        "name": "Erro agente nao suportado",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1580,
+          240
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://127.0.0.1:5678/webhook/govhub/missions/autofix-limited",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "x-govhub-token",
+                "value": "={{String($env.GOVHUB_TOKENS || '').split(',')[0]?.trim() || ''}}"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "contentType": "json",
+          "jsonBody": "={{ { mission_id: $node['Select + Lock Mission'].json.mission_key, error_code: 'DISPATCH_FAILED', error_excerpt: String($json?.error?.message || $json?.message || 'dispatch failed').slice(0, 256) } }}",
+          "options": {
+            "ignoreResponseCode": true,
+            "response": {
+              "response": {
+                "fullResponse": false
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "id": "Http_AutofixLimited",
+        "name": "Chamar autofix-limited",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1810,
+          40
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseCode": 200,
+          "responseBody": "={{ (() => { const base = $node['Normalizar Atribuicao'].json || {}; const hasIdentity = !!(String(base.mission_key || '').trim() && String(base.mission_task_id || '').trim()); const status = hasIdentity ? 'assigned' : 'no_work'; return { status, mission_id: hasIdentity ? (base.mission_key || null) : null, mission_task_id: hasIdentity ? (String(base.mission_task_id || '') || null) : null, next_action: hasIdentity ? (($json?.autofix_state === 'paused_waiting_owner' || $json?.owner_call_required === true) ? 'owner_ack_required' : 'report_ingest') : 'wait' }; })() }}"
+        },
+        "id": "Respond_Dispatched",
+        "name": "Responder Atribuido+Dispatch",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [
+          1810,
+          90
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://127.0.0.1:5678/webhook/govhub/report-ingest",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "x-govhub-token",
+                "value": "={{String($env.GOVHUB_TOKENS || '').split(',')[0]?.trim() || ''}}"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "contentType": "json",
+          "jsonBody": "={{ { mission_key: $node['Select + Lock Mission'].json.mission_key, repo_key: $node['Select + Lock Mission'].json.repo_key, agent_id: $node['Select + Lock Mission'].json.agent_id, branch: 'main', head_sha: String($node['Select + Lock Mission'].json.mission_task_id || '').replace(/-/g,'').slice(0,40) || 'autohead', report_md: `AUTO_REPORT\\nmission_key=${$node['Select + Lock Mission'].json.mission_key}\\nagent_id=${$node['Select + Lock Mission'].json.agent_id}\\nsource=missions-next-auto` } }}",
+          "options": {
+            "response": {
+              "response": {
+                "fullResponse": false
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "id": "Http_AutoReportIngest",
+        "name": "Auto report-ingest",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1810,
+          180
+        ],
+        "continueOnFail": true
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://127.0.0.1:5678/webhook/govhub/timelines/write",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "x-govhub-token",
+                "value": "={{String($env.GOVHUB_TOKENS || '').split(',')[0]?.trim() || ''}}"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "contentType": "json",
+          "jsonBody": "={{ { timeline_type: 'evl', mission_id: String($node['Select + Lock Mission'].json.mission_key || ''), run_id: String($node['Select + Lock Mission'].json.mission_task_id || ''), executor_id: String($node['Select + Lock Mission'].json.agent_id || 'unknown'), performed_by: 'govhub-phase1-missions-next', occurred_at: new Date().toISOString(), udn_line: `!EVL|DISPATCH|MISSION_ASSIGNED|MISSIONS_NEXT|artifact://mission_task/${String($node['Select + Lock Mission'].json.mission_task_id || '')};`, context_summary: `Missao atribuida automaticamente para ${String($node['Select + Lock Mission'].json.agent_id || 'unknown')}`, context_payload: { repo_key: $node['Select + Lock Mission'].json.repo_key, lock_ttl_seconds: $node['Select + Lock Mission'].json.lock_ttl_seconds, lock_expires_at_utc: $node['Select + Lock Mission'].json.lock_expires_at_utc }, artifact_ref: `governance.mission_tasks/${String($node['Select + Lock Mission'].json.mission_task_id || '')}`, source: 'missions-next-auto' } }}",
+          "options": {
+            "ignoreResponseCode": true,
+            "response": {
+              "response": {
+                "fullResponse": false
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "id": "Http_TimelineAssigned",
+        "name": "Registrar Timeline Atribuicao",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          930,
+          510
+        ],
+        "continueOnFail": true
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const row = $json || {};\nconst status = String(row.status || '').trim();\nconst mission_key = String(row.mission_key || '').trim();\nconst mission_task_id = String(row.mission_task_id || '').trim();\nif (status === 'assigned' && (!mission_key || !mission_task_id)) {\n  return [{ json: { ...row, status: 'no_work', mission_key: null, mission_task_id: null, source: row.source || 'govhub-n8n', normalization_note: 'assigned_without_identity_downgraded_to_no_work' } }];\n}\nreturn [{ json: row }];"
+        },
+        "id": "Code_NormalizeAssignment",
+        "name": "Normalizar Atribuicao",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1080,
           180
         ]
       }
@@ -149,7 +406,139 @@
         "main": [
           [
             {
+              "node": "Normalizar Atribuicao",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Trabalho atribuido?": {
+        "main": [
+          [
+            {
+              "node": "Rota por agente",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Registrar Timeline Atribuicao",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
               "node": "Respond Dispatch",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Rota por agente": {
+        "main": [
+          [
+            {
+              "node": "Despachar CPP-IA",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Despachar CPP",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Erro agente nao suportado",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Despachar CPP-IA": {
+        "main": [
+          [
+            {
+              "node": "Rota resultado dispatch",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Despachar CPP": {
+        "main": [
+          [
+            {
+              "node": "Rota resultado dispatch",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Rota resultado dispatch": {
+        "main": [
+          [
+            {
+              "node": "Chamar autofix-limited",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Auto report-ingest",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Chamar autofix-limited": {
+        "main": [
+          [
+            {
+              "node": "Responder Atribuido+Dispatch",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Erro agente nao suportado": {
+        "main": [
+          [
+            {
+              "node": "Respond Error",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Auto report-ingest": {
+        "main": [
+          [
+            {
+              "node": "Responder Atribuido+Dispatch",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Normalizar Atribuicao": {
+        "main": [
+          [
+            {
+              "node": "Trabalho atribuido?",
               "type": "main",
               "index": 0
             }

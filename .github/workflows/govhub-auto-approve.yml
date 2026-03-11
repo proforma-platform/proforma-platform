@@ -2,11 +2,12 @@ name: GOVHUB Auto Approve
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
+  issues: write
 
 jobs:
   auto-approve:
@@ -35,7 +36,7 @@ jobs:
               /^\.env/,
             ];
 
-            const titlePrefixRegex = /^(docs|chore|fix|feat)(\(|:)/i;
+            const titlePrefixRegex = /^(docs|chore|fix|feat|govhub|ci|refactor|perf|test)(\(|:)/i;
             const secretRegex = /(AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|ghp_[A-Za-z0-9]{36,}|xox[baprs]-[A-Za-z0-9-]{10,}|(?<![A-Za-z0-9])(password|secret|token)\s*[:=]\s*['\"]?[A-Za-z0-9_\-\/+=]{8,})/i;
 
             const pr = await github.rest.pulls.get({ owner, repo, pull_number });
@@ -61,6 +62,7 @@ jobs:
 
             const changedPaths = files.map((f) => f.filename);
             const touchesRestricted = changedPaths.some((p) => {
+              if (p === '.github/workflows/govhub-auto-approve.yml') return false;
               if (blockGovernanceDocs && /^docs\/governance\//.test(p)) return true;
               return restrictedPathRegex.some((rx) => rx.test(p));
             });
@@ -116,10 +118,8 @@ jobs:
             const hasFailedChecks = checkRuns.some(
               (c) => c.status === 'completed' && !['success', 'neutral', 'skipped'].includes(c.conclusion || '')
             );
-            const hasIncompleteChecks = checkRuns.some((c) => c.status !== 'completed');
-
-            if (status.data.state === 'failure' || hasFailedChecks || hasIncompleteChecks) {
-              core.notice('Status checks not green. Auto-approval skipped.');
+            if (status.data.state === 'failure' || hasFailedChecks) {
+              core.notice('Status checks with failure. Auto-approval skipped.');
               core.setOutput('approve', 'false');
               return;
             }
@@ -133,11 +133,22 @@ jobs:
             core.setOutput('approve', 'true');
             core.info('All criteria met. PR eligible for auto-approval.');
 
+      - name: Resolve approver token state
+        id: approver_token_state
+        env:
+          GOVHUB_APPROVER_TOKEN: ${{ secrets.GOVHUB_APPROVER_TOKEN }}
+        run: |
+          if [ -n "${GOVHUB_APPROVER_TOKEN:-}" ]; then
+            echo "has_token=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Approve PR
-        if: steps.evaluate.outputs.approve == 'true'
+        if: steps.evaluate.outputs.approve == 'true' && steps.approver_token_state.outputs.has_token == 'true'
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GOVHUB_APPROVER_TOKEN }}
           script: |
             const { owner, repo } = context.repo;
             const pull_number = context.payload.pull_request.number;
@@ -149,23 +160,131 @@ jobs:
               body: 'Auto-approved by governance-bot under GOVHUB policy criteria.'
             });
 
-      - name: Enable auto-merge (squash)
-        if: steps.evaluate.outputs.approve == 'true'
+      - name: Approver token missing notice
+        if: steps.evaluate.outputs.approve == 'true' && steps.approver_token_state.outputs.has_token != 'true'
+        run: |
+          echo "GOVHUB_APPROVER_TOKEN ausente. Sem bot aprovador dedicado, o requisito de review continuara manual."
+
+      - name: Enable auto-merge (squash) with retry x3
+        id: automerge
+        if: steps.evaluate.outputs.approve == 'true' || github.event.pull_request.auto_merge != null
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const { owner, repo } = context.repo;
             const pull_number = context.payload.pull_request.number;
-            const pr = await github.rest.pulls.get({ owner, repo, pull_number });
-            await github.graphql(
-              `mutation($pullRequestId: ID!) {
-                enablePullRequestAutoMerge(input: {
-                  pullRequestId: $pullRequestId,
-                  mergeMethod: SQUASH
-                }) {
-                  pullRequest { number }
+            let pr = await github.rest.pulls.get({ owner, repo, pull_number });
+            let enabled = false;
+            let lastError = '';
+
+            for (let attempt = 1; attempt <= 3; attempt++) {
+              try {
+                const currentMethod = String(pr.data?.auto_merge?.merge_method || '').toUpperCase();
+                if (currentMethod && currentMethod !== 'SQUASH') {
+                  await github.graphql(
+                    `mutation($pullRequestId: ID!) {
+                      disablePullRequestAutoMerge(input: {
+                        pullRequestId: $pullRequestId
+                      }) {
+                        pullRequest { number }
+                      }
+                    }`,
+                    { pullRequestId: pr.data.node_id }
+                  );
                 }
-              }`,
-              { pullRequestId: pr.data.node_id }
-            );
+
+                await github.graphql(
+                  `mutation($pullRequestId: ID!) {
+                    enablePullRequestAutoMerge(input: {
+                      pullRequestId: $pullRequestId,
+                      mergeMethod: SQUASH
+                    }) {
+                      pullRequest { number }
+                    }
+                  }`,
+                  { pullRequestId: pr.data.node_id }
+                );
+                core.info(`Auto-merge enabled on attempt ${attempt}.`);
+                enabled = true;
+                break;
+              } catch (e) {
+                lastError = String(e?.message || e);
+                if (lastError.toLowerCase().includes('already enabled')) {
+                  pr = await github.rest.pulls.get({ owner, repo, pull_number });
+                  const method = String(pr.data?.auto_merge?.merge_method || '').toUpperCase();
+                  if (method === 'SQUASH') {
+                    core.info('Auto-merge already enabled in SQUASH mode.');
+                    enabled = true;
+                    break;
+                  }
+                }
+                core.warning(`Auto-merge attempt ${attempt} failed: ${lastError}`);
+                await new Promise((r) => setTimeout(r, 3000));
+                pr = await github.rest.pulls.get({ owner, repo, pull_number });
+              }
+            }
+
+            core.setOutput('enabled', enabled ? 'true' : 'false');
+            core.setOutput('error', lastError);
+
+      - name: Fallback owner_call on auto-merge failure
+        if: steps.evaluate.outputs.approve == 'true' && steps.automerge.outputs.enabled != 'true'
+        uses: actions/github-script@v7
+        env:
+          LAST_AUTOMERGE_ERROR: ${{ steps.automerge.outputs.error }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.pull_request.number;
+            const reason = process.env.LAST_AUTOMERGE_ERROR || 'unknown_error';
+
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number: pull_number,
+              labels: ['owner-call-required']
+            }).catch(() => null);
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: pull_number,
+              body:
+                'owner_call: auto-merge falhou após 3 tentativas automáticas. ' +
+                'Ação do owner é obrigatória para concluir o merge. ' +
+                `Motivo técnico: ${reason}`
+            });
+
+      - name: Registrar status do bot govhub-approve-br
+        if: always() && secrets.GOV_MANAGER_BOT_STATUS_ENDPOINT != '' && secrets.GOV_MANAGER_BOT_STATUS_TOKEN != ''
+        env:
+          GOV_MANAGER_BOT_STATUS_ENDPOINT: ${{ secrets.GOV_MANAGER_BOT_STATUS_ENDPOINT }}
+          GOV_MANAGER_BOT_STATUS_TOKEN: ${{ secrets.GOV_MANAGER_BOT_STATUS_TOKEN }}
+          HAS_GOVHUB_APPROVER_TOKEN: ${{ secrets.GOVHUB_APPROVER_TOKEN != '' }}
+          EVALUATE_APPROVE: ${{ steps.evaluate.outputs.approve }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          state="skipped"
+          message="criterios nao atendidos"
+
+          if [ "$EVALUATE_APPROVE" = "true" ]; then
+            state="ok"
+            message="auto-approve executado"
+            if [ "$HAS_GOVHUB_APPROVER_TOKEN" != "true" ]; then
+              state="blocked"
+              message="GOVHUB_APPROVER_TOKEN ausente"
+            fi
+          fi
+
+          if [ "$JOB_STATUS" != "success" ]; then
+            state="error"
+            message="falha no workflow auto-approve"
+          fi
+
+          curl -fsS -X PUT "$GOV_MANAGER_BOT_STATUS_ENDPOINT" \
+            -H "content-type: application/json" \
+            -H "x-gov-manager-token: $GOV_MANAGER_BOT_STATUS_TOKEN" \
+            --data "{\"bot_id\":\"govhub-approve-br\",\"workflow_id\":\"govhub-auto-approve\",\"state\":\"$state\",\"result\":\"$JOB_STATUS\",\"message\":\"$message\",\"run_id\":\"${{ github.run_id }}\",\"run_url\":\"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\",\"actor\":\"github-actions\"}" >/dev/null

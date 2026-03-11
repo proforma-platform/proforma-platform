@@ -1,0 +1,92 @@
+{
+  "id": "govhub-v7-memory-retrieve",
+  "name": "govhub-memory-retrieve",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "govhub/memory/retrieve",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "Webhook_MemoryRetrieve",
+      "name": "Webhook Memory Retrieve",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "b2f9e5ea-2a7a-49f8-96fe-8ae7f4b4cd48",
+      "position": [
+        220,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{(String($env.GOV_MANAGER_BASE_URL || 'http://127.0.0.1:3000').replace(/\\/+$/,'')) + '/api/govhub/operations/memory'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-govhub-token",
+              "value": "={{String($env.GOVHUB_TOKEN || '').trim() || String($env.GOVHUB_TOKENS || '').split(',')[0]?.trim() || ''}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { action: 'retrieve', query: $json.body?.query || $json.query, namespace: $json.body?.namespace || $json.namespace, mission_id: $json.body?.mission_id || $json.mission_id, role: $json.body?.role || $json.role, tags: $json.body?.tags || $json.tags, limit: $json.body?.limit || $json.limit || 5 } }}"
+      },
+      "id": "Http_MemoryRetrieve",
+      "name": "Memory Retrieve",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        500,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 200,
+        "responseBody": "={{$json}}"
+      },
+      "id": "Respond_MemoryRetrieve",
+      "name": "Respond Memory Retrieve",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        760,
+        260
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Memory Retrieve": {
+      "main": [
+        [
+          {
+            "node": "Memory Retrieve",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memory Retrieve": {
+      "main": [
+        [
+          {
+            "node": "Respond Memory Retrieve",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

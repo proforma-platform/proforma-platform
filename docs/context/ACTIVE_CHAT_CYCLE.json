@@ -1,0 +1,11 @@
+{
+  "active_snapshot_id": "2b695df4-1df5-40ee-bc23-67da6cf10e15",
+  "state_snapshot_sha256": "6d67585e3e1218d8b4525bb0f61957b309ea399bd40cc14bd2a3022f231bf354",
+  "project_context_hash": "07f1a62be6ed5b3926503a615d7c14dc1f09e56f0ba28fba90a92380304b122c",
+  "release_tag": "gov-udn-v7-foundation",
+  "context_restored": true,
+  "runtime_mode": "LOCAL_ONLY",
+  "remote_calls_enabled": false,
+  "next_operational_mode": "GOVERNANCE_ACTIVE|CCP_STRICT",
+  "updated_at_utc": "2026-03-01T20:07:40Z"
+}

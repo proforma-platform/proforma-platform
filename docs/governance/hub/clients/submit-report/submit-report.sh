@@ -20,6 +20,7 @@ REPO_KEY=""
 AGENT_ID="${GOVHUB_AGENT_ID:-}"
 REPORT_FILE=""
 REPORT_INGEST_URL="${GOVHUB_REPORT_INGEST_URL:-}"
+INTERNAL_BASE_URL="${GOVHUB_INTERNAL_BASE_URL:-}"
 TOKEN="${GOVHUB_TOKEN:-}"
 MAX_SIZE_BYTES=$((512 * 1024))
 
@@ -45,9 +46,10 @@ if [[ -z "$AGENT_ID" ]]; then
   exit 1
 fi
 
-if [[ -z "$REPORT_INGEST_URL" ]]; then
-  echo "Error: GOVHUB_REPORT_INGEST_URL is required." >&2
-  exit 1
+if [[ -n "$INTERNAL_BASE_URL" ]]; then
+  REPORT_INGEST_URL="${INTERNAL_BASE_URL%/}/webhook/govhub/report-ingest"
+elif [[ -z "$REPORT_INGEST_URL" ]]; then
+  REPORT_INGEST_URL="https://govhub.proforma.net.br/webhook/govhub/report-ingest"
 fi
 
 if [[ -z "$TOKEN" ]]; then

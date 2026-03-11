@@ -10,6 +10,19 @@ CPP MUST run in `STANDARD` mode by default.
 - CPP MUST execute allowlisted commands directly, without interactive confirmation.
 - CPP MUST attempt non-privileged fallbacks before any elevated path.
 
+## Runtime Routing Mode
+CPP runtime routing MUST be explicitly controlled by `GOVHUB_RUNTIME_MODE`.
+
+Supported values:
+- `LOCAL_ONLY` (default for this host): no external GOVHUB HTTP calls.
+- `REMOTE_ALLOWED`: external GOVHUB calls are permitted.
+
+`LOCAL_ONLY` rules:
+- CPP MUST read mission/state from local execution state (`docs/context/*` and local ledger artifacts).
+- CPP MUST NOT call `https://govhub.proforma.net.br/*`.
+- Status outputs MUST use `LOCAL_ONLY_ACTIVE` (not degraded) when local state is available.
+- If local state is missing, return structured error `LOCAL_STATE_MISSING`.
+
 ## Privilege Mode
 CPP MAY use elevated operations only when mission input explicitly declares:
 - `PRIVILEGE_MODE=ELEVATED_ALLOWED`
@@ -62,6 +75,19 @@ CPP MUST follow these logging controls:
 - MUST truncate `error_preview` to at most 1200 characters.
 - MUST NOT print response body on successful operations unless mission contract explicitly requires structured output fields.
 - SHOULD log only status, checksum, IDs, and non-sensitive metadata.
+
+## Token Containment Rule
+- CPP and CPP-IA MUST use compact outputs as default in governance runs.
+- Intermediate progress narration SHOULD be suppressed when not required by mission contract.
+- Final operator response SHOULD contain only:
+  - implementation status
+  - final result
+  - single recommended next step
+- In webhook-facing paths, output must prioritize `status`, `error_code`, `next_action` and minimal IDs only.
+
+## Language Rule (PT-BR for Human Labels)
+- Human-facing labels/messages in governance workflows SHOULD be PT-BR.
+- Protocol fields, endpoint paths, IDs, and schema names MUST remain stable and unchanged.
 
 ## Compliance
 Any deviation from this policy MUST be reported as governance non-conformity in mission output.

@@ -22,8 +22,13 @@ Policy:
 ## Migration strategy
 Migration numbering is append-only:
 - `0001_init.sql` (current baseline)
-- next: `0002_*`
-- then: `0003_*`
+- `0002_snapshots_and_backlog.sql`
+- `0003_mission_runs.sql`
+- `0004_govhub_v7_orchestration.sql`
+- `0005_owner_approval_gate.sql`
+- `0006_autofix_limited.sql`
+- `0007_timelines_governanca_real.sql`
+- `0008_mission_parts_partitioning.sql`
 
 Rules:
 - Existing migrations MUST NOT be edited after merge.
