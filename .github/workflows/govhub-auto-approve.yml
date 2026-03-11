@@ -22,8 +22,47 @@ jobs:
       group: govhub-auto-approve-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: true
     steps:
+      - name: Validate canonical PR channel
+        id: channel_guard
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const eventName = String(context.eventName || '');
+            const isPrEvent = eventName === 'pull_request' || eventName === 'pull_request_target';
+            if (!isPrEvent || !context.payload.pull_request) {
+              core.setOutput('linked_pr', 'false');
+              core.setOutput('pr_number', '');
+              core.setOutput('head_sha', '');
+              core.setFailed(`invalid_channel:${eventName || 'unknown'}`);
+              return;
+            }
+
+            const { owner, repo } = context.repo;
+            const pull_number = Number(context.payload.pull_request.number || 0);
+            const headSha = String(context.payload.pull_request.head?.sha || '');
+            if (!pull_number || !headSha) {
+              core.setOutput('linked_pr', 'false');
+              core.setFailed('missing_pr_or_head_sha');
+              return;
+            }
+
+            const pr = await github.rest.pulls.get({ owner, repo, pull_number });
+            const canonicalHead = String(pr.data?.head?.sha || '');
+            if (!canonicalHead || canonicalHead !== headSha) {
+              core.setOutput('linked_pr', 'false');
+              core.setFailed(`head_sha_mismatch:payload=${headSha};canonical=${canonicalHead}`);
+              return;
+            }
+
+            core.setOutput('linked_pr', 'true');
+            core.setOutput('pr_number', String(pull_number));
+            core.setOutput('head_sha', canonicalHead);
+            core.setOutput('event_name', eventName);
+
       - name: Evaluate PR criteria
         id: evaluate
+        if: steps.channel_guard.outputs.linked_pr == 'true'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -120,6 +159,7 @@ jobs:
 
       - name: Resolve approver token state
         id: approver_token_state
+        if: steps.channel_guard.outputs.linked_pr == 'true'
         env:
           GOVHUB_APPROVER_TOKEN: ${{ secrets.GOVHUB_APPROVER_TOKEN }}
         run: |
@@ -138,13 +178,37 @@ jobs:
           script: |
             const { owner, repo } = context.repo;
             const pull_number = context.payload.pull_request.number;
-            await github.rest.pulls.createReview({
+            const review = await github.rest.pulls.createReview({
               owner,
               repo,
               pull_number,
               event: 'APPROVE',
               body: 'Auto-approved by governance-bot under GOVHUB policy criteria.'
             });
+            core.setOutput('review_id', String(review.data?.id || ''));
+            core.setOutput('review_state', String(review.data?.state || ''));
+            core.setOutput('review_commit_id', String(review.data?.commit_id || ''));
+
+      - name: Verify review linkage
+        id: verify_review
+        if: steps.evaluate.outputs.approve == 'true' && steps.approver_token_state.outputs.has_token == 'true'
+        uses: actions/github-script@v7
+        env:
+          REVIEW_STATE: ${{ steps.approve_pr.outputs.review_state }}
+          REVIEW_COMMIT_ID: ${{ steps.approve_pr.outputs.review_commit_id }}
+          HEAD_SHA: ${{ steps.channel_guard.outputs.head_sha }}
+        with:
+          github-token: ${{ secrets.GOVHUB_APPROVER_TOKEN }}
+          script: |
+            const expectedState = 'APPROVED';
+            const reviewState = String(process.env.REVIEW_STATE || '').toUpperCase();
+            const reviewCommit = String(process.env.REVIEW_COMMIT_ID || '');
+            const headSha = String(process.env.HEAD_SHA || '');
+            const linked = reviewState === expectedState && reviewCommit && headSha && reviewCommit === headSha;
+            core.setOutput('review_action', linked ? 'APPROVED' : 'FAILED');
+            if (!linked) {
+              core.setFailed(`review_linkage_failed:state=${reviewState};review_commit=${reviewCommit};head_sha=${headSha}`);
+            }
 
       - name: Approver token missing notice
         if: steps.evaluate.outputs.approve == 'true' && steps.approver_token_state.outputs.has_token != 'true'
@@ -256,10 +320,13 @@ jobs:
           HAS_GOVHUB_APPROVER_TOKEN: ${{ secrets.GOVHUB_APPROVER_TOKEN != '' }}
           EVALUATE_APPROVE: ${{ steps.evaluate.outputs.approve }}
           EVALUATE_REASON: ${{ steps.evaluate.outputs.reason }}
-          EVENT_NAME: ${{ steps.evaluate.outputs.event_name }}
-          PR_NUMBER: ${{ steps.evaluate.outputs.pr_number }}
-          HEAD_SHA: ${{ steps.evaluate.outputs.head_sha }}
+          EVENT_NAME: ${{ steps.channel_guard.outputs.event_name }}
+          PR_NUMBER: ${{ steps.channel_guard.outputs.pr_number }}
+          HEAD_SHA: ${{ steps.channel_guard.outputs.head_sha }}
+          LINKED_PR: ${{ steps.channel_guard.outputs.linked_pr }}
           APPROVE_STEP_OUTCOME: ${{ steps.approve_pr.outcome }}
+          VERIFY_REVIEW_OUTCOME: ${{ steps.verify_review.outcome }}
+          REVIEW_ACTION: ${{ steps.verify_review.outputs.review_action }}
           AUTOMERGE_ENABLED: ${{ steps.automerge.outputs.enabled }}
           JOB_STATUS: ${{ job.status }}
         run: |
@@ -286,8 +353,22 @@ jobs:
             message="$message; reason=$EVALUATE_REASON"
           fi
 
+          if [ "${LINKED_PR:-false}" != "true" ]; then
+            state="error"
+            message="invalid_channel_or_unlinked_pr"
+            review_action="FAILED"
+            merge_action="FAILED"
+          fi
+
           if [ -n "${APPROVE_STEP_OUTCOME:-}" ] && [ "$APPROVE_STEP_OUTCOME" != "success" ]; then
             review_action="FAILED"
+          fi
+
+          if [ -n "${VERIFY_REVIEW_OUTCOME:-}" ] && [ "$VERIFY_REVIEW_OUTCOME" != "success" ]; then
+            review_action="FAILED"
+          fi
+          if [ -n "${REVIEW_ACTION:-}" ]; then
+            review_action="$REVIEW_ACTION"
           fi
 
           if [ "${AUTOMERGE_ENABLED:-}" != "true" ] && [ "$EVALUATE_APPROVE" = "true" ]; then
