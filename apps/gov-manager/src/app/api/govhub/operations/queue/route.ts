@@ -461,6 +461,50 @@ export async function POST(request: Request) {
             sourceRef: "queue-staff-validation-alert"
           });
         }
+<<<<<<< fix/login-dynamic-server
+=======
+        return NextResponse.json(
+          {
+            status: "conflict",
+            error_code: "STAFF_VALIDATION_DECISION_REQUIRED",
+            message: "Gate de validação automática falhou. Use decision explícita: bind_cpp | reassign_cpp | staff_fallback."
+          },
+          { status: 409 }
+        );
+      }
+      nextRow = {
+        ...current,
+        assignee: requestedAssignee,
+        status: "open",
+        last_transition_reason_code: "STAFF_VALIDATION_BIND_CPP_AUTO",
+        last_transition_reason_message: `Gate validado automaticamente e pronto para esteira A Fazer (${actor}).`,
+        last_transition_source: "operations-queue",
+        last_transition_actor: actor,
+        last_transition_at_utc: now,
+        updated_at_utc: now
+      };
+      nextStatus = "open";
+      handledStaffValidationDecision = true;
+    }
+    if (validationDecision === "staff_fallback") {
+      const { assignee_agent_id: _dropAssigneeAgentId, execution_session_id: _dropSessionId, execution_agent_id: _dropExecAgent, ...fallbackBase } = current;
+      nextRow = {
+        ...fallbackBase,
+        assignee: "STAFF",
+        status: "open",
+        last_transition_reason_code: "STAFF_FALLBACK_ACTIVE",
+        last_transition_reason_message: `Staff assumiu execução por fallback (${actor}).`,
+        last_transition_source: "operations-queue",
+        last_transition_actor: actor,
+        last_transition_at_utc: now,
+        updated_at_utc: now
+      };
+      nextStatus = "open";
+      handledStaffValidationDecision = true;
+    } else if (validationDecision === "reassign_cpp") {
+      const requestedAssignee = normalizeAssignee(data.assignee || current.assignee);
+      if (requestedAssignee !== "CPP" && requestedAssignee !== "CPP-IA") {
+>>>>>>> main
         return NextResponse.json(
           {
             status: "conflict",
