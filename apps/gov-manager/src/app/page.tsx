@@ -6694,7 +6694,11 @@ export default function GovManagerPage() {
                 return (
                   <section
                     key={`office-col-${officeId}`}
+<<<<<<< fix/login-dynamic-server
                     className={index >= 3 ? "gm-office-column gm-office-column-row" : "gm-office-column"}
+=======
+                    className={officeId === "POOL" ? "gm-office-column gm-office-column-row" : "gm-office-column"}
+>>>>>>> main
                     onDragOver={(event) => event.preventDefault()}
                     onDrop={(event) => {
                       event.preventDefault();
