@@ -2014,6 +2014,10 @@ body {
   grid-template-rows: auto 1fr;
 }
 
+.gm-office-board > .gm-office-column:nth-child(n + 4) {
+  grid-column: 1 / -1;
+}
+
 .gm-office-column-row {
   grid-column: 1 / -1;
 }

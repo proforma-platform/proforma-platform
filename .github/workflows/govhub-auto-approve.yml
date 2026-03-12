@@ -95,7 +95,7 @@ jobs:
               /^\.env/,
             ];
 
-            const titlePrefixRegex = /^(docs|chore|fix|feat|govhub|ci|refactor|perf|test)(\(|:)/i;
+            const titlePrefixRegex = /^(docs|chore|fix|feat|govhub|gov-manager|gov-manager-crm|ci|refactor|perf|test)(\(|:)/i;
             const secretRegex = /(AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|ghp_[A-Za-z0-9]{36,}|xox[baprs]-[A-Za-z0-9-]{10,}|(?<![A-Za-z0-9])(password|secret|token)\s*[:=]\s*['\"]?[A-Za-z0-9_\-\/+=]{8,})/i;
 
             const pr = await github.rest.pulls.get({ owner, repo, pull_number });
@@ -210,10 +210,12 @@ jobs:
               core.setFailed(`review_linkage_failed:state=${reviewState};review_commit=${reviewCommit};head_sha=${headSha}`);
             }
 
-      - name: Approver token missing notice
+      - name: Approver token required
         if: steps.evaluate.outputs.approve == 'true' && steps.approver_token_state.outputs.has_token != 'true'
         run: |
-          echo "GOVHUB_APPROVER_TOKEN ausente. Sem bot aprovador dedicado, o requisito de review continuara manual."
+          echo "GOVHUB_APPROVER_TOKEN ausente. PR elegivel, mas sem token do aprovador dedicado."
+          echo "Defina o secret GOVHUB_APPROVER_TOKEN para cumprir o gate 'At least 1 approving'."
+          exit 1
 
       - name: Auto-approve skipped notice
         if: steps.evaluate.outputs.approve != 'true'
