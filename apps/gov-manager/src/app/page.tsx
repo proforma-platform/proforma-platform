@@ -6694,7 +6694,7 @@ export default function GovManagerPage() {
                 return (
                   <section
                     key={`office-col-${officeId}`}
-                    className="gm-office-column"
+                    className={officeId === "POOL" ? "gm-office-column gm-office-column-row" : "gm-office-column"}
                     onDragOver={(event) => event.preventDefault()}
                     onDrop={(event) => {
                       event.preventDefault();
