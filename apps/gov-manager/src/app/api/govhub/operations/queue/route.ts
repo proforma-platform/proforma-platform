@@ -423,82 +423,66 @@ export async function POST(request: Request) {
   const validationDecision = clampText(data.validation_decision, 40).toLowerCase();
   if ((current.status === "staff_validation_gate") && (nextStatus === "open" || nextStatus === "in_progress")) {
     if (!validationDecision) {
-      const alertsLoaded = await loadSnapshotPayload(config, ALERTS_SNAPSHOT_TYPE);
-      const alertsState = alertsLoaded.found && alertsLoaded.payload ? sanitizeAlertState(alertsLoaded.payload) : defaultAlertState();
-      const existing = alertsState.rows.find((row) => {
-        return (
-          (row.status === "open" || row.status === "ack") &&
-          String(row.type || "") === "governance" &&
-          String(row.queue_id || "") === current.queue_id &&
-          String(row.mission_id || "") === current.mission_id &&
-          String(row.message || "").includes("STAFF_VALIDATION_DECISION_REQUIRED")
-        );
-      });
-      if (!existing) {
-        const nextAlerts = upsertAlerts(alertsState, [
+      // Canonical default: Gate Staff auto-binds to CPP when no explicit decision is provided.
+      const autoAssignee = normalizeAssignee(data.assignee || current.assignee || "CPP");
+      const requestedAssignee = autoAssignee === "STAFF" ? "CPP" : autoAssignee;
+      if (!hasHealthyAssigneeAgent(agentState, requestedAssignee)) {
+        const alertsLoaded = await loadSnapshotPayload(config, ALERTS_SNAPSHOT_TYPE);
+        const alertsState = alertsLoaded.found && alertsLoaded.payload ? sanitizeAlertState(alertsLoaded.payload) : defaultAlertState();
+        const existing = alertsState.rows.find((row) => {
+          return (
+            (row.status === "open" || row.status === "ack") &&
+            String(row.type || "") === "governance" &&
+            String(row.queue_id || "") === current.queue_id &&
+            String(row.mission_id || "") === current.mission_id &&
+            String(row.message || "").includes("STAFF_VALIDATION_DECISION_REQUIRED")
+          );
+        });
+        if (!existing) {
+          const nextAlerts = upsertAlerts(alertsState, [
+            {
+              alert_id: createAlertId("GOV"),
+              type: "governance",
+              severity: "critical",
+              mission_id: current.mission_id,
+              queue_id: current.queue_id,
+              message: `STAFF_VALIDATION_DECISION_REQUIRED: auto bind_cpp indisponível sem executor saudável para ${requestedAssignee}.`,
+              status: "open",
+              source: "operations-queue",
+              created_at_utc: now,
+              updated_at_utc: now
+            }
+          ]);
+          await saveSnapshotPayload(config, {
+            snapshotType: ALERTS_SNAPSHOT_TYPE,
+            payload: nextAlerts,
+            createdBy: actor,
+            sourceRepo: "gov-manager",
+            sourceRef: "queue-staff-validation-alert"
+          });
+        }
+        return NextResponse.json(
           {
-            alert_id: createAlertId("GOV"),
-            type: "governance",
-            severity: "critical",
-            mission_id: current.mission_id,
-            queue_id: current.queue_id,
-            message: `STAFF_VALIDATION_DECISION_REQUIRED: missão bloqueada no gate. Worker deve mobilizar reconexão CPP e vincular sessão antes de progresso.`,
-            status: "open",
-            source: "operations-queue",
-            created_at_utc: now,
-            updated_at_utc: now
-          }
-        ]);
-        await saveSnapshotPayload(config, {
-          snapshotType: ALERTS_SNAPSHOT_TYPE,
-          payload: nextAlerts,
-          createdBy: actor,
-          sourceRepo: "gov-manager",
-          sourceRef: "queue-staff-validation-alert"
-        });
+            status: "conflict",
+            error_code: "STAFF_VALIDATION_DECISION_REQUIRED",
+            message: "Gate de validação automática falhou. Use decision explícita: bind_cpp | reassign_cpp | staff_fallback."
+          },
+          { status: 409 }
+        );
       }
-
-      const sessionsLoaded = await loadSnapshotPayload(config, SESSIONS_SNAPSHOT_TYPE);
-      let sessionsState = sessionsLoaded.found && sessionsLoaded.payload ? sanitizeExecutionSessionsState(sessionsLoaded.payload) : defaultExecutionSessionsState();
-      const cppRole = normalizeAssignee(current.assignee);
-      const preferredAgentId = PREFERRED_EXECUTION_AGENT_BY_ASSIGNEE[cppRole];
-      const targetSession = sessionsState.sessions.find((session) => {
-        const role = String(session.role || "").trim().toUpperCase();
-        if (role !== cppRole) return false;
-        if (preferredAgentId && String(session.agent_id || "").trim().toLowerCase() !== String(preferredAgentId).toLowerCase()) return false;
-        return true;
-      });
-      if (targetSession) {
-        const traceId = createTraceId(current.mission_id);
-        const runId = createRunId(current.mission_id);
-        sessionsState = appendExecutionEvent(sessionsState, {
-          event_id: createEventId(targetSession.session_id, "warning"),
-          session_id: targetSession.session_id,
-          mission_id: current.mission_id,
-          trace_id: traceId,
-          run_id: runId,
-          event_type: "warning",
-          stage: "governance",
-          message: "Mobilização automática: reconectar CPP e vincular sessão para liberar gate staff.",
-          created_at_utc: now
-        });
-        await saveSnapshotPayload(config, {
-          snapshotType: SESSIONS_SNAPSHOT_TYPE,
-          payload: sessionsState,
-          createdBy: actor,
-          sourceRepo: "gov-manager",
-          sourceRef: "queue-staff-validation-mobilize"
-        });
-      }
-
-      return NextResponse.json(
-        {
-          status: "conflict",
-          error_code: "STAFF_VALIDATION_DECISION_REQUIRED",
-          message: "Gate de validação do Staff exige decision: bind_cpp | reassign_cpp | staff_fallback."
-        },
-        { status: 409 }
-      );
+      nextRow = {
+        ...current,
+        assignee: requestedAssignee,
+        status: "open",
+        last_transition_reason_code: "STAFF_VALIDATION_BIND_CPP_AUTO",
+        last_transition_reason_message: `Gate validado automaticamente e pronto para esteira A Fazer (${actor}).`,
+        last_transition_source: "operations-queue",
+        last_transition_actor: actor,
+        last_transition_at_utc: now,
+        updated_at_utc: now
+      };
+      nextStatus = "open";
+      handledStaffValidationDecision = true;
     }
     if (validationDecision === "staff_fallback") {
       const { assignee_agent_id: _dropAssigneeAgentId, execution_session_id: _dropSessionId, execution_agent_id: _dropExecAgent, ...fallbackBase } = current;
