@@ -6688,13 +6688,13 @@ export default function GovManagerPage() {
               </section>
             )}
             <div className="gm-office-board">
-              {officeRowsSorted.map((row) => {
+              {officeRowsSorted.map((row, index) => {
                 const officeId = String(row.office_id || "").trim().toUpperCase();
                 const cards = officeCardsByOffice.get(officeId) || [];
                 return (
                   <section
                     key={`office-col-${officeId}`}
-                    className={officeId === "POOL" ? "gm-office-column gm-office-column-row" : "gm-office-column"}
+                    className={index >= 3 ? "gm-office-column gm-office-column-row" : "gm-office-column"}
                     onDragOver={(event) => event.preventDefault()}
                     onDrop={(event) => {
                       event.preventDefault();
