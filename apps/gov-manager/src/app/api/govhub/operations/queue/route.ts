@@ -484,88 +484,175 @@ export async function POST(request: Request) {
       nextStatus = "open";
       handledStaffValidationDecision = true;
     }
-    if (validationDecision === "staff_fallback") {
-      const { assignee_agent_id: _dropAssigneeAgentId, execution_session_id: _dropSessionId, execution_agent_id: _dropExecAgent, ...fallbackBase } = current;
-      nextRow = {
-        ...fallbackBase,
-        assignee: "STAFF",
-        status: "open",
-        last_transition_reason_code: "STAFF_FALLBACK_ACTIVE",
-        last_transition_reason_message: `Staff assumiu execução por fallback (${actor}).`,
-        last_transition_source: "operations-queue",
-        last_transition_actor: actor,
-        last_transition_at_utc: now,
-        updated_at_utc: now
-      };
-      nextStatus = "open";
-      handledStaffValidationDecision = true;
-    } else if (validationDecision === "reassign_cpp") {
-      const requestedAssignee = normalizeAssignee(data.assignee || current.assignee);
-      if (requestedAssignee !== "CPP" && requestedAssignee !== "CPP-IA") {
+    if (!handledStaffValidationDecision) {
+      if (validationDecision === "staff_fallback") {
+        const { assignee_agent_id: _dropAssigneeAgentId, execution_session_id: _dropSessionId, execution_agent_id: _dropExecAgent, ...fallbackBase } = current;
+        nextRow = {
+          ...fallbackBase,
+          assignee: "STAFF",
+          status: "open",
+          last_transition_reason_code: "STAFF_FALLBACK_ACTIVE",
+          last_transition_reason_message: `Staff assumiu execução por fallback (${actor}).`,
+          last_transition_source: "operations-queue",
+          last_transition_actor: actor,
+          last_transition_at_utc: now,
+          updated_at_utc: now
+        };
+        nextStatus = "open";
+        handledStaffValidationDecision = true;
+      } else if (validationDecision === "reassign_cpp") {
+        const requestedAssignee = normalizeAssignee(data.assignee || current.assignee);
+        if (requestedAssignee !== "CPP" && requestedAssignee !== "CPP-IA") {
+          return NextResponse.json(
+            {
+              status: "invalid_request",
+              error_code: "REASSIGN_CPP_REQUIRES_CPP",
+              message: "Reassign CPP exige assignee=CPP ou CPP-IA."
+            },
+            { status: 400 }
+          );
+        }
+        if (!hasHealthyAssigneeAgent(agentState, requestedAssignee)) {
+          return NextResponse.json(
+            { status: "conflict", error_code: "EXECUTOR_NOT_BINDABLE", message: `Sem executor saudável para ${requestedAssignee}.` },
+            { status: 409 }
+          );
+        }
+        nextRow = {
+          ...current,
+          assignee: requestedAssignee,
+          status: "open",
+          last_transition_reason_code: "STAFF_VALIDATION_REASSIGN_CPP",
+          last_transition_reason_message: `Gate validado com reassign para ${requestedAssignee} por ${actor}.`,
+          last_transition_source: "operations-queue",
+          last_transition_actor: actor,
+          last_transition_at_utc: now,
+          updated_at_utc: now
+        };
+        nextStatus = "open";
+        handledStaffValidationDecision = true;
+      } else if (validationDecision === "bind_cpp") {
+        const requestedAssignee = normalizeAssignee(data.assignee || current.assignee);
+        if (requestedAssignee !== "CPP" && requestedAssignee !== "CPP-IA") {
+          return NextResponse.json(
+            { status: "invalid_request", error_code: "BIND_CPP_REQUIRES_CPP", message: "Bind CPP exige assignee=CPP ou CPP-IA." },
+            { status: 400 }
+          );
+        }
+        if (!hasHealthyAssigneeAgent(agentState, requestedAssignee)) {
+          return NextResponse.json(
+            { status: "conflict", error_code: "EXECUTOR_NOT_BINDABLE", message: `Sem executor saudável para ${requestedAssignee}.` },
+            { status: 409 }
+          );
+        }
+        nextRow = {
+          ...current,
+          assignee: requestedAssignee,
+          status: "open",
+          last_transition_reason_code: "STAFF_VALIDATION_BIND_CPP",
+          last_transition_reason_message: `Gate validado e pronto para esteira A Fazer (${actor}).`,
+          last_transition_source: "operations-queue",
+          last_transition_actor: actor,
+          last_transition_at_utc: now,
+          updated_at_utc: now
+        };
+        nextStatus = "open";
+        handledStaffValidationDecision = true;
+      } else {
         return NextResponse.json(
           {
             status: "invalid_request",
-            error_code: "REASSIGN_CPP_REQUIRES_CPP",
-            message: "Reassign CPP exige assignee=CPP ou CPP-IA."
+            error_code: "STAFF_VALIDATION_DECISION_INVALID",
+            message: "Decision inválida. Use: bind_cpp | reassign_cpp | staff_fallback."
           },
           { status: 400 }
         );
       }
-      if (!hasHealthyAssigneeAgent(agentState, requestedAssignee)) {
+    }
+    if (!handledStaffValidationDecision) {
+      if (validationDecision === "staff_fallback") {
+        const { assignee_agent_id: _dropAssigneeAgentId, execution_session_id: _dropSessionId, execution_agent_id: _dropExecAgent, ...fallbackBase } = current;
+        nextRow = {
+          ...fallbackBase,
+          assignee: "STAFF",
+          status: "open",
+          last_transition_reason_code: "STAFF_FALLBACK_ACTIVE",
+          last_transition_reason_message: `Staff assumiu execução por fallback (${actor}).`,
+          last_transition_source: "operations-queue",
+          last_transition_actor: actor,
+          last_transition_at_utc: now,
+          updated_at_utc: now
+        };
+        nextStatus = "open";
+        handledStaffValidationDecision = true;
+      } else if (validationDecision === "reassign_cpp") {
+        const requestedAssignee = normalizeAssignee(data.assignee || current.assignee);
+        if (requestedAssignee !== "CPP" && requestedAssignee !== "CPP-IA") {
+          return NextResponse.json(
+            {
+              status: "invalid_request",
+              error_code: "REASSIGN_CPP_REQUIRES_CPP",
+              message: "Reassign CPP exige assignee=CPP ou CPP-IA."
+            },
+            { status: 400 }
+          );
+        }
+        if (!hasHealthyAssigneeAgent(agentState, requestedAssignee)) {
+          return NextResponse.json(
+            { status: "conflict", error_code: "EXECUTOR_NOT_BINDABLE", message: `Sem executor saudável para ${requestedAssignee}.` },
+            { status: 409 }
+          );
+        }
+        nextRow = {
+          ...current,
+          assignee: requestedAssignee,
+          status: "open",
+          last_transition_reason_code: "STAFF_VALIDATION_REASSIGN_CPP",
+          last_transition_reason_message: `Gate validado com reassign para ${requestedAssignee} por ${actor}.`,
+          last_transition_source: "operations-queue",
+          last_transition_actor: actor,
+          last_transition_at_utc: now,
+          updated_at_utc: now
+        };
+        nextStatus = "open";
+        handledStaffValidationDecision = true;
+      } else if (validationDecision === "bind_cpp") {
+        const requestedAssignee = normalizeAssignee(data.assignee || current.assignee);
+        if (requestedAssignee !== "CPP" && requestedAssignee !== "CPP-IA") {
+          return NextResponse.json(
+            { status: "invalid_request", error_code: "BIND_CPP_REQUIRES_CPP", message: "Bind CPP exige assignee=CPP ou CPP-IA." },
+            { status: 400 }
+          );
+        }
+        if (!hasHealthyAssigneeAgent(agentState, requestedAssignee)) {
+          return NextResponse.json(
+            { status: "conflict", error_code: "EXECUTOR_NOT_BINDABLE", message: `Sem executor saudável para ${requestedAssignee}.` },
+            { status: 409 }
+          );
+        }
+        nextRow = {
+          ...current,
+          assignee: requestedAssignee,
+          status: "open",
+          last_transition_reason_code: "STAFF_VALIDATION_BIND_CPP",
+          last_transition_reason_message: `Gate validado e pronto para esteira A Fazer (${actor}).`,
+          last_transition_source: "operations-queue",
+          last_transition_actor: actor,
+          last_transition_at_utc: now,
+          updated_at_utc: now
+        };
+        nextStatus = "open";
+        handledStaffValidationDecision = true;
+      } else {
         return NextResponse.json(
-          { status: "conflict", error_code: "EXECUTOR_NOT_BINDABLE", message: `Sem executor saudável para ${requestedAssignee}.` },
-          { status: 409 }
-        );
-      }
-      nextRow = {
-        ...current,
-        assignee: requestedAssignee,
-        status: "open",
-        last_transition_reason_code: "STAFF_VALIDATION_REASSIGN_CPP",
-        last_transition_reason_message: `Gate validado com reassign para ${requestedAssignee} por ${actor}.`,
-        last_transition_source: "operations-queue",
-        last_transition_actor: actor,
-        last_transition_at_utc: now,
-        updated_at_utc: now
-      };
-      nextStatus = "open";
-      handledStaffValidationDecision = true;
-    } else if (validationDecision === "bind_cpp") {
-      const requestedAssignee = normalizeAssignee(data.assignee || current.assignee);
-      if (requestedAssignee !== "CPP" && requestedAssignee !== "CPP-IA") {
-        return NextResponse.json(
-          { status: "invalid_request", error_code: "BIND_CPP_REQUIRES_CPP", message: "Bind CPP exige assignee=CPP ou CPP-IA." },
+          {
+            status: "invalid_request",
+            error_code: "STAFF_VALIDATION_DECISION_INVALID",
+            message: "Decision inválida. Use: bind_cpp | reassign_cpp | staff_fallback."
+          },
           { status: 400 }
         );
       }
-      if (!hasHealthyAssigneeAgent(agentState, requestedAssignee)) {
-        return NextResponse.json(
-          { status: "conflict", error_code: "EXECUTOR_NOT_BINDABLE", message: `Sem executor saudável para ${requestedAssignee}.` },
-          { status: 409 }
-        );
-      }
-      nextRow = {
-        ...current,
-        assignee: requestedAssignee,
-        status: "open",
-        last_transition_reason_code: "STAFF_VALIDATION_BIND_CPP",
-        last_transition_reason_message: `Gate validado e pronto para esteira A Fazer (${actor}).`,
-        last_transition_source: "operations-queue",
-        last_transition_actor: actor,
-        last_transition_at_utc: now,
-        updated_at_utc: now
-      };
-      nextStatus = "open";
-      handledStaffValidationDecision = true;
-    } else {
-      return NextResponse.json(
-        {
-          status: "invalid_request",
-          error_code: "STAFF_VALIDATION_DECISION_INVALID",
-          message: "Decision inválida. Use: bind_cpp | reassign_cpp | staff_fallback."
-        },
-        { status: 400 }
-      );
     }
   }
 

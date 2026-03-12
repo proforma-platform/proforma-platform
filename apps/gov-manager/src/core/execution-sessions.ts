@@ -217,6 +217,14 @@ export function resolveClaimableSession(
   assignee: ExecutionAssignee,
   preferredAgentId?: string
 ): ExecutionSessionRow | null {
+  const heartbeatBySession = new Map<string, number>();
+  for (const event of state.events) {
+    if (event.event_type !== "heartbeat") continue;
+    const ts = Date.parse(String(event.created_at_utc || ""));
+    if (!Number.isFinite(ts)) continue;
+    const prev = heartbeatBySession.get(event.session_id) ?? -1;
+    if (ts > prev) heartbeatBySession.set(event.session_id, ts);
+  }
   const candidates = state.sessions.filter((row) => {
     const role = String(row.role || "").trim().toUpperCase();
     if (role !== assignee) return false;
@@ -225,10 +233,32 @@ export function resolveClaimableSession(
     return true;
   });
   if (candidates.length === 0) return null;
+  const rank = (row: ExecutionSessionRow): [number, string] => {
+    const hbTs = heartbeatBySession.get(row.session_id) ?? -1;
+    const hbIso = hbTs > 0 ? new Date(hbTs).toISOString() : "";
+    return [hbTs, hbIso];
+  };
   const preferred = String(preferredAgentId || "").trim().toLowerCase();
   if (preferred) {
-    const exact = candidates.find((row) => String(row.agent_id || "").trim().toLowerCase() === preferred);
+    const exact = candidates
+      .filter((row) => String(row.agent_id || "").trim().toLowerCase() === preferred)
+      .sort((a, b) => {
+        const [ahb, ahbIso] = rank(a);
+        const [bhb, bhbIso] = rank(b);
+        if (bhb !== ahb) return bhb - ahb;
+        const updatedDiff = String(b.updated_at_utc || "").localeCompare(String(a.updated_at_utc || ""));
+        if (updatedDiff !== 0) return updatedDiff;
+        return String(bhbIso).localeCompare(String(ahbIso));
+      })[0];
     if (exact) return exact;
   }
-  return [...candidates].sort((a, b) => String(b.updated_at_utc || "").localeCompare(String(a.updated_at_utc || "")))[0] || null;
+  return [...candidates]
+    .sort((a, b) => {
+      const [ahb, ahbIso] = rank(a);
+      const [bhb, bhbIso] = rank(b);
+      if (bhb !== ahb) return bhb - ahb;
+      const updatedDiff = String(b.updated_at_utc || "").localeCompare(String(a.updated_at_utc || ""));
+      if (updatedDiff !== 0) return updatedDiff;
+      return String(bhbIso).localeCompare(String(ahbIso));
+    })[0] || null;
 }
