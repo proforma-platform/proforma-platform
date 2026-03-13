@@ -161,6 +161,77 @@ function updateQueueRows(state: QueueState, transform: (row: QueueItem) => Queue
   });
 }
 
+function maybeFinalizeMpbParentFromQueue(state: QueueState, missionId: string, actor: string, now: string): QueueState {
+  const mission = String(missionId || "").trim().toUpperCase();
+  const match = mission.match(/^(.*)-(STAFF|PA|CPP1|CPP2)$/u);
+  if (!match) return state;
+  const parentMissionId = match[1];
+  const childMissionIds = [`${parentMissionId}-STAFF`, `${parentMissionId}-PA`, `${parentMissionId}-CPP1`, `${parentMissionId}-CPP2`];
+  const childRows = state.rows.filter((row) => childMissionIds.includes(String(row.mission_id || "").trim().toUpperCase()));
+  if (childRows.length < 4 || childRows.some((row) => row.status !== "done")) return state;
+  return updateQueueRows(state, (row) => {
+    if (String(row.mission_id || "").trim().toUpperCase() !== parentMissionId) return row;
+    if (row.status === "done") return row;
+    return {
+      ...row,
+      status: "done",
+      execution_progress_pct: 100,
+      execution_progress_label: "Concluída",
+      completion_note: "Bloco MPB concluído com subtarefas nominais finalizadas.",
+      completion_report_by: actor,
+      completion_report_at_utc: now,
+      last_transition_reason_code: "MPB_PARENT_DONE",
+      last_transition_reason_message: "Bloco MPB concluído após fechamento nominal das subtarefas.",
+      last_transition_source: "operations-queue",
+      last_transition_actor: actor,
+      last_transition_at_utc: now,
+      updated_at_utc: now,
+      last_executor_heartbeat_at_utc: now
+    };
+  });
+}
+
+function maybeReconcileMpbCanonicalClosure(state: QueueState, missionId: string, actor: string, now: string): QueueState {
+  const mission = String(missionId || "").trim().toUpperCase();
+  if (!mission) return state;
+
+  const suffixMatch = mission.match(/^(.*)-(STAFF|PA|CPP1|CPP2)$/u);
+  const parentMissionId = suffixMatch?.[1] || mission;
+  const childMissionIds = [`${parentMissionId}-STAFF`, `${parentMissionId}-PA`, `${parentMissionId}-CPP1`, `${parentMissionId}-CPP2`];
+  const childRows = state.rows.filter((row) => childMissionIds.includes(String(row.mission_id || "").trim().toUpperCase()));
+  if (childRows.length < 4) return state;
+
+  const cpp1 = childRows.find((row) => String(row.mission_id || "").trim().toUpperCase() === `${parentMissionId}-CPP1`);
+  const cpp2 = childRows.find((row) => String(row.mission_id || "").trim().toUpperCase() === `${parentMissionId}-CPP2`);
+  if (!cpp1 || !cpp2) return state;
+  if (cpp1.status !== "done" || cpp2.status !== "done") return state;
+
+  const reconciled = updateQueueRows(state, (row) => {
+    const rowMission = String(row.mission_id || "").trim().toUpperCase();
+    const isPaOrStaff = rowMission === `${parentMissionId}-PA` || rowMission === `${parentMissionId}-STAFF`;
+    if (!isPaOrStaff) return row;
+    if (row.status !== "open") return row;
+    return {
+      ...row,
+      status: "done",
+      execution_progress_pct: 100,
+      execution_progress_label: "Concluída",
+      completion_note: "Fechamento canônico MPB após conclusão de CPP1 e CPP2.",
+      completion_report_by: actor,
+      completion_report_at_utc: now,
+      last_transition_reason_code: "MPB_CANONICAL_FORCE_CLOSE",
+      last_transition_reason_message: "Subtarefa PA/STAFF auto-fechada por regra canônica (CPP1+CPP2 concluídos).",
+      last_transition_source: "operations-queue",
+      last_transition_actor: actor,
+      last_transition_at_utc: now,
+      updated_at_utc: now,
+      last_executor_heartbeat_at_utc: now
+    };
+  });
+
+  return maybeFinalizeMpbParentFromQueue(reconciled, `${parentMissionId}-PA`, actor, now);
+}
+
 export async function GET(request: Request) {
   const auth = requireRole(request, "viewer");
   if (!auth.ok) {
@@ -244,6 +315,7 @@ export async function POST(request: Request) {
     const kind = clampText(data.kind, 60) || "general";
     const priority = normalizePriority(data.priority);
     const assignee = normalizeAssignee(data.assignee || decideAssignee(kind));
+    const assigneeAgentId = clampText(data.assignee_agent_id, 80).toLowerCase();
     const status = assignee === "STAFF" ? "open" : "staff_validation_gate";
     const item: QueueItem = {
       queue_id: createQueueId(missionId, title),
@@ -253,6 +325,7 @@ export async function POST(request: Request) {
       kind,
       priority,
       assignee,
+      ...(assigneeAgentId ? { assignee_agent_id: assigneeAgentId } : {}),
       status,
       execution_progress_pct: 0,
       created_at_utc: now,
@@ -299,6 +372,7 @@ export async function POST(request: Request) {
       const kind = clampText(row.kind || row.executor, 60) || "general";
       const priority = normalizePriority(row.priority);
       const assignee = normalizeAssignee(row.assignee || decideAssignee(kind));
+      const assigneeAgentId = clampText(row.assignee_agent_id, 80).toLowerCase();
       const status = assignee === "STAFF" ? "open" : "staff_validation_gate";
       acc.push({
         queue_id: createQueueId(missionId, title, idx + 1),
@@ -308,6 +382,7 @@ export async function POST(request: Request) {
         kind,
         priority,
         assignee,
+        ...(assigneeAgentId ? { assignee_agent_id: assigneeAgentId } : {}),
         status,
         execution_progress_pct: 0,
         created_at_utc: now,
@@ -385,9 +460,51 @@ export async function POST(request: Request) {
     }, { status: saved.ok ? 200 : 502 });
   }
 
+  if (action === "clear_open") {
+    const removed = base.rows.filter((row) => row.status === "open").length;
+    const next = sanitizeQueueState({ ...base, updated_at_utc: now, rows: base.rows.filter((row) => row.status !== "open") });
+    const saved = await saveSnapshotPayload(config, {
+      snapshotType: QUEUE_SNAPSHOT_TYPE,
+      payload: next,
+      createdBy: actor,
+      sourceRepo: "gov-manager",
+      sourceRef: "execution-queue-clear-open"
+    });
+    await recomputeAndPersistOfficePresence(config, { actor, sourceRef: "queue-clear-open", queueState: next });
+    return NextResponse.json({
+      status: saved.ok ? "ok" : "upstream_error",
+      removed,
+      summary: summarizeQueue(next.rows),
+      rows: next.rows.slice(0, 80),
+      govhub_http: saved.status,
+      payload_sha256: saved.payload_sha256
+    }, { status: saved.ok ? 200 : 502 });
+  }
+
+  if (action === "clear_paused") {
+    const removed = base.rows.filter((row) => row.status === "paused_waiting_owner").length;
+    const next = sanitizeQueueState({ ...base, updated_at_utc: now, rows: base.rows.filter((row) => row.status !== "paused_waiting_owner") });
+    const saved = await saveSnapshotPayload(config, {
+      snapshotType: QUEUE_SNAPSHOT_TYPE,
+      payload: next,
+      createdBy: actor,
+      sourceRepo: "gov-manager",
+      sourceRef: "execution-queue-clear-paused"
+    });
+    await recomputeAndPersistOfficePresence(config, { actor, sourceRef: "queue-clear-paused", queueState: next });
+    return NextResponse.json({
+      status: saved.ok ? "ok" : "upstream_error",
+      removed,
+      summary: summarizeQueue(next.rows),
+      rows: next.rows.slice(0, 80),
+      govhub_http: saved.status,
+      payload_sha256: saved.payload_sha256
+    }, { status: saved.ok ? 200 : 502 });
+  }
+
   if (action !== "update_status") {
     return NextResponse.json(
-      { status: "invalid_request", error_code: "ACTION_NOT_SUPPORTED", allowed_actions: ["create_item", "create_plan", "update_status", "remove_item", "clear_done"] },
+      { status: "invalid_request", error_code: "ACTION_NOT_SUPPORTED", allowed_actions: ["create_item", "create_plan", "update_status", "remove_item", "clear_done", "clear_open", "clear_paused"] },
       { status: 400 }
     );
   }
@@ -406,6 +523,7 @@ export async function POST(request: Request) {
   const etaDeltaMin = clampInt(data.eta_delta_min, 0, -30, 60);
   const etaDeltaAllowed = etaDeltaMin !== 0 && Math.abs(etaDeltaMin) % 5 === 0;
   const etaReason = clampText(data.eta_reason, 180);
+  const requestedAssigneeAgentId = clampText(data.assignee_agent_id, 80).toLowerCase();
   const completionNoteInput = clampText(data.completion_note, 1400);
   const progressPctInput = clampProgress(data.execution_progress_pct);
   const completionProof = clampText(data.completion_proof, 600);
@@ -473,6 +591,7 @@ export async function POST(request: Request) {
       nextRow = {
         ...current,
         assignee: requestedAssignee,
+        ...(requestedAssigneeAgentId ? { assignee_agent_id: requestedAssigneeAgentId } : {}),
         status: "open",
         last_transition_reason_code: "STAFF_VALIDATION_BIND_CPP_AUTO",
         last_transition_reason_message: `Gate validado automaticamente e pronto para esteira A Fazer (${actor}).`,
@@ -521,6 +640,7 @@ export async function POST(request: Request) {
         nextRow = {
           ...current,
           assignee: requestedAssignee,
+          ...(requestedAssigneeAgentId ? { assignee_agent_id: requestedAssigneeAgentId } : {}),
           status: "open",
           last_transition_reason_code: "STAFF_VALIDATION_REASSIGN_CPP",
           last_transition_reason_message: `Gate validado com reassign para ${requestedAssignee} por ${actor}.`,
@@ -548,6 +668,7 @@ export async function POST(request: Request) {
         nextRow = {
           ...current,
           assignee: requestedAssignee,
+          ...(requestedAssigneeAgentId ? { assignee_agent_id: requestedAssigneeAgentId } : {}),
           status: "open",
           last_transition_reason_code: "STAFF_VALIDATION_BIND_CPP",
           last_transition_reason_message: `Gate validado e pronto para esteira A Fazer (${actor}).`,
@@ -606,6 +727,7 @@ export async function POST(request: Request) {
         nextRow = {
           ...current,
           assignee: requestedAssignee,
+          ...(requestedAssigneeAgentId ? { assignee_agent_id: requestedAssigneeAgentId } : {}),
           status: "open",
           last_transition_reason_code: "STAFF_VALIDATION_REASSIGN_CPP",
           last_transition_reason_message: `Gate validado com reassign para ${requestedAssignee} por ${actor}.`,
@@ -945,6 +1067,7 @@ export async function POST(request: Request) {
   }
 
   nextQueue = updateQueueRows(base, (row) => (row.queue_id === queueId ? nextRow : row));
+  nextQueue = maybeReconcileMpbCanonicalClosure(nextQueue, current.mission_id, actor, now);
   const saved = await saveSnapshotPayload(config, {
     snapshotType: QUEUE_SNAPSHOT_TYPE,
     payload: nextQueue,
